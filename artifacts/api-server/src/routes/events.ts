@@ -47,6 +47,8 @@ import {
   CreateCommunityEventBody,
   CreateCommunityEventResponse,
   GetCommunityEventPlanChatResponse,
+  GetMyCommunityEventPlanChatsResponse,
+  MarkCommunityEventPlanChatReadResponse,
   SetCommunityEventPlanChatNotificationsBody,
   SetCommunityEventPlanChatNotificationsResponse,
   SendCommunityEventPlanChatMessageBody,
@@ -1673,6 +1675,223 @@ router.get(
 );
 
 router.get(
+  "/community-events/my-plan-chats",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const viewerIsExplorer = await isVerifiedExplorer(uid);
+    const candidateEvents = await db
+      .select({
+        id: communityEventsTable.id,
+        ownerUid: communityEventsTable.ownerUid,
+        title: communityEventsTable.title,
+        joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+        verifiedExplorersOnly: communityEventsTable.verifiedExplorersOnly,
+        inviteeUids: communityEventsTable.inviteeUids,
+      })
+      .from(communityEventsTable)
+      .where(and(
+        eq(communityEventsTable.isHidden, false),
+        viewerIsExplorer ? undefined : eq(communityEventsTable.verifiedExplorersOnly, false),
+        or(
+          eq(communityEventsTable.ownerUid, uid),
+          arrayContains(communityEventsTable.inviteeUids, [uid]),
+          exists(
+            db
+              .select({ id: communityEventRsvpsTable.id })
+              .from(communityEventRsvpsTable)
+              .where(and(
+                eq(communityEventRsvpsTable.eventId, communityEventsTable.id),
+                eq(communityEventRsvpsTable.userUid, uid),
+              )),
+          ),
+        ),
+      ))
+      .orderBy(desc(communityEventsTable.startsAt), desc(communityEventsTable.id));
+
+    const eventIds = candidateEvents.map((event) => event.id);
+    if (!eventIds.length) {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(GetMyCommunityEventPlanChatsResponse.parse({ conversations: [] }));
+      return;
+    }
+
+    const myRsvps = await db
+      .select({
+        eventId: communityEventRsvpsTable.eventId,
+        status: communityEventRsvpsTable.status,
+      })
+      .from(communityEventRsvpsTable)
+      .where(and(
+        inArray(communityEventRsvpsTable.eventId, eventIds),
+        eq(communityEventRsvpsTable.userUid, uid),
+      ));
+    const rsvpByEventId = new Map(myRsvps.map((rsvp) => [rsvp.eventId, rsvp.status]));
+    const accessibleEventIds = candidateEvents
+      .filter((event) => {
+        if (event.ownerUid === uid) return true;
+        const rsvpStatus = rsvpByEventId.get(event.id);
+        if (rsvpStatus) return rsvpStatus === "going" || rsvpStatus === "maybe";
+        return event.inviteeUids.includes(uid);
+      })
+      .map((event) => event.id);
+
+    if (!accessibleEventIds.length) {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(GetMyCommunityEventPlanChatsResponse.parse({ conversations: [] }));
+      return;
+    }
+
+    const latestMessageId = db
+      .select({ id: communityEventPlanMessagesTable.id })
+      .from(communityEventPlanMessagesTable)
+      .where(and(
+        eq(communityEventPlanMessagesTable.eventId, communityEventsTable.id),
+        or(
+          isNull(communityEventPlanMessagesTable.mediaExpiresAt),
+          gt(communityEventPlanMessagesTable.mediaExpiresAt, new Date()),
+        ),
+      ))
+      .orderBy(
+        desc(communityEventPlanMessagesTable.createdAt),
+        desc(communityEventPlanMessagesTable.id),
+      )
+      .limit(1);
+    const [rows, incomingRows] = await Promise.all([
+      db
+        .select({
+          eventId: communityEventsTable.id,
+          eventTitle: communityEventsTable.title,
+          joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+          lastMessageId: communityEventPlanMessagesTable.id,
+          lastMessageText: communityEventPlanMessagesTable.message,
+          senderUid: communityEventPlanMessagesTable.senderUid,
+          senderName: profilesTable.displayName,
+          mediaType: communityEventPlanMessagesTable.mediaType,
+          createdAt: communityEventPlanMessagesTable.createdAt,
+          lastReadMessageId: communityEventPlanNotificationPreferencesTable.lastReadMessageId,
+        })
+        .from(communityEventsTable)
+        .innerJoin(
+          communityEventPlanMessagesTable,
+          eq(communityEventPlanMessagesTable.id, latestMessageId),
+        )
+        .leftJoin(
+          profilesTable,
+          eq(profilesTable.uid, communityEventPlanMessagesTable.senderUid),
+        )
+        .leftJoin(
+          communityEventPlanNotificationPreferencesTable,
+          and(
+            eq(communityEventPlanNotificationPreferencesTable.eventId, communityEventsTable.id),
+            eq(communityEventPlanNotificationPreferencesTable.userUid, uid),
+          ),
+        )
+        .where(inArray(communityEventsTable.id, accessibleEventIds))
+        .orderBy(
+          desc(communityEventPlanMessagesTable.createdAt),
+          desc(communityEventPlanMessagesTable.id),
+        ),
+      db
+        .select({
+          eventId: communityEventPlanMessagesTable.eventId,
+          lastIncomingMessageId: sql<number>`max(${communityEventPlanMessagesTable.id})`,
+        })
+        .from(communityEventPlanMessagesTable)
+        .where(and(
+          inArray(communityEventPlanMessagesTable.eventId, accessibleEventIds),
+          ne(communityEventPlanMessagesTable.senderUid, uid),
+          or(
+            isNull(communityEventPlanMessagesTable.mediaExpiresAt),
+            gt(communityEventPlanMessagesTable.mediaExpiresAt, new Date()),
+          ),
+        ))
+        .groupBy(communityEventPlanMessagesTable.eventId),
+    ]);
+    const incomingMessageIdByEventId = new Map(
+      incomingRows.map((row) => [row.eventId, row.lastIncomingMessageId]),
+    );
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json(
+      GetMyCommunityEventPlanChatsResponse.parse({
+        conversations: rows.map((row) => ({
+          eventId: row.eventId,
+          eventTitle: row.eventTitle,
+          eventType: row.joinApprovalRequired ? "hangout" : "plan",
+          lastMessageText: row.lastMessageText,
+          senderUid: row.senderUid,
+          senderName: row.senderName || "Met member",
+          mediaType: row.mediaType === "image" || row.mediaType === "voice"
+            ? row.mediaType
+            : null,
+          createdAt: row.createdAt.toISOString(),
+          isUnread: (incomingMessageIdByEventId.get(row.eventId) ?? 0) >
+            (row.lastReadMessageId ?? 0),
+        })),
+      }),
+    );
+  },
+);
+
+router.put(
+  "/community-events/:eventId/plan-chat/read",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const eventId = getEventId(req.params.eventId);
+    if (!eventId) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const context = await getCommunityEventPlanChatContext(eventId, req.uid!);
+    if (!context) {
+      res.status(404).json({ message: "Plan conversation not found." });
+      return;
+    }
+
+    const [latestMessage] = await db
+      .select({ id: communityEventPlanMessagesTable.id })
+      .from(communityEventPlanMessagesTable)
+      .where(and(
+        eq(communityEventPlanMessagesTable.eventId, eventId),
+        or(
+          isNull(communityEventPlanMessagesTable.mediaExpiresAt),
+          gt(communityEventPlanMessagesTable.mediaExpiresAt, new Date()),
+        ),
+      ))
+      .orderBy(desc(communityEventPlanMessagesTable.id))
+      .limit(1);
+    const readThroughMessageId = latestMessage?.id ?? null;
+    const now = new Date();
+    await db
+      .insert(communityEventPlanNotificationPreferencesTable)
+      .values({
+        eventId,
+        userUid: req.uid!,
+        lastReadMessageId: readThroughMessageId,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          communityEventPlanNotificationPreferencesTable.eventId,
+          communityEventPlanNotificationPreferencesTable.userUid,
+        ],
+        set: {
+          lastReadMessageId: sql`GREATEST(COALESCE(${communityEventPlanNotificationPreferencesTable.lastReadMessageId}, 0), COALESCE(excluded.last_read_message_id, 0))`,
+          updatedAt: now,
+        },
+      });
+
+    res.json(
+      MarkCommunityEventPlanChatReadResponse.parse({
+        readThroughMessageId,
+      }),
+    );
+  },
+);
+
+
+router.get(
   "/community-events/:eventId/plan-chat",
   requireUid,
   async (req, res): Promise<void> => {
@@ -1735,6 +1954,7 @@ router.get(
       db
         .select({
           muted: communityEventPlanNotificationPreferencesTable.muted,
+          lastReadMessageId: communityEventPlanNotificationPreferencesTable.lastReadMessageId,
         })
         .from(communityEventPlanNotificationPreferencesTable)
         .where(
@@ -1745,6 +1965,59 @@ router.get(
         )
         .limit(1)
     ]);
+    const readThroughMessageId =
+      notificationPreference[0]?.lastReadMessageId ?? null;
+    let firstUnreadMessage:
+      | (typeof messages)[number]
+      | undefined;
+    const oldestLoadedMessageId = messages[messages.length - 1]?.id;
+    if (
+      oldestLoadedMessageId !== undefined &&
+      (readThroughMessageId ?? 0) < oldestLoadedMessageId
+    ) {
+      const [firstUnread] = await db
+        .select({
+          id: communityEventPlanMessagesTable.id,
+          senderUid: communityEventPlanMessagesTable.senderUid,
+          senderName: profilesTable.displayName,
+          senderPhotoUrl: profilesTable.photoUrl,
+          text: communityEventPlanMessagesTable.message,
+          mediaType: communityEventPlanMessagesTable.mediaType,
+          mediaObjectPath: communityEventPlanMessagesTable.mediaObjectPath,
+          audioDurationMs: communityEventPlanMessagesTable.audioDurationMs,
+          mediaExpiresAt: communityEventPlanMessagesTable.mediaExpiresAt,
+          createdAt: communityEventPlanMessagesTable.createdAt,
+        })
+        .from(communityEventPlanMessagesTable)
+        .leftJoin(
+          profilesTable,
+          eq(profilesTable.uid, communityEventPlanMessagesTable.senderUid),
+        )
+        .where(and(
+          eq(communityEventPlanMessagesTable.eventId, eventId),
+          ne(communityEventPlanMessagesTable.senderUid, req.uid!),
+          gt(communityEventPlanMessagesTable.id, readThroughMessageId ?? 0),
+          or(
+            isNull(communityEventPlanMessagesTable.mediaExpiresAt),
+            gt(communityEventPlanMessagesTable.mediaExpiresAt, new Date()),
+          ),
+        ))
+        .orderBy(
+          communityEventPlanMessagesTable.createdAt,
+          communityEventPlanMessagesTable.id,
+        )
+        .limit(1);
+      firstUnreadMessage = firstUnread;
+    }
+    const chatMessages = firstUnreadMessage &&
+      !messages.some((message) => message.id === firstUnreadMessage.id)
+      ? [...messages, firstUnreadMessage]
+      : messages;
+    const orderedMessages = chatMessages.slice().sort(
+      (left, right) =>
+        right.createdAt.getTime() - left.createdAt.getTime() ||
+        right.id - left.id,
+    );
     const profilesByUid = new Map(profiles.map((profile) => [profile.uid, profile]));
     const participants = participantUids.map((uid) => {
       const rsvp = activeRsvps.find((item) => item.userUid === uid);
@@ -1769,7 +2042,8 @@ router.get(
         },
         participants,
         notificationsMuted: notificationPreference[0]?.muted ?? false,
-        messages: await Promise.all(messages.slice().reverse().map(async (message) => {
+        readThroughMessageId,
+        messages: await Promise.all(orderedMessages.reverse().map(async (message) => {
           let mediaUrl: string | null = null;
           if (message.mediaObjectPath && message.mediaType) {
             try {

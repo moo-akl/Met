@@ -31,6 +31,8 @@ import {
   getGetCommunityEventPlanChatQueryKey,
   getGetCommunityEventPlanChatQueryOptions,
   getGetEventsFeedQueryKey,
+  getGetMyCommunityEventPlanChatsQueryKey,
+  useMarkCommunityEventPlanChatRead,
   useRsvpCommunityEvent,
   useSetCommunityEventPlanChatNotifications,
   useSendCommunityEventPlanChatMessage,
@@ -164,6 +166,8 @@ export default function EventChatScreen() {
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [leavePending, setLeavePending] = useState(false);
   const setPlanNotifications = useSetCommunityEventPlanChatNotifications();
+  const markPlanChatRead = useMarkCommunityEventPlanChatRead();
+  const lastMarkedReadRef = useRef<{ eventId: number; messageId: number } | null>(null);
   const updateRsvp = useRsvpCommunityEvent();
   const uploadMedia = useCreateCommunityEventPlanChatMediaUpload();
   const planChat = useQuery({
@@ -180,6 +184,79 @@ export default function EventChatScreen() {
   const messages = planChat.data?.messages ?? [];
   const newestFirstMessages = useMemo(() => [...messages].reverse(), [messages]);
   const participants = planChat.data?.participants ?? [];
+  const latestMessageId = messages.length ? messages[messages.length - 1]?.id : undefined;
+  const [firstUnreadDivider, setFirstUnreadDivider] = useState<{
+    eventId: number;
+    messageId: number;
+  } | null>(null);
+  const capturedUnreadEventIdRef = useRef<number | null>(null);
+  const firstUnreadMessageId =
+    firstUnreadDivider?.eventId === eventId ? firstUnreadDivider.messageId : null;
+
+  useEffect(() => {
+    if (
+      !isValidRoute ||
+      !authedUid ||
+      !planChat.isSuccess ||
+      planChat.isFetching ||
+      !planChat.data ||
+      planChat.data.event.id !== eventId ||
+      capturedUnreadEventIdRef.current === eventId
+    ) return;
+
+    capturedUnreadEventIdRef.current = eventId;
+    const readThroughMessageId = planChat.data.readThroughMessageId ?? 0;
+    const firstUnreadMessage = messages.find(
+      (message) =>
+        message.senderUid !== authedUid && message.id > readThroughMessageId,
+    );
+    setFirstUnreadDivider(
+      firstUnreadMessage
+        ? { eventId, messageId: firstUnreadMessage.id }
+        : null,
+    );
+  }, [
+    authedUid,
+    eventId,
+    isValidRoute,
+    messages,
+    planChat.data,
+    planChat.isFetching,
+    planChat.isSuccess,
+  ]);
+
+  useEffect(() => {
+    if (!isValidRoute || !authedUid || latestMessageId == null) return;
+    const previousRead = lastMarkedReadRef.current;
+    if (
+      previousRead?.eventId === eventId &&
+      latestMessageId <= previousRead.messageId
+    ) return;
+
+    let cancelled = false;
+    void markPlanChatRead.mutateAsync({ eventId })
+      .then(() => {
+        if (cancelled) return;
+        lastMarkedReadRef.current = { eventId, messageId: latestMessageId };
+        void queryClient.invalidateQueries({
+          queryKey: getGetMyCommunityEventPlanChatsQueryKey(),
+        });
+      })
+      .catch(() => {
+        // The next successful chat refresh will retry marking this read.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authedUid,
+    eventId,
+    isValidRoute,
+    latestMessageId,
+    markPlanChatRead.mutateAsync,
+    planChat.dataUpdatedAt,
+    queryClient,
+  ]);>>>>>>> current GitHub main
 
   useEffect(() => {
     return () => {
@@ -626,76 +703,92 @@ export default function EventChatScreen() {
               renderItem={({ item }) => {
                 const isMine = item.senderUid === authedUid;
                 return (
-                  <View
-                    style={[
-                      styles.messageRow,
-                      isMine ? styles.messageRowMine : styles.messageRowOther,
-                    ]}
-                  >
-                    {!isMine ? (
-                      <Avatar uri={item.senderPhotoUrl} size={28} fallbackText={item.senderName} />
-                    ) : null}
-                    <View style={[styles.messageContent, isMine ? styles.messageContentMine : null]}>
-                      {!isMine ? (
-                        <Text style={[styles.senderName, { color: colors.mutedForeground }]}>
-                          {item.senderName}
-                        </Text>
-                      ) : null}
+                  <View>
+                    {item.id === firstUnreadMessageId ? (
                       <View
-                        style={[
-                          styles.messageBubble,
-                          item.mediaType === "image" ? styles.messageBubbleImage : null,
-                          {
-                            backgroundColor: isMine ? colors.primary : colors.card,
-                            borderColor: isMine ? colors.primary : colors.border,
-                          },
-                        ]}
+                        accessible
+                        accessibilityRole="text"
+                        accessibilityLabel={t("tabs.events.planChatNewMessages")}
+                        style={styles.unreadDivider}
                       >
-                        {item.mediaType === "image" && item.mediaUrl ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={t("tabs.events.planChatChoosePhoto")}
-                            onPress={() => setViewerUri(item.mediaUrl)}
-                          >
-                            <Image
-                              source={{ uri: item.mediaUrl }}
-                              contentFit="cover"
-                              style={styles.messageImage}
-                            />
-                          </Pressable>
-                        ) : null}
-                        {item.mediaType === "voice" && item.mediaUrl ? (
-                          <VoiceMessagePlayer
-                            uri={item.mediaUrl}
-                            durationMs={item.audioDurationMs}
-                            isMine={isMine}
-                            colors={colors}
-                          />
-                        ) : null}
-                        {item.mediaType && !item.mediaUrl ? (
-                          <Text
-                            style={[
-                              styles.messageText,
-                              { color: isMine ? colors.primaryForeground : colors.text },
-                            ]}
-                          >
-                            {t("tabs.events.planChatMediaUnavailable")}
-                          </Text>
-                        ) : null}
-                        {item.text ? (
-                          <Text
-                            style={[
-                              styles.messageText,
-                              { color: isMine ? colors.primaryForeground : colors.text },
-                            ]}
-                          >
-                            {item.text}
-                          </Text>
-                        ) : null}
+                        <View style={[styles.unreadDividerLine, { backgroundColor: colors.border }]} />
+                        <Text style={[styles.unreadDividerText, { color: colors.primary }]}>
+                          {t("tabs.events.planChatNewMessages")}
+                        </Text>
+                        <View style={[styles.unreadDividerLine, { backgroundColor: colors.border }]} />
                       </View>
-                      <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
-                        {formatMessageTime(item.createdAt)}
-                      </Text>
+                    ) : null}
+                    <View
+                      style={[
+                        styles.messageRow,
+                        isMine ? styles.messageRowMine : styles.messageRowOther,
+                      ]}
+                    >
+                      {!isMine ? (
+                        <Avatar uri={item.senderPhotoUrl} size={28} fallbackText={item.senderName} />
+                      ) : null}
+                      <View style={[styles.messageContent, isMine ? styles.messageContentMine : null]}>
+                        {!isMine ? (
+                          <Text style={[styles.senderName, { color: colors.mutedForeground }]}>
+                            {item.senderName}
+                          </Text>
+                        ) : null}
+                        <View
+                          style={[
+                            styles.messageBubble,
+                            item.mediaType === "image" ? styles.messageBubbleImage : null,
+                            {
+                              backgroundColor: isMine ? colors.primary : colors.card,
+                              borderColor: isMine ? colors.primary : colors.border,
+                            },
+                          ]}
+                        >
+                          {item.mediaType === "image" && item.mediaUrl ? (
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={t("tabs.events.planChatChoosePhoto")}
+                              onPress={() => setViewerUri(item.mediaUrl)}
+                            >
+                              <Image
+                                source={{ uri: item.mediaUrl }}
+                                contentFit="cover"
+                                style={styles.messageImage}
+                              />
+                            </Pressable>
+                          ) : null}
+                          {item.mediaType === "voice" && item.mediaUrl ? (
+                            <VoiceMessagePlayer
+                              uri={item.mediaUrl}
+                              durationMs={item.audioDurationMs}
+                              isMine={isMine}
+                              colors={colors}
+                            />
+                          ) : null}
+                          {item.mediaType && !item.mediaUrl ? (
+                            <Text
+                              style={[
+                                styles.messageText,
+                                { color: isMine ? colors.primaryForeground : colors.text },
+                              ]}
+                            >
+                              {t("tabs.events.planChatMediaUnavailable")}
+                            </Text>
+                          ) : null}
+                          {item.text ? (
+                            <Text
+                              style={[
+                                styles.messageText,
+                                { color: isMine ? colors.primaryForeground : colors.text },
+                              ]}
+                            >
+                              {item.text}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
+                          {formatMessageTime(item.createdAt)}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 );
@@ -904,6 +997,9 @@ const styles = StyleSheet.create({
   participantStatus: { fontSize: 10, textAlign: "center" },
   messageList: { flex: 1 },
   messageListContent: { paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
+  unreadDivider: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 },
+  unreadDividerLine: { height: StyleSheet.hairlineWidth, flex: 1 },
+  unreadDividerText: { fontSize: 11, fontWeight: "700" },
   emptyMessageList: { flexGrow: 1, justifyContent: "center" },
   emptyText: { alignSelf: "center", textAlign: "center", maxWidth: 260, fontSize: 14, lineHeight: 21 },
   messageRow: { flexDirection: "row", alignItems: "flex-end", gap: 7 },

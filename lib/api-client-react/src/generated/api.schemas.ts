@@ -2736,6 +2736,11 @@ export interface CommunityEventPlanChatResponse {
   participants: CommunityEventPlanChatParticipant[];
   messages: CommunityEventPlanChatMessage[];
   notificationsMuted: boolean;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  readThroughMessageId: number | null;
 }
 
 export interface CommunityEventPlanChatNotificationsInput {
@@ -2870,6 +2875,51 @@ export type PastMeetingsResponseMeetingsItem = {
 
 export interface PastMeetingsResponse {
   meetings: PastMeetingsResponseMeetingsItem[];
+}
+
+export type MyCommunityEventPlanChatsResponseConversationsItemEventType = typeof MyCommunityEventPlanChatsResponseConversationsItemEventType[keyof typeof MyCommunityEventPlanChatsResponseConversationsItemEventType];
+
+
+export const MyCommunityEventPlanChatsResponseConversationsItemEventType = {
+  hangout: 'hangout',
+  plan: 'plan',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MyCommunityEventPlanChatsResponseConversationsItemMediaType = typeof MyCommunityEventPlanChatsResponseConversationsItemMediaType[keyof typeof MyCommunityEventPlanChatsResponseConversationsItemMediaType] | null;
+
+
+export const MyCommunityEventPlanChatsResponseConversationsItemMediaType = {
+  image: 'image',
+  voice: 'voice',
+} as const;
+
+export type MyCommunityEventPlanChatsResponseConversationsItem = {
+  eventId: number;
+  eventTitle: string;
+  eventType: MyCommunityEventPlanChatsResponseConversationsItemEventType;
+  /** @maxLength 500 */
+  lastMessageText: string;
+  senderUid: string;
+  senderName: string;
+  /** @nullable */
+  mediaType: MyCommunityEventPlanChatsResponseConversationsItemMediaType;
+  createdAt: string;
+  isUnread: boolean;
+};
+
+export interface MyCommunityEventPlanChatsResponse {
+  conversations: MyCommunityEventPlanChatsResponseConversationsItem[];
+}
+
+export interface CommunityEventPlanChatReadResult {
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  readThroughMessageId: number | null;
 }
 
 export type NotificationInboxItemData = {[key: string]: string};

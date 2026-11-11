@@ -155,6 +155,7 @@ export const zh: LocaleTree = {
       planParticipants: "谁会参加",
       planHost: "发起人",
       planChatEmpty: "分享计划细节，或问问谁会参加。",
+      planChatNewMessages: "新消息",
       planChatPlaceholder: "给大家发消息...",
       planChatSendError: "消息发送失败，请重试。",
       planChatChoosePhoto: "选择照片",

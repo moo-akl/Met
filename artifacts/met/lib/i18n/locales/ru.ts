@@ -156,6 +156,7 @@ export const ru: LocaleTree = {
       planParticipants: "Кто придёт",
       planHost: "Организатор",
       planChatEmpty: "Расскажите о плане или спросите, кто присоединится.",
+      planChatNewMessages: "Новые сообщения",
       planChatPlaceholder: "Напишите всем...",
       planChatSendError: "Не удалось отправить сообщение. Попробуйте ещё раз.",
       planChatChoosePhoto: "Выбрать фото",

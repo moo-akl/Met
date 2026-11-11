@@ -808,6 +808,134 @@ describe("Hangout plan media", () => {
   });
 });
 
+describe("Hangout and plan chat inbox", () => {
+  it("lists the latest message only for members who can access the conversation", async () => {
+    await db.insert(communityEventPlanMessagesTable).values([
+      {
+        eventId: eventId!,
+        senderUid: explorerUid,
+        message: "Earlier message",
+      },
+      {
+        eventId: eventId!,
+        senderUid: explorerRequesterUid,
+        message: "Meet at the entrance",
+        mediaType: "image",
+      },
+    ]);
+
+    const memberInbox = await request(app)
+      .get("/api/community-events/my-plan-chats")
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(memberInbox.body.conversations).toEqual([
+      expect.objectContaining({
+        eventId,
+        eventTitle: "Explorer-only test hangout",
+        eventType: "hangout",
+        lastMessageText: "Meet at the entrance",
+        senderUid: explorerRequesterUid,
+        senderName: "Met member",
+        mediaType: "image",
+        isUnread: true,
+      }),
+    ]);
+
+    const readResponse = await request(app)
+      .put(`/api/community-events/${eventId}/plan-chat/read`)
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(readResponse.body.readThroughMessageId).toEqual(expect.any(Number));
+    const readThroughMessageId = readResponse.body.readThroughMessageId;
+
+    const openedChat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(openedChat.body.readThroughMessageId).toBe(readThroughMessageId);
+
+    const readInbox = await request(app)
+      .get("/api/community-events/my-plan-chats")
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(readInbox.body.conversations[0]?.isUnread).toBe(false);
+
+    await db.insert(communityEventPlanMessagesTable).values({
+      eventId: eventId!,
+      senderUid: explorerUid,
+      message: "I will bring a blanket",
+    });
+
+    const senderInbox = await request(app)
+      .get("/api/community-events/my-plan-chats")
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(senderInbox.body.conversations[0]?.isUnread).toBe(false);
+
+    await db.insert(communityEventPlanMessagesTable).values([
+      {
+        eventId: eventId!,
+        senderUid: explorerRequesterUid,
+        message: "Do you have a blanket?",
+      },
+      {
+        eventId: eventId!,
+        senderUid: explorerUid,
+        message: "Yes, I will bring one",
+      },
+    ]);
+    const incomingThenOutgoingInbox = await request(app)
+      .get("/api/community-events/my-plan-chats")
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(incomingThenOutgoingInbox.body.conversations[0]?.isUnread).toBe(true);
+
+    const otherMemberInbox = await request(app)
+      .get("/api/community-events/my-plan-chats")
+      .set("x-test-uid", explorerRequesterUid)
+      .expect(200);
+    expect(otherMemberInbox.body.conversations[0]?.isUnread).toBe(true);
+
+    const nonMemberInbox = await request(app)
+      .get("/api/community-events/my-plan-chats")
+      .set("x-test-uid", declinedRequesterUid)
+      .expect(200);
+    expect(nonMemberInbox.body.conversations).toEqual([]);
+
+    await request(app)
+      .put(`/api/community-events/${eventId}/plan-chat/read`)
+      .set("x-test-uid", declinedRequesterUid)
+      .expect(404);
+  });
+
+  it("includes the first unread incoming message when it is older than the latest message window", async () => {
+    await db.insert(communityEventPlanMessagesTable).values(
+      Array.from({ length: 105 }, (_, index) => ({
+        eventId: eventId!,
+        senderUid: index === 0 ? explorerRequesterUid : explorerUid,
+        message: `Message ${index + 1}`,
+      })),
+    );
+    const [firstIncomingMessage] = await db
+      .select({ id: communityEventPlanMessagesTable.id })
+      .from(communityEventPlanMessagesTable)
+      .where(and(
+        eq(communityEventPlanMessagesTable.eventId, eventId!),
+        eq(communityEventPlanMessagesTable.senderUid, explorerRequesterUid),
+      ))
+      .orderBy(communityEventPlanMessagesTable.id)
+      .limit(1);
+
+    const chat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+
+    expect(chat.body.readThroughMessageId).toBeNull();
+    expect(chat.body.messages).toHaveLength(101);
+    expect(chat.body.messages[0]?.id).toBe(firstIncomingMessage?.id);
+  });
+});
 describe("Explorer-only community event access", () => {
   it("hides the plan from feeds and nearby search but returns it to Explorers", async () => {
     const regularFeed = await request(app)

@@ -158,6 +158,7 @@ export const en = {
       planParticipants: "Who's going",
       planHost: "Host",
       planChatEmpty: "Start the conversation with a detail or ask who's joining.",
+      planChatNewMessages: "New messages",
       planChatPlaceholder: "Message everyone...",
       planChatSendError: "Your message couldn't be sent. Try again.",
       planChatChoosePhoto: "Choose a photo",

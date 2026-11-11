@@ -156,6 +156,7 @@ export const nl: LocaleTree = {
       planParticipants: "Wie komt er",
       planHost: "Organisator",
       planChatEmpty: "Deel iets over het plan of vraag wie erbij is.",
+      planChatNewMessages: "Nieuwe berichten",
       planChatPlaceholder: "Stuur een bericht aan de groep...",
       planChatSendError: "Je bericht kon niet worden verzonden. Probeer het opnieuw.",
       planChatChoosePhoto: "Een foto kiezen",

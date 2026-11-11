@@ -156,6 +156,7 @@ export const vi: LocaleTree = {
       planParticipants: "Ai sẽ tham gia",
       planHost: "Người tổ chức",
       planChatEmpty: "Chia sẻ chi tiết kế hoạch hoặc hỏi ai sẽ tham gia.",
+      planChatNewMessages: "Tin nhắn mới",
       planChatPlaceholder: "Nhắn tin cho mọi người...",
       planChatSendError: "Không thể gửi tin nhắn. Hãy thử lại.",
       planChatChoosePhoto: "Chọn ảnh",

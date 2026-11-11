@@ -156,6 +156,7 @@ export const ar: LocaleTree = {
       planParticipants: "من سيحضر؟",
       planHost: "المضيف",
       planChatEmpty: "ابدأ بتفصيل عن الخطة أو اسأل من سينضم.",
+      planChatNewMessages: "رسائل جديدة",
       planChatPlaceholder: "أرسل رسالة إلى المجموعة...",
       planChatSendError: "تعذر إرسال رسالتك. حاول مرة أخرى.",
       planChatChoosePhoto: "اختر صورة",

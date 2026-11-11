@@ -156,6 +156,7 @@ export const es: LocaleTree = {
       planParticipants: "Quién va",
       planHost: "Anfitrión",
       planChatEmpty: "Comparte un detalle del plan o pregunta quién se apunta.",
+      planChatNewMessages: "Mensajes nuevos",
       planChatPlaceholder: "Escribe al grupo...",
       planChatSendError: "No se pudo enviar el mensaje. Inténtalo de nuevo.",
       planChatChoosePhoto: "Elegir una foto",

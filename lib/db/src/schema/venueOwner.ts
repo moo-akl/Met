@@ -575,6 +575,7 @@ export const communityEventPlanNotificationPreferencesTable = pgTable(
       .references(() => communityEventsTable.id, { onDelete: "cascade" }),
     userUid: text("user_uid").notNull(),
     muted: boolean("muted").notNull().default(false),
+    lastReadMessageId: integer("last_read_message_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -156,6 +156,7 @@ export const fr: LocaleTree = {
       planParticipants: "Qui vient ?",
       planHost: "Organisateur",
       planChatEmpty: "Lancez la discussion avec un détail ou demandez qui vient.",
+      planChatNewMessages: "Nouveaux messages",
       planChatPlaceholder: "Écrivez au groupe...",
       planChatSendError: "Impossible d’envoyer votre message. Réessayez.",
       planChatChoosePhoto: "Choisir une photo",

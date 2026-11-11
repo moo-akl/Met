@@ -14,4 +14,9 @@ export interface CommunityEventPlanChatResponse {
   participants: CommunityEventPlanChatParticipant[];
   messages: CommunityEventPlanChatMessage[];
   notificationsMuted: boolean;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  readThroughMessageId: number | null;
 }

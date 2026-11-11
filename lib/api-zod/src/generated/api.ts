@@ -4208,7 +4208,7 @@ export const GetEventDetailsResponse = zod.object({
 
 
 /**
- * @summary Rate the host after an accepted Hangout has ended
+ * @summary Rate a community plan host after the guest's plan has ended
  */
 export const RateCommunityEventHostParams = zod.object({
   "eventId": zod.coerce.number().int()
@@ -4459,6 +4459,7 @@ export const getCommunityEventPlanChatResponseMessagesItemAudioDurationMsMax = 1
 
 
 
+
 export const GetCommunityEventPlanChatResponse = zod.object({
   "event": zod.object({
   "id": zod.number().int(),
@@ -4485,7 +4486,8 @@ export const GetCommunityEventPlanChatResponse = zod.object({
   "audioDurationMs": zod.number().int().min(1).max(getCommunityEventPlanChatResponseMessagesItemAudioDurationMsMax).nullable(),
   "mediaExpiresAt": zod.coerce.date().nullable()
 })),
-  "notificationsMuted": zod.boolean()
+  "notificationsMuted": zod.boolean(),
+  "readThroughMessageId": zod.number().int().min(1).nullable()
 })
 
 
@@ -4533,6 +4535,28 @@ export const SendCommunityEventPlanChatMessageResponse = zod.object({
   "audioDurationMs": zod.number().int().min(1).max(sendCommunityEventPlanChatMessageResponseMessageAudioDurationMsMax).nullable(),
   "mediaExpiresAt": zod.coerce.date().nullable()
 })
+})
+
+
+/**
+ * @summary List the signed-in user's Hangout and plan conversations
+ */
+export const getMyCommunityEventPlanChatsResponseConversationsItemLastMessageTextMax = 500;
+
+
+
+export const GetMyCommunityEventPlanChatsResponse = zod.object({
+  "conversations": zod.array(zod.object({
+  "eventId": zod.number().int(),
+  "eventTitle": zod.string(),
+  "eventType": zod.enum(['hangout', 'plan']),
+  "lastMessageText": zod.string().max(getMyCommunityEventPlanChatsResponseConversationsItemLastMessageTextMax),
+  "senderUid": zod.string(),
+  "senderName": zod.string(),
+  "mediaType": zod.union([zod.literal('image'),zod.literal('voice'),zod.literal(null)]).nullable(),
+  "createdAt": zod.coerce.date(),
+  "isUnread": zod.boolean()
+}))
 })
 
 
@@ -4595,6 +4619,24 @@ export const SetCommunityEventPlanChatNotificationsBody = zod.object({
 
 export const SetCommunityEventPlanChatNotificationsResponse = zod.object({
   "muted": zod.boolean()
+})
+
+
+/**
+ * @summary Record the latest group-chat message read by the signed-in member
+ */
+
+
+
+export const MarkCommunityEventPlanChatReadParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const MarkCommunityEventPlanChatReadResponse = zod.object({
+  "readThroughMessageId": zod.number().int().min(1).nullable()
 })
 
 

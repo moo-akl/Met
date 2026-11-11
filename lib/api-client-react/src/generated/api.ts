@@ -59,6 +59,7 @@ import type {
   CommunityEventPlanChatMessageResponse,
   CommunityEventPlanChatNotificationsInput,
   CommunityEventPlanChatNotificationsResponse,
+  CommunityEventPlanChatReadResult,
   CommunityEventPlanChatResponse,
   CommunityEventReportInput,
   CommunityEventReportResponse,
@@ -120,6 +121,7 @@ import type {
   MarkAllNotificationsReadResult,
   MarkNotificationReadResult,
   MeetingHostRating,
+  MyCommunityEventPlanChatsResponse,
   NativeBranchApplicationInput,
   NativeBranchApplicationSubmitted,
   NearbyEntry,
@@ -9547,7 +9549,7 @@ export const getRateCommunityEventHostUrl = (eventId: number,) => {
 }
 
 /**
- * @summary Rate the host after an accepted Hangout has ended
+ * @summary Rate a community plan host after the guest's plan has ended
  */
 export const rateCommunityEventHost = async (eventId: number,
     hangoutHostRatingInput: HangoutHostRatingInput, options?: Parameters<typeof customFetch>[1]): Promise<MeetingHostRating> => {
@@ -9614,7 +9616,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RateCommunityEventHostMutationVariables = {eventId: number;data: BodyType<HangoutHostRatingInput>}
 
     /**
- * @summary Rate the host after an accepted Hangout has ended
+ * @summary Rate a community plan host after the guest's plan has ended
  */
 export const useRateCommunityEventHost = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateCommunityEventHost>>, TError,RateCommunityEventHostMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -10391,6 +10393,107 @@ export const useSendCommunityEventPlanChatMessage = <TError = ErrorType<void>,
       return useMutation(getSendCommunityEventPlanChatMessageMutationOptions(options), queryClient);
     }
 
+export const getGetMyCommunityEventPlanChatsUrl = () => {
+
+
+
+
+  return `/api/community-events/my-plan-chats`
+}
+
+/**
+ * @summary List the signed-in user's Hangout and plan conversations
+ */
+export const getMyCommunityEventPlanChats = async ( options?: Parameters<typeof customFetch>[1]): Promise<MyCommunityEventPlanChatsResponse> => {
+
+  return customFetch<MyCommunityEventPlanChatsResponse>(getGetMyCommunityEventPlanChatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyCommunityEventPlanChatsQueryKey = () => {
+    return [
+    `/api/community-events/my-plan-chats`
+    ] as const;
+    }
+
+
+export const getGetMyCommunityEventPlanChatsQueryOptions = <TData = Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyCommunityEventPlanChatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>> = ({ signal }) => getMyCommunityEventPlanChats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyCommunityEventPlanChatsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>>
+export type GetMyCommunityEventPlanChatsQueryError = ErrorType<void>
+
+
+export function useGetMyCommunityEventPlanChats<TData = Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>,
+          TError,
+          Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyCommunityEventPlanChats<TData = Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>,
+          TError,
+          Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyCommunityEventPlanChats<TData = Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List the signed-in user's Hangout and plan conversations
+ */
+
+export function useGetMyCommunityEventPlanChats<TData = Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyCommunityEventPlanChats>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyCommunityEventPlanChatsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetMyPastHangoutsUrl = () => {
 
 
@@ -10680,6 +10783,80 @@ export const useSetCommunityEventPlanChatNotifications = <TError = ErrorType<voi
         TContext
       > => {
       return useMutation(getSetCommunityEventPlanChatNotificationsMutationOptions(options), queryClient);
+    }
+
+export const getMarkCommunityEventPlanChatReadUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/plan-chat/read`
+}
+
+/**
+ * @summary Record the latest group-chat message read by the signed-in member
+ */
+export const markCommunityEventPlanChatRead = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventPlanChatReadResult> => {
+
+  return customFetch<CommunityEventPlanChatReadResult>(getMarkCommunityEventPlanChatReadUrl(eventId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkCommunityEventPlanChatReadMutationKey = () => ['markCommunityEventPlanChatRead'] as const;
+
+export const getMarkCommunityEventPlanChatReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markCommunityEventPlanChatRead>>, TError,MarkCommunityEventPlanChatReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markCommunityEventPlanChatRead>>, TError,MarkCommunityEventPlanChatReadMutationVariables, TContext> => {
+
+const mutationKey = getMarkCommunityEventPlanChatReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markCommunityEventPlanChatRead>>, MarkCommunityEventPlanChatReadMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  markCommunityEventPlanChatRead(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkCommunityEventPlanChatReadMutationResult = NonNullable<Awaited<ReturnType<typeof markCommunityEventPlanChatRead>>>
+
+    export type MarkCommunityEventPlanChatReadMutationError = ErrorType<void>
+    export type MarkCommunityEventPlanChatReadMutationVariables = {eventId: number}
+
+    /**
+ * @summary Record the latest group-chat message read by the signed-in member
+ */
+export const useMarkCommunityEventPlanChatRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markCommunityEventPlanChatRead>>, TError,MarkCommunityEventPlanChatReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markCommunityEventPlanChatRead>>,
+        TError,
+        MarkCommunityEventPlanChatReadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkCommunityEventPlanChatReadMutationOptions(options), queryClient);
     }
 
 export const getCreateCommunityEventPlanChatMediaUploadUrl = (eventId: number,) => {

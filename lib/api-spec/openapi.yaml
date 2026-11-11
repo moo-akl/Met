@@ -3018,6 +3018,24 @@ paths:
         "401":
           description: Authentication required
 
+  /community-events/my-plan-chats:
+    get:
+      operationId: getMyCommunityEventPlanChats
+      tags: [events]
+      summary: List the signed-in user's Hangout and plan conversations
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Recent Hangout and plan conversations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyCommunityEventPlanChatsResponse"
+        "401":
+          description: Authentication required
+
+
   /community-events/my-past-hangouts:
     get:
       operationId: getMyPastHangouts
@@ -3083,6 +3101,33 @@ paths:
           description: Event not found or unavailable to the caller
         "401":
           description: Authentication required
+
+  /community-events/{eventId}/plan-chat/read:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    put:
+      operationId: markCommunityEventPlanChatRead
+      tags: [events]
+      summary: Record the latest group-chat message read by the signed-in member
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: The member's read position was saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventPlanChatReadResult"
+        "400":
+          description: Invalid event id
+        "404":
+          description: Event not found or unavailable to the caller
+        "401":
+          description: Authentication required
+
 
   /community-events/{eventId}/plan-chat/media-upload:
     parameters:
@@ -7387,7 +7432,7 @@ components:
         mediaExpiresAt: { type: ["string", "null"], format: date-time }
     CommunityEventPlanChatResponse:
       type: object
-      required: [event, participants, messages, notificationsMuted]
+      required: [event, participants, messages, notificationsMuted, readThroughMessageId]
       properties:
         event:
           type: object
@@ -7407,6 +7452,7 @@ components:
           items:
             $ref: "#/components/schemas/CommunityEventPlanChatMessage"
         notificationsMuted: { type: boolean }
+        readThroughMessageId: { type: ["integer", "null"], minimum: 1 }
     CommunityEventPlanChatNotificationsInput:
       type: object
       required: [muted]
@@ -7486,6 +7532,30 @@ components:
               hostName: { type: ["string", "null"] }
               isHost: { type: boolean }
               myRating: { type: ["integer", "null"], minimum: 1, maximum: 5 }
+    MyCommunityEventPlanChatsResponse:
+      type: object
+      required: [conversations]
+      properties:
+        conversations:
+          type: array
+          items:
+            type: object
+            required: [eventId, eventTitle, eventType, lastMessageText, senderUid, senderName, mediaType, createdAt, isUnread]
+            properties:
+              eventId: { type: integer }
+              eventTitle: { type: string }
+              eventType: { type: string, enum: [hangout, plan] }
+              lastMessageText: { type: string, maxLength: 500 }
+              senderUid: { type: string }
+              senderName: { type: string }
+              mediaType: { type: ["string", "null"], enum: [image, voice, null] }
+              createdAt: { type: string, format: date-time }
+              isUnread: { type: boolean }
+    CommunityEventPlanChatReadResult:
+      type: object
+      required: [readThroughMessageId]
+      properties:
+        readThroughMessageId: { type: ["integer", "null"], minimum: 1 }
     NotificationInboxItem:
       type: object
       required: [id, title, body, data, createdAt, readAt]
