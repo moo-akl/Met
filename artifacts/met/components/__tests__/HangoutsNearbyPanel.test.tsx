@@ -61,6 +61,7 @@ jest.mock("@/contexts/AppContext", () => ({
 
 jest.mock("@workspace/api-client-react", () => ({
   getGetEventsFeedQueryKey: () => ["events-feed"],
+  getGetMyPastHangoutsQueryKey: () => ["my-past-hangouts"],
   getGetNearbyHangoutsQueryKey: () => ["nearby-hangouts"],
   useGetEventsFeed: () => ({
     data: { events: mockEventsFeed },
@@ -75,6 +76,12 @@ jest.mock("@workspace/api-client-react", () => ({
     data: { events: [], nextOffset: null },
     isLoading: false,
     isFetching: false,
+    isError: false,
+    refetch: jest.fn(),
+  }),
+  useGetMyPastHangouts: () => ({
+    data: { events: [] },
+    isLoading: false,
     isError: false,
     refetch: jest.fn(),
   }),
@@ -191,6 +198,9 @@ describe("Hangouts discovery", () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
+    expect(root.root.findByProps({ testID: "events-heading" }).props.children)
+      .toBe("tabs.events.hangoutsHeading");
+    expect(root.root.findByProps({ testID: "hangouts-sort-nearest" })).toBeTruthy();
     act(() => {
       root.root.findByProps({ testID: "events-view-hangouts" }).props.onPress();
     });
@@ -202,6 +212,31 @@ describe("Hangouts discovery", () => {
     expect(root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.accessibilityState.selected)
       .toBe(true);
     expect(root.root.findAllByProps({ testID: "hangouts-keyword-search" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("keeps past Hangouts and Networks in the Events top bar", () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(<EventsScreen />);
+    });
+
+    act(() => root.root.findByProps({ testID: "events-past-hangouts" }).props.onPress());
+    expect(mockPush).toHaveBeenCalledWith("/plans");
+    act(() => root.root.findByProps({ testID: "events-networks" }).props.onPress());
+    expect(mockPush).toHaveBeenCalledWith("/(tabs)/networks");
+    act(() => root.unmount());
+  });
+
+  it("shows the requested Events heading when the Events view is selected", () => {
+    mockRouteParams = { view: "events" };
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(<EventsScreen />);
+    });
+
+    expect(root.root.findByProps({ testID: "events-heading" }).props.children)
+      .toBe("tabs.events.eventsHeading");
     act(() => root.unmount());
   });
 

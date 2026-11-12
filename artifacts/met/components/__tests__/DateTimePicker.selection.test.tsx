@@ -149,7 +149,7 @@ describe("DateTimePicker platform behavior", () => {
     });
 
     expect(findByTestId(root, "date-time-picker-datetime")).toBeTruthy();
-    expect(root.root.findByType(DateTimePicker).props.timePickerPresentation).toBe("sheet");
+    expect(root.root.findByType(DateTimePicker).props.timePickerPresentation).toBe("inline");
     expect(root.root.findByType(DateTimePicker).props.valueColor).toBe("#111");
     expect(root.root.findByType(DateTimePicker).props.chevronColor).toBe("#666");
     const textLabels = root.root
@@ -517,6 +517,45 @@ describe("DateTimePicker platform behavior", () => {
     expect(onChange).toHaveBeenLastCalledWith(new Date(2031, 5, 14, 20, 15, 0, 0));
   });
 
+  it("edits Hangout time without stacking an iOS modal", async () => {
+    const onChange = jest.fn();
+    let root!: renderer.ReactTestRenderer;
+    const initial = new Date(2031, 5, 10, 18, 42, 0, 0);
+    act(() => {
+      root = renderer.create(
+        <DateTimePicker
+          label="Starts"
+          mode="datetime"
+          onChange={onChange}
+          primaryColor="#30a83c"
+          timePickerPresentation="inline"
+          value={initial}
+        />,
+      );
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-datetime").props.onPress();
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-edit-time").props.onPress();
+    });
+    expect(findByTestId(root, "date-time-picker-time-editor")).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "date-time-picker-time-modal" })).toHaveLength(0);
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time").props.onChange(
+        { type: "set" },
+        new Date(2000, 0, 1, 21, 10, 0, 0),
+      );
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time-save").props.onPress();
+    });
+    const expected = new Date(initial);
+    expected.setHours(21, 10, 0, 0);
+    expect(onChange).toHaveBeenLastCalledWith(expected);
+    act(() => root.unmount());
+  });
+
   it("discards an unconfirmed iOS time and closes the time sheet on cancel", async () => {
     const onChange = jest.fn();
     let root!: renderer.ReactTestRenderer;
@@ -538,6 +577,8 @@ describe("DateTimePicker platform behavior", () => {
     await act(async () => {
       findByTestId(root, "date-time-picker-edit-time").props.onPress();
     });
+    expect(root.root.findByProps({ testID: "date-time-picker-time-modal" }).props.visible).toBe(true);
+    expect(root.root.findAllByProps({ testID: "date-time-picker-time-editor" })).toHaveLength(0);
     await act(async () => {
       findByTestId(root, "date-time-picker-time").props.onChange(
         { type: "set" },
@@ -550,6 +591,7 @@ describe("DateTimePicker platform behavior", () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(findByTestId(root, "date-time-picker-edit-time")).toBeTruthy();
     expect(root.root.findAll((node) => node.props.testID === "date-time-picker-time").length).toBe(0);
+    act(() => root.unmount());
   });
 
   it("saves the selected start and end values when creating a venue event", async () => {

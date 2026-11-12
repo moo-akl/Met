@@ -762,7 +762,7 @@ export default function CommunityEventForm({
           mode="datetime"
           value={startsAt}
           onChange={setStartsAt}
-          timePickerPresentation="sheet"
+          timePickerPresentation={isHangout ? "inline" : "sheet"}
           primaryColor={colors.primary}
           labelColor={colors.mutedForeground}
           rowBg={colors.card}

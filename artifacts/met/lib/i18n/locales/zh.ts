@@ -122,6 +122,8 @@ export const zh: LocaleTree = {
       viewOrganizerProfile: "查看组织者 {{name}} 的个人资料",
       venueOnlySubtitle: "此处仅显示场所举办的活动。好友计划在“计划”中，公开聚会在“聚会”中。",
       title: "活动",
+      eventsHeading: "看看你身边正在发生什么",
+      hangoutsHeading: "想约个见面，认识新朋友吗？！",
       pastMeetings: "往期会面",
       pastMeetingsEmpty: "你组织或参加过的会面会显示在这里。",
       subtitle: "场所和 Met 成员的近期活动",

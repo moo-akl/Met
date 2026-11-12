@@ -169,6 +169,9 @@ export default function TabLayout() {
             <Feather name="calendar" size={22} color={color} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: () => navigation.setParams({ view: "hangouts" }),
+        })}
       />
       <Tabs.Screen
         name="networks"

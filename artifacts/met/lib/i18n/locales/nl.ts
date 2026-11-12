@@ -122,6 +122,8 @@ export const nl: LocaleTree = {
       viewOrganizerProfile: "Profiel van organisator {{name}} bekijken",
       venueOnlySubtitle: "Evenementen worden door locaties georganiseerd. Gebruik Plannen voor vrienden en Hangouts voor openbare ontmoetingen.",
       title: "Evenementen",
+      eventsHeading: "Bekijk wat er om je heen gebeurt",
+      hangoutsHeading: "Zin om af te spreken en mensen te leren kennen?!",
       pastMeetings: "Eerdere ontmoetingen",
       pastMeetingsEmpty: "De ontmoetingen die je organiseerde of bijwoonde verschijnen hier.",
       subtitle: "Aankomende plannen van locaties en Met-leden",

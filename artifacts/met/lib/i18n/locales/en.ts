@@ -124,6 +124,8 @@ export const en = {
       viewOrganizerProfile: "View organizer profile for {{name}}",
       venueOnlySubtitle: "Venue-hosted events only. Use Plans for friends and Hangouts for public meetups.",
       title: "Events",
+      eventsHeading: "Check what's Happening around you",
+      hangoutsHeading: "Want Hangout and get to know people?!",
       pastMeetings: "Past Meetings",
       pastMeetingsEmpty: "Meetings you’ve hosted or joined will appear here.",
       subtitle: "Upcoming plans from venues and Met members",

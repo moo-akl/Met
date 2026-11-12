@@ -78,7 +78,7 @@ interface DateTimePickerProps {
   /** Drives iOS themeVariant ("dark" | "light") and textColor. Defaults to true (dark). */
   isDark?: boolean;
   /** Use an expandable time control instead of the default time sheet. */
-  timePickerPresentation?: "sheet" | "dropdown" | "wheels";
+  timePickerPresentation?: "sheet" | "dropdown" | "wheels" | "inline";
 }
 
 export function DateTimePicker({
@@ -97,6 +97,7 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const [showIOS, setShowIOS] = useState(false);
   const [showTimeModal, setShowTimeModal] = useState(false);
+  const [showInlineTimeEditor, setShowInlineTimeEditor] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showWheelModal, setShowWheelModal] = useState(false);
   const [timeDraft, setTimeDraft] = useState<Date>(value);
@@ -110,6 +111,8 @@ export function DateTimePicker({
     mode === "datetime" && timePickerPresentation === "dropdown";
   const useTimeWheels =
     mode === "datetime" && timePickerPresentation === "wheels";
+  const useInlineTimeEditor =
+    mode === "datetime" && timePickerPresentation === "inline";
 
   const formatted =
     mode === "datetime" ? formatDatetime(value, lang) : formatDate(value, lang);
@@ -120,7 +123,11 @@ export function DateTimePicker({
 
   const openTimePicker = () => {
     setTimeDraft(new Date(value));
-    setShowTimeModal(true);
+    if (useInlineTimeEditor) {
+      setShowInlineTimeEditor(true);
+    } else {
+      setShowTimeModal(true);
+    }
   };
 
   const toggleTimeDropdown = () => {
@@ -135,6 +142,7 @@ export function DateTimePicker({
     combined.setHours(timeDraft.getHours(), timeDraft.getMinutes(), 0, 0);
     onChange(combined);
     setShowTimeModal(false);
+    setShowInlineTimeEditor(false);
     setShowIOS(false);
   };
 
@@ -156,6 +164,8 @@ export function DateTimePicker({
   };
 
   const openCalendar = () => {
+    setShowTimeModal(false);
+    setShowInlineTimeEditor(false);
     calendarAnchorRef.current?.measureInWindow?.((_x, y, _width, height) => {
       const belowAnchor = y + height + 8;
       const estimatedCalendarHeight = 420;
@@ -457,7 +467,11 @@ export function DateTimePicker({
           animationType="fade"
           transparent
           visible
-          onRequestClose={() => setShowIOS(false)}
+          onRequestClose={() => {
+            setShowTimeModal(false);
+            setShowInlineTimeEditor(false);
+            setShowIOS(false);
+          }}
           presentationStyle="overFullScreen"
           testID="date-time-picker-calendar-modal"
         >
@@ -466,7 +480,11 @@ export function DateTimePicker({
               accessibilityRole="button"
               accessibilityLabel={t("common.cancel")}
               testID="date-time-picker-calendar-backdrop"
-              onPress={() => setShowIOS(false)}
+              onPress={() => {
+                setShowTimeModal(false);
+                setShowInlineTimeEditor(false);
+                setShowIOS(false);
+              }}
               style={StyleSheet.absoluteFill}
             />
             <View
@@ -481,39 +499,82 @@ export function DateTimePicker({
                 },
               ]}
             >
-              <RNDateTimePicker
-                testID={`date-time-picker-${mode}-calendar`}
-                value={value}
-                mode="date"
-                display="inline"
-                textColor={isDark ? "#fff" : "#0D0D0D"}
-                themeVariant={isDark ? "dark" : "light"}
-                onChange={(_evt, picked) => {
-                  if (!picked) return;
-                  const combined = new Date(value);
-                  combined.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
-                  onChange(combined);
-                }}
-                style={styles.iosCalendar}
-              />
-              {mode === "datetime" && !useTimeDropdown ? (
-                <View style={[styles.iosTimeRow, { borderTopColor: primaryColor + "25" }]}>
-                  <View style={styles.iosTimeLabel}>
-                    <Feather name="clock" size={15} color={primaryColor} />
-                    <Text style={[styles.iosTimeText, { color: valueColor }]}>{t("dateTime.time")}</Text>
+              {showInlineTimeEditor ? (
+                <View style={styles.iosTimeEditor} testID="date-time-picker-time-editor">
+                  <View style={styles.timeSheetHeader}>
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="date-time-picker-time-cancel"
+                      onPress={() => setShowInlineTimeEditor(false)}
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.timeSheetAction, { color: labelColor }]}>{t("common.cancel")}</Text>
+                    </Pressable>
+                    <Text style={[styles.timeSheetTitle, { color: valueColor }]}>{t("dateTime.time")}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="date-time-picker-time-save"
+                      onPress={saveTime}
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.timeSheetAction, { color: primaryColor }]}>{t("common.save")}</Text>
+                    </Pressable>
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
-                    testID="date-time-picker-edit-time"
-                    onPress={openTimePicker}
-                    style={styles.timeValueButton}
-                  >
-                    <Text style={[styles.iosTimeText, { color: valueColor }]}>{formattedTime}</Text>
-                    <Feather name="edit-2" size={14} color={primaryColor} />
-                  </Pressable>
+                  <RNDateTimePicker
+                    testID="date-time-picker-time"
+                    value={timeDraft}
+                    mode="time"
+                    display="spinner"
+                    textColor={isDark ? "#fff" : "#0D0D0D"}
+                    themeVariant={isDark ? "dark" : "light"}
+                    onChange={(_evt, picked) => {
+                      if (!picked) return;
+                      setTimeDraft((current) => {
+                        const next = new Date(current);
+                        next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+                        return next;
+                      });
+                    }}
+                    style={styles.iosTimePicker}
+                  />
                 </View>
-              ) : null}
+              ) : (
+                <>
+                  <RNDateTimePicker
+                    testID={`date-time-picker-${mode}-calendar`}
+                    value={value}
+                    mode="date"
+                    display="inline"
+                    textColor={isDark ? "#fff" : "#0D0D0D"}
+                    themeVariant={isDark ? "dark" : "light"}
+                    onChange={(_evt, picked) => {
+                      if (!picked) return;
+                      const combined = new Date(value);
+                      combined.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+                      onChange(combined);
+                    }}
+                    style={styles.iosCalendar}
+                  />
+                  {mode === "datetime" && !useTimeDropdown ? (
+                    <View style={[styles.iosTimeRow, { borderTopColor: primaryColor + "25" }]}>
+                      <View style={styles.iosTimeLabel}>
+                        <Feather name="clock" size={15} color={primaryColor} />
+                        <Text style={[styles.iosTimeText, { color: valueColor }]}>{t("dateTime.time")}</Text>
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
+                        testID="date-time-picker-edit-time"
+                        onPress={openTimePicker}
+                        style={styles.timeValueButton}
+                      >
+                        <Text style={[styles.iosTimeText, { color: valueColor }]}>{formattedTime}</Text>
+                        <Feather name="edit-2" size={14} color={primaryColor} />
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </>
+              )}
             </View>
           </View>
         </Modal>
@@ -579,7 +640,7 @@ export function DateTimePicker({
           ) : null}
         </View>
       ) : null}
-      {mode === "datetime" && !useTimeDropdown ? (
+      {mode === "datetime" && !useTimeDropdown && !useInlineTimeEditor ? (
         <Modal
           animationType="slide"
           transparent
@@ -632,7 +693,12 @@ export function DateTimePicker({
                 textColor={isDark ? "#fff" : "#0D0D0D"}
                 themeVariant={isDark ? "dark" : "light"}
                 onChange={(_evt, picked) => {
-                  if (picked) setTimeDraft(new Date(picked));
+                  if (!picked) return;
+                  setTimeDraft((current) => {
+                    const next = new Date(current);
+                    next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+                    return next;
+                  });
                 }}
                 style={styles.iosTimePicker}
               />
@@ -761,6 +827,7 @@ const styles = StyleSheet.create({
   timeSheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   timeSheetAction: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   iosTimePicker: { alignSelf: "center", width: "100%", height: 190 },
+  iosTimeEditor: { paddingHorizontal: 16, paddingVertical: 12 },
   wheelModalRoot: {
     flex: 1,
     justifyContent: "center",

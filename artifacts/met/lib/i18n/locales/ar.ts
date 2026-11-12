@@ -122,6 +122,8 @@ export const ar: LocaleTree = {
       viewOrganizerProfile: "عرض ملف المنظّم {{name}}",
       venueOnlySubtitle: "الفعاليات ينظمها المكان فقط. استخدم الخطط للأصدقاء واللقاءات للاجتماعات العامة.",
       title: "الفعاليات",
+      eventsHeading: "اكتشف ما يحدث من حولك",
+      hangoutsHeading: "هل ترغب في اللقاء والتعرف إلى أشخاص؟!",
       pastMeetings: "اللقاءات السابقة",
       pastMeetingsEmpty: "ستظهر هنا اللقاءات التي نظمتها أو شاركت فيها.",
       subtitle: "خطط قادمة من الأماكن وأعضاء Met",

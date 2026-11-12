@@ -122,6 +122,8 @@ export const vi: LocaleTree = {
       viewOrganizerProfile: "Xem hồ sơ người tổ chức {{name}}",
       venueOnlySubtitle: "Sự kiện do địa điểm tổ chức. Dùng Kế hoạch cho bạn bè và Buổi gặp cho các buổi gặp công khai.",
       title: "Sự kiện",
+      eventsHeading: "Khám phá điều gì đang diễn ra quanh bạn",
+      hangoutsHeading: "Bạn muốn gặp gỡ và làm quen mọi người?!",
       pastMeetings: "Các buổi gặp trước đây",
       pastMeetingsEmpty: "Các buổi gặp bạn tổ chức hoặc tham gia sẽ hiển thị tại đây.",
       subtitle: "Lịch sắp tới từ địa điểm và thành viên Met",

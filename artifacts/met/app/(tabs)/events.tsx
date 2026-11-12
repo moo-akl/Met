@@ -68,7 +68,7 @@ function EventsScreen() {
   const params = useLocalSearchParams<{ view?: string | string[] }>();
   const requestedView = Array.isArray(params.view) ? params.view[0] : params.view;
   const [activeView, setActiveView] = useState<"events" | "hangouts">(
-    requestedView === "hangouts" ? "hangouts" : "events",
+    requestedView === "events" ? "events" : "hangouts",
   );
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<RsvpStatus | null>(null);
@@ -361,9 +361,11 @@ function EventsScreen() {
         refreshControl={<RefreshControl refreshing={feed.isRefetching} onRefresh={() => void feed.refetch()} tintColor={colors.primary} />}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={[styles.title, { color: colors.text }]}>
-              {activeView === "hangouts" ? t("tabs.events.nearbyTab") : t("tabs.events.title")}
+          <View style={styles.headerCopy}>
+            <Text testID="events-heading" style={[styles.title, { color: colors.text }]}>
+              {activeView === "hangouts"
+                ? t("tabs.events.hangoutsHeading")
+                : t("tabs.events.eventsHeading")}
             </Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
               {activeView === "hangouts"
@@ -386,22 +388,42 @@ function EventsScreen() {
               </Pressable>
             ) : null}
           </View>
-          {activeView === "hangouts" ? (
+          <View style={styles.headerActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t("tabs.events.createHangout")}
-              testID="events-create-hangout"
-              onPress={() => router.push({
-                pathname: "/event-create",
-                params: { mode: "hangout" },
-              } as never)}
-              style={[styles.iconButton, { backgroundColor: colors.primary }]}
+              accessibilityLabel={t("plans.pastHangoutsTitle")}
+              testID="events-past-hangouts"
+              onPress={() => router.push("/plans" as never)}
+              hitSlop={8}
+              style={styles.topBarIcon}
             >
-              <Feather name="plus" size={21} color={colors.primaryForeground} />
+              <Feather name="clock" size={20} color={colors.primary} />
             </Pressable>
-          ) : (
-            <View style={styles.iconButton} />
-          )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("tabs.events.networks")}
+              testID="events-networks"
+              onPress={() => router.push("/(tabs)/networks")}
+              hitSlop={8}
+              style={styles.topBarIcon}
+            >
+              <Feather name="users" size={20} color={colors.primary} />
+            </Pressable>
+            {activeView === "hangouts" ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("tabs.events.createHangout")}
+                testID="events-create-hangout"
+                onPress={() => router.push({
+                  pathname: "/event-create",
+                  params: { mode: "hangout" },
+                } as never)}
+                style={[styles.iconButton, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="plus" size={21} color={colors.primaryForeground} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <View style={[styles.viewTabs, { borderColor: colors.border }]}>
@@ -431,41 +453,6 @@ function EventsScreen() {
             );
           })}
         </View>
-
-        {activeView === "events" ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("tabs.events.pastMeetings")}
-            testID="events-past-meetings"
-            onPress={() => router.push("/past-meetings" as never)}
-            style={[styles.networkLink, { backgroundColor: "transparent", borderColor: colors.border }]}
-          >
-            <View style={[styles.networkIcon, { backgroundColor: colors.primarySoft }]}>
-              <Feather name="clock" size={18} color={colors.primary} />
-            </View>
-            <Text style={[styles.networkTitle, { color: colors.text, flex: 1 }]}>
-              {t("tabs.events.pastMeetings")}
-            </Text>
-            <Feather name="chevron-right" size={19} color={colors.mutedForeground} />
-          </Pressable>
-        ) : null}
-
-        {activeView === "events" ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/(tabs)/networks")}
-            style={[styles.networkLink, { backgroundColor: "transparent", borderColor: colors.border }]}
-          >
-            <View style={[styles.networkIcon, { backgroundColor: colors.primarySoft }]}>
-              <Feather name="users" size={18} color={colors.primary} />
-            </View>
-            <View style={styles.networkCopy}>
-              <Text style={[styles.networkTitle, { color: colors.text }]}>{t("tabs.events.networks")}</Text>
-              <Text style={[styles.networkDescription, { color: colors.mutedForeground }]}>Your existing groups, membership, and invites</Text>
-            </View>
-            <Feather name="chevron-right" size={19} color={colors.mutedForeground} />
-          </Pressable>
-        ) : null}
 
         {activeView === "events" && actionError ? <Text accessibilityRole="alert" style={[styles.errorText, { color: colors.destructive }]}>{actionError}</Text> : null}
 
@@ -664,20 +651,18 @@ function EventsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: 20, gap: 15 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
-  title: { fontFamily: "serif", fontSize: 36, fontWeight: "400", letterSpacing: -0.8 },
+  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 2 },
+  headerCopy: { flex: 1, minWidth: 0, paddingRight: 8 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 3 },
+  title: { fontFamily: "serif", fontSize: 23, lineHeight: 28, fontWeight: "400", letterSpacing: -0.35 },
   subtitle: { fontSize: 14, lineHeight: 20, marginTop: 4 },
   viewTabs: { flexDirection: "row", borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, padding: 0, gap: 4 },
   viewTab: { flex: 1, minHeight: 44, borderRadius: 0, borderBottomWidth: 2, borderBottomColor: "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 5 },
   viewTabText: { fontSize: 12, fontWeight: "700" },
   locationAction: { fontSize: 12, fontWeight: "700", marginTop: 6 },
   locationHint: { fontSize: 12, fontWeight: "600", marginTop: 6 },
+  topBarIcon: { width: 36, height: 40, alignItems: "center", justifyContent: "center" },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  networkLink: { borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 },
-  networkIcon: { width: 38, height: 38, borderTopLeftRadius: 14, borderBottomRightRadius: 14, alignItems: "center", justifyContent: "center" },
-  networkCopy: { flex: 1 },
-  networkTitle: { fontSize: 15, fontWeight: "700" },
-  networkDescription: { fontSize: 12, marginTop: 3 },
   errorText: { fontSize: 13, fontWeight: "600" },
   loading: { paddingVertical: 56, alignItems: "center" },
   emptyCard: { borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", gap: 8 },

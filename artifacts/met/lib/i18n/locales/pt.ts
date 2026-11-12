@@ -122,6 +122,8 @@ export const pt: LocaleTree = {
       viewOrganizerProfile: "Ver o perfil do organizador {{name}}",
       venueOnlySubtitle: "Eventos organizados por locais. Use Planos para amigos e Encontros para reuniões públicas.",
       title: "Eventos",
+      eventsHeading: "Veja o que está acontecendo ao seu redor",
+      hangoutsHeading: "Quer sair e conhecer pessoas?!",
       pastMeetings: "Encontros anteriores",
       pastMeetingsEmpty: "Aqui aparecem os encontros que organizaste ou a que participaste.",
       subtitle: "Próximos encontros de locais e membros do Met",
