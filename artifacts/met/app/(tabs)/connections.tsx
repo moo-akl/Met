@@ -338,9 +338,11 @@ function ConnectionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
+        compact
         title={`${t("appHeader.titleConnections")} (${connections.length})`}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
+          { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
           {
             icon: "user-plus",
             onPress: () => void handleInviteFriends(),
@@ -351,7 +353,6 @@ function ConnectionsScreen() {
             onPress: () => router.push("/plans" as never),
             accessibilityLabel: t("plans.openPlansA11y"),
           },
-          { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
           { icon: "sliders", onPress: () => setSortMenuOpen(true) },
         ]}
       />

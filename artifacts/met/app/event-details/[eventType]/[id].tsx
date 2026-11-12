@@ -120,6 +120,7 @@ export default function EventDetailsScreen() {
   const hangoutEnded = Boolean(
     event && new Date(event.endsAt ?? event.startsAt).getTime() <= Date.now(),
   );
+  const isConcludedHangout = isHangout && hangoutEnded;
   const canRateMeetingHost = Boolean(
     eventType === "member" &&
       hangoutEnded &&
@@ -418,9 +419,15 @@ export default function EventDetailsScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
-          {t(isHangout ? "tabs.events.hangoutDetailsTitle" : "tabs.events.detailsView")}
+          {t(
+            isConcludedHangout
+              ? "plans.pastHangoutsTitle"
+              : isHangout
+                ? "tabs.events.hangoutDetailsTitle"
+                : "tabs.events.detailsView",
+          )}
         </Text>
-        {isOwner && event ? (
+        {isOwner && event && !isConcludedHangout ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("tabs.events.editEvent")}
@@ -452,24 +459,29 @@ export default function EventDetailsScreen() {
             { paddingBottom: insets.bottom + 28 },
           ]}
         >
-          {event.imageUrl ? (
+          {!isConcludedHangout && event.imageUrl ? (
             <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" />
-          ) : (
+          ) : !isConcludedHangout ? (
             <View style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}>
               <Feather name="calendar" size={34} color={colors.primary} />
             </View>
-          )}
+          ) : null}
 
-          <View style={styles.body}>
+          <View
+            testID={isConcludedHangout ? "concluded-hangout-summary" : undefined}
+            style={styles.body}
+          >
             <View style={styles.badgeRow}>
               <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
-                {event.eventType === "venue"
-                  ? t("tabs.events.venueEvent")
-                  : isHangout
-                    ? t("tabs.events.quickPlan")
-                    : t("tabs.events.friendPlanBadge")}
+                {isConcludedHangout
+                  ? t("plans.pastHangoutsTitle")
+                  : event.eventType === "venue"
+                    ? t("tabs.events.venueEvent")
+                    : isHangout
+                      ? t("tabs.events.quickPlan")
+                      : t("tabs.events.friendPlanBadge")}
               </Text>
-              {event.visibility === "invite_only" ? (
+              {!isConcludedHangout && event.visibility === "invite_only" ? (
                 <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>
                   {t("tabs.events.inviteOnly")}
                 </Text>
@@ -482,7 +494,7 @@ export default function EventDetailsScreen() {
                 {new Date(event.startsAt).toLocaleString(lang)}
               </Text>
             </View>
-            {event.endsAt ? (
+            {!isConcludedHangout && event.endsAt ? (
               <View style={styles.metaRow}>
                 <Feather name="clock" size={16} color={colors.mutedForeground} />
                 <Text style={[styles.meta, { color: colors.mutedForeground }]}>
@@ -627,6 +639,8 @@ export default function EventDetailsScreen() {
                 {t("tabs.events.createdBy")} {event.creatorName}
               </Text>
             ) : null}
+            {!isConcludedHangout ? (
+              <>
             {event.description ? (
               <Text style={[styles.description, { color: colors.text }]}>
                 {event.description}
@@ -1014,6 +1028,8 @@ export default function EventDetailsScreen() {
                   </Pressable>
                 )}
               </View>
+            ) : null}
+              </>
             ) : null}
 
             {actionError ? (

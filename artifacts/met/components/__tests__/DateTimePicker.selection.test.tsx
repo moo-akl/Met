@@ -149,9 +149,9 @@ describe("DateTimePicker platform behavior", () => {
     });
 
     expect(findByTestId(root, "date-time-picker-datetime")).toBeTruthy();
-    expect(
-      root.root.findByType(DateTimePicker).props.timePickerPresentation,
-    ).toBe("wheels");
+    expect(root.root.findByType(DateTimePicker).props.timePickerPresentation).toBe("sheet");
+    expect(root.root.findByType(DateTimePicker).props.valueColor).toBe("#111");
+    expect(root.root.findByType(DateTimePicker).props.chevronColor).toBe("#666");
     const textLabels = root.root
       .findAllByType(Text)
       .map((node) => node.props.children)

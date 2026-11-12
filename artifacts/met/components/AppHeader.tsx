@@ -27,6 +27,7 @@ type Props = {
   visibility?: Visibility;
   onBack?: () => void;
   scanActive?: boolean;
+  compact?: boolean;
 };
 
 export function AppHeader({
@@ -35,6 +36,7 @@ export function AppHeader({
   visibility,
   onBack,
   scanActive,
+  compact = false,
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -52,7 +54,7 @@ export function AppHeader({
         },
       ]}
     >
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, compact && styles.compactHeaderRow]}>
         {onBack ? (
           <Pressable
             onPress={onBack}
@@ -64,10 +66,11 @@ export function AppHeader({
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
         ) : (
-          <View style={styles.brand}>
+          <View style={[styles.brand, compact && styles.compactBrand]}>
             <View
               style={[
                 styles.logoCircle,
+                compact && styles.compactLogoCircle,
                 {
                   borderColor: colors.primary,
                   backgroundColor: hexToRgba(colors.primary, 0.1),
@@ -79,13 +82,20 @@ export function AppHeader({
                 M
               </Text>
             </View>
-            <Text style={[styles.brandText, { color: colors.foreground }]}>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.brandText,
+                compact && styles.compactBrandText,
+                { color: colors.foreground },
+              ]}
+            >
               {title}
             </Text>
           </View>
         )}
 
-        <View style={styles.right}>
+        <View style={[styles.right, compact && styles.compactRight]}>
           {scanActive ? (
             <View
               style={[
@@ -116,6 +126,7 @@ export function AppHeader({
               hitSlop={8}
               style={({ pressed }) => [
                 styles.visPill,
+                compact && styles.compactVisPill,
                 visibility.isVisible
                   ? {
                       backgroundColor: hexToRgba(colors.primary, 0.12),
@@ -133,7 +144,7 @@ export function AppHeader({
                 size={13}
                 color={colors.primary}
               />
-              <Text style={[styles.visPillText, { color: colors.primary }]}>
+              <Text style={[styles.visPillText, compact && styles.compactVisPillText, { color: colors.primary }]}>
                 {visibility.isVisible
                   ? t("appHeader.visible")
                   : t("appHeader.hidden")}
@@ -150,10 +161,11 @@ export function AppHeader({
               accessibilityLabel={a.accessibilityLabel}
               style={({ pressed }) => [
                 styles.actionBtn,
+                compact && styles.compactActionBtn,
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Feather name={a.icon} size={22} color={colors.foreground} />
+              <Feather name={a.icon} size={compact ? 20 : 22} color={colors.foreground} />
               {a.badge && a.badge > 0 ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -185,6 +197,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    flexShrink: 1,
+    minWidth: 0,
   },
   logoCircle: {
     width: 30,
@@ -205,6 +219,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.3,
+    flexShrink: 1,
   },
   backBtn: {
     width: 32,
@@ -216,6 +231,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flexShrink: 1,
   },
   scanPill: {
     flexDirection: "row",
@@ -255,6 +271,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
+  },
+  compactHeaderRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  compactBrand: {
+    gap: 6,
+  },
+  compactLogoCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  compactBrandText: {
+    fontSize: 16,
+  },
+  compactRight: {
+    gap: 6,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  compactVisPill: {
+    height: 24,
+    paddingHorizontal: 7,
+  },
+  compactVisPillText: {
+    fontSize: 10,
+  },
+  compactActionBtn: {
+    width: 24,
+    height: 28,
   },
   badge: {
     position: "absolute",

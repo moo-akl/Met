@@ -762,10 +762,12 @@ export default function CommunityEventForm({
           mode="datetime"
           value={startsAt}
           onChange={setStartsAt}
-          timePickerPresentation={isHangout ? "wheels" : "sheet"}
+          timePickerPresentation="sheet"
           primaryColor={colors.primary}
           labelColor={colors.mutedForeground}
           rowBg={colors.card}
+          valueColor={colors.text}
+          chevronColor={colors.mutedForeground}
           isDark={isDark}
         />
 
