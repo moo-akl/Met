@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useRouter } from "expo-router";
-import * as Updates from "expo-updates";
+import { reloadAppAsync } from "expo";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -235,7 +235,7 @@ export default function HomeScreen() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       try { window.location.reload(); return; } catch {}
     } else {
-      try { await Updates.reloadAsync(); return; } catch {}
+      try { await reloadAppAsync(); return; } catch {}
       try { DevSettings.reload(); return; } catch {}
     }
     setReloadingLang(false);
