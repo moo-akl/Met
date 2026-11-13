@@ -221,6 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [visibilityReconciledUid, setVisibilityReconciledUid] = useState<
     string | null
   >(null);
+  const [visibilityRetryCounter, setVisibilityRetryCounter] = useState(0);
   const [permissionsCompleted, setPermissionsCompletedState] = useState(false);
   const [preferences, setPreferencesState] = useState<Preferences>(
     DEFAULT_PREFERENCES,
@@ -829,11 +830,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       !ready ||
       !authedUid ||
       !profile ||
+      !appIsActive ||
       visibilityReconciledUid === authedUid
     ) {
       return;
     }
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const uid = authedUid;
     const initialVisibilityRevision = profileVisibilityRevisionRef.current;
     const stopLocalDiscovery = async () => {
@@ -878,18 +881,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setVisibilityReconciledUid(uid);
       }
     };
+    const retryWithoutChangingPreference = () => {
+      retryTimer = setTimeout(() => {
+        if (!cancelled && authUidRef.current === uid) {
+          setVisibilityRetryCounter((counter) => counter + 1);
+        }
+      }, 15_000);
+    };
     void (async () => {
       try {
         if (!api.isConfigured()) {
-          const latest = profileRef.current;
-          if (latest) {
-            await setProfile({ ...latest, isVisible: false }).catch((err) => {
-              console.warn("[appcontext] failed to persist hidden state", err);
-            });
-          }
           await stopLocalDiscovery();
-          reportUnresolvedHide();
-          finishReconciliation();
+          retryWithoutChangingPreference();
           return;
         }
         const remote = await api.getMyProfile({ uid });
@@ -902,7 +905,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const current = profileRef.current;
         if (!current) return;
 
-        if (current.isVisible !== true || remote.isVisible !== true) {
+        if (remote.isVisible !== true) {
           if (current.isVisible !== false) {
             await setProfile({ ...current, isVisible: false }).catch((err) => {
               console.warn("[appcontext] failed to persist canonical hidden state", err);
@@ -953,30 +956,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         if (cancelled || authUidRef.current !== uid) return;
         console.warn("[appcontext] canonical visibility lookup failed", err);
-        const latest = profileRef.current;
-        if (latest) {
-          await setProfile({ ...latest, isVisible: false }).catch(() => {});
-        }
-        const firestoreHidden = await stopLocalDiscovery();
-        const staleOptInConflict =
-          err instanceof ApiError && err.status === 409;
-        const serverHidden = staleOptInConflict
-          ? false
-          : await writeCanonicalHide(latest);
-        if (!serverHidden || !firestoreHidden) reportUnresolvedHide();
-        finishReconciliation();
+        // A failed startup read is not a user request to hide. Keep the
+        // persisted preference, but fail closed on advertising/discovery
+        // until the server confirms which value is authoritative.
+        await stopLocalDiscovery();
+        retryWithoutChangingPreference();
       }
     })();
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [
     authedUid,
     ready,
+    appIsActive,
     profile?.id,
     setProfile,
     profileVisibilityRevisionRef,
     visibilityReconciledUid,
+    visibilityRetryCounter,
   ]);
 
   // Re-sync referral state from the server whenever the user signs in.

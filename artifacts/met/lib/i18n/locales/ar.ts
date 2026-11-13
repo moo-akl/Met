@@ -85,7 +85,10 @@ export const ar: LocaleTree = {
   dateTime: { time: "الوقت" },
   eventFollowThrough: {
     calendar: "إضافة إلى التقويم",
-    calendarError: "تعذّرت مشاركة هذا الحدث في التقويم.",
+    calendarAdding: "جارٍ الإضافة إلى التقويم…",
+    calendarAdded: "أُضيف إلى تقويمك.",
+    calendarPermissionRequired: "اسمح بالوصول إلى التقويم من الإعدادات لإضافة هذا الحدث.",
+    calendarError: "تعذّرت إضافة هذا الحدث إلى التقويم.",
     reminder: "تذكير بالخطة",
     remindAt: "موعد التذكير",
     atStart: "عند بدء الفعالية",
@@ -124,6 +127,9 @@ export const ar: LocaleTree = {
       title: "الفعاليات",
       eventsHeading: "اكتشف ما يحدث من حولك",
       hangoutsHeading: "هل ترغب في اللقاء والتعرف إلى أشخاص؟!",
+      plansDescription: "لك ولأصدقائك",
+      hangoutsDescription: "أنشئ لقاءً أو انضم إليه وتعرّف على أصدقاء جدد",
+      eventsDescription: "اكتشف ما يحدث بالقرب منك",
       pastMeetings: "اللقاءات السابقة",
       pastMeetingsEmpty: "ستظهر هنا اللقاءات التي نظمتها أو شاركت فيها.",
       subtitle: "خطط قادمة من الأماكن وأعضاء Met",
@@ -662,6 +668,12 @@ export const ar: LocaleTree = {
     slide3Title: "اصنع هويتك",
     slide3Body:
       "لنُعدّ ملفك حتى يعرف الناس مَن قابلوا.",
+    slide4Title: "خطط ولقاءات وفعاليات",
+    slide4Body:
+      "خطط مع أصدقائك، وانضم إلى لقاءات عامة لتتعرف على أشخاص جدد، واكتشف ما يحدث بالقرب منك.",
+    slide5Title: "شارك بثقة",
+    slide5Body:
+      "اكتشف الأماكن وسجّل حضورك لتحصل على المكافآت، واطّلع على تقييمات المضيفين قبل الانضمام إلى لقاء.",
     tapToChoose: "اضغط لاختيار",
     infoTitle: "اسم وجملة واحدة.",
     infoSub: "أبقِ النبذة قصيرة. كلما قصرت بدت أصدق.",

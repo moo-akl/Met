@@ -85,7 +85,10 @@ export const nl: LocaleTree = {
   dateTime: { time: "Tijd" },
   eventFollowThrough: {
     calendar: "Toevoegen aan agenda",
-    calendarError: "Deze agenda-afspraak kon niet worden gedeeld.",
+    calendarAdding: "Toevoegen aan agenda…",
+    calendarAdded: "Toegevoegd aan je agenda.",
+    calendarPermissionRequired: "Geef in Instellingen toegang tot je agenda om dit evenement toe te voegen.",
+    calendarError: "Dit evenement kon niet aan je agenda worden toegevoegd.",
     reminder: "Planherinnering",
     remindAt: "Herinner mij",
     atStart: "Bij aanvang",
@@ -124,6 +127,9 @@ export const nl: LocaleTree = {
       title: "Evenementen",
       eventsHeading: "Bekijk wat er om je heen gebeurt",
       hangoutsHeading: "Zin om af te spreken en mensen te leren kennen?!",
+      plansDescription: "Voor jou en je vrienden",
+      hangoutsDescription: "Maak een Hangout of doe mee en ontmoet nieuwe vrienden",
+      eventsDescription: "Ontdek wat er in de buurt gebeurt",
       pastMeetings: "Eerdere ontmoetingen",
       pastMeetingsEmpty: "De ontmoetingen die je organiseerde of bijwoonde verschijnen hier.",
       subtitle: "Aankomende plannen van locaties en Met-leden",
@@ -657,6 +663,12 @@ export const nl: LocaleTree = {
     slide3Title: "Maak je identiteit",
     slide3Body:
       "Laten we je profiel instellen zodat mensen weten wie ze ontmoet hebben.",
+    slide4Title: "Plannen, Hangouts en evenementen",
+    slide4Body:
+      "Maak privéplannen met vrienden, sluit je aan bij openbare Hangouts en ontdek wat er in de buurt gebeurt.",
+    slide5Title: "Ga met vertrouwen op pad",
+    slide5Body:
+      "Ontdek locaties, verdien beloningen met check-ins en bekijk beoordelingen van hosts voordat je meedoet.",
     tapToChoose: "Tik om te kiezen",
     infoTitle: "Een naam en een zin.",
     infoSub: "Houd je bio kort. Hoe korter, hoe oprechter.",

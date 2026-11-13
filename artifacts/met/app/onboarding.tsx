@@ -99,6 +99,20 @@ function getSlides(primary: string, border: string): Slide[] {
       titleKey: "onboarding.slide3Title",
       bodyKey: "onboarding.slide3Body",
     },
+    {
+      icon: "users",
+      iconColor: primary,
+      iconBg: border,
+      titleKey: "onboarding.slide4Title",
+      bodyKey: "onboarding.slide4Body",
+    },
+    {
+      icon: "star",
+      iconColor: "#60A5FA",
+      iconBg: "rgba(96,165,250,0.15)",
+      titleKey: "onboarding.slide5Title",
+      bodyKey: "onboarding.slide5Body",
+    },
   ];
 }
 
@@ -1095,8 +1109,8 @@ export default function OnboardingScreen() {
       { name: "facebook" as const, color: "#1877F2", angle: 206 },
     ];
 
-    const badges = ["PROXIMITY", "PRIVACY FIRST", "LINK UP"];
-    const accentColors = [colors.primary, "#60A5FA", "#FBBF24"];
+    const badges = ["PROXIMITY", "PRIVACY FIRST", "LINK UP", "MAKE PLANS", "GO WITH CONFIDENCE"];
+    const accentColors = [colors.primary, "#60A5FA", "#FBBF24", colors.primary, "#60A5FA"];
     const accent = accentColors[slide] ?? colors.primary;
 
     return (
@@ -1278,6 +1292,101 @@ export default function OnboardingScreen() {
                   </Animated.View>
                 );
               })}
+            </View>
+          )}
+
+          {slide === 3 && (
+            <View style={{ width: 250, height: 250, alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{
+                  position: "absolute",
+                  width: 226,
+                  height: 226,
+                  borderRadius: 113,
+                  borderWidth: 1,
+                  borderColor: `${colors.primary}30`,
+                  backgroundColor: `${colors.primary}08`,
+                }}
+              />
+              <View
+                style={{
+                  width: 104,
+                  height: 104,
+                  borderRadius: 52,
+                  backgroundColor: colors.primary,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Feather name="users" size={40} color={colors.primaryForeground} />
+              </View>
+              {([
+                ["message-circle", { left: 16, top: 34 }],
+                ["map-pin", { right: 16, top: 34 }],
+                ["calendar", { left: 16, bottom: 34 }],
+                ["plus", { right: 16, bottom: 34 }],
+              ] as const).map(([name, position]) => (
+                <View
+                  key={name}
+                  style={[
+                    {
+                      position: "absolute",
+                      width: 54,
+                      height: 54,
+                      borderRadius: 27,
+                      backgroundColor: colors.card,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    },
+                    position,
+                  ]}
+                >
+                  <Feather name={name} size={22} color={colors.primary} />
+                </View>
+              ))}
+            </View>
+          )}
+
+          {slide === 4 && (
+            <View style={{ width: 250, height: 250, alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{
+                  position: "absolute",
+                  width: 232,
+                  height: 232,
+                  borderRadius: 116,
+                  borderWidth: 1,
+                  borderColor: "rgba(96,165,250,0.28)",
+                }}
+              />
+              <View
+                style={{
+                  width: 124,
+                  height: 124,
+                  borderRadius: 62,
+                  backgroundColor: "rgba(96,165,250,0.14)",
+                  borderWidth: 1,
+                  borderColor: "rgba(96,165,250,0.36)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Feather name="star" size={50} color="#60A5FA" />
+              </View>
+              <View style={{ position: "absolute", left: 27, top: 43, width: 50, height: 50, borderRadius: 25, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="map-pin" size={21} color={colors.primary} />
+              </View>
+              <View style={{ position: "absolute", right: 24, top: 49, width: 50, height: 50, borderRadius: 25, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="award" size={21} color="#60A5FA" />
+              </View>
+              <View style={{ position: "absolute", left: 48, bottom: 29, width: 50, height: 50, borderRadius: 25, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="message-square" size={21} color={colors.primary} />
+              </View>
+              <View style={{ position: "absolute", right: 42, bottom: 34, width: 50, height: 50, borderRadius: 25, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="check-circle" size={21} color="#60A5FA" />
+              </View>
             </View>
           )}
         </View>

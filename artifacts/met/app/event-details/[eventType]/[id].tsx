@@ -114,6 +114,11 @@ export default function EventDetailsScreen() {
   const event = eventQuery.data;
   const isOwner = Boolean(event && event.ownerUid === authedUid);
   const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
+  const isFriendPlan = Boolean(
+    eventType === "member" &&
+      !event?.joinApprovalRequired &&
+      event?.visibility === "invite_only",
+  );
   const hostRating = event?.meetingHostRating ?? null;
   const eventEndTime = event
     ? new Date(
@@ -152,6 +157,13 @@ export default function EventDetailsScreen() {
         event.myRsvp === "maybe"),
   );
   const location = event?.location ?? event?.venueName ?? null;
+  const eventPhotos = event
+    ? event.galleryPhotos?.length
+      ? event.galleryPhotos
+      : event.imageUrl
+        ? [event.imageUrl]
+        : []
+    : [];
   const ownerManageQuery = useQuery({
     ...getGetCommunityEventForEditQueryOptions(isValidRoute ? eventId : 0),
     enabled: isOwner && event?.eventType === "member",
@@ -410,7 +422,9 @@ export default function EventDetailsScreen() {
               ? "plans.pastHangoutsTitle"
               : isHangout
                 ? "tabs.events.hangoutDetailsTitle"
-                : "tabs.events.detailsView",
+                : isFriendPlan
+                  ? "plans.screenTitle"
+                  : "tabs.events.detailsView",
           )}
         </Text>
         {isOwner && event && !isConcludedHangout ? (
@@ -445,22 +459,87 @@ export default function EventDetailsScreen() {
             { paddingBottom: insets.bottom + 28 },
           ]}
         >
-          {(event.galleryPhotos?.length
-            ? event.galleryPhotos
-            : event.imageUrl
-              ? [event.imageUrl]
-              : []).length > 0 ? (
+          {isHangout ? (
+            <View testID="event-detail-hangout-hero" style={[styles.hangoutHero, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {isConcludedHangout || !eventPhotos.length ? (
+                <View style={[styles.hangoutPlaceholder, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name="users" size={34} color={colors.primary} />
+                  <Text style={[styles.hangoutPlaceholderText, { color: colors.primary }]}>
+                    {t("tabs.events.hangoutDetailsTitle")}
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hangoutPhotoRow}
+                  accessibilityLabel={t("tabs.events.planPhotos")}
+                >
+                  {eventPhotos.map((photo, index) => (
+                    <Image
+                      key={`${photo}-${index}`}
+                      source={{ uri: photo }}
+                      style={styles.hangoutCover}
+                      resizeMode="cover"
+                      accessibilityLabel={t("tabs.events.planPhotos")}
+                    />
+                  ))}
+                </ScrollView>
+              )}
+              <View style={styles.hangoutHeroFooter}>
+                <View style={[styles.hangoutHeroIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name="users" size={19} color={colors.primary} />
+                </View>
+                <View style={styles.hangoutHeroCopy}>
+                  <Text style={[styles.hangoutHeroEyebrow, { color: colors.primary }]}>
+                    {t("tabs.events.quickPlan")}
+                  </Text>
+                  <Text style={[styles.hangoutHeroHint, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.joinApprovalHint")}
+                  </Text>
+                </View>
+                <Feather name="arrow-up-right" size={18} color={colors.primary} />
+              </View>
+            </View>
+          ) : isFriendPlan ? (
+            <View testID="event-detail-plan-hero" style={[styles.planHero, { backgroundColor: colors.primarySoft }]}>
+              <View style={[styles.planDateTile, { backgroundColor: colors.primary }]}>
+                <Text style={[styles.planMonth, { color: colors.primaryForeground }]}>
+                  {new Date(event.startsAt).toLocaleDateString(lang, { month: "short" }).toUpperCase()}
+                </Text>
+                <Text style={[styles.planDay, { color: colors.primaryForeground }]}>
+                  {new Date(event.startsAt).getDate()}
+                </Text>
+              </View>
+              <View style={styles.planHeroCopy}>
+                <Text style={[styles.planHeroEyebrow, { color: colors.primary }]}>
+                  {t("tabs.events.friendPlanBadge")}
+                </Text>
+                <Text style={[styles.planHeroDate, { color: colors.text }]}>
+                  {new Date(event.startsAt).toLocaleDateString(lang, { weekday: "long" })}
+                </Text>
+                <Text style={[styles.planHeroTime, { color: colors.mutedForeground }]}>
+                  {new Date(event.startsAt).toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" })}
+                </Text>
+              </View>
+              {eventPhotos[0] ? (
+                <Image
+                  source={{ uri: eventPhotos[0] }}
+                  style={styles.planHeroImage}
+                  resizeMode="cover"
+                  accessibilityLabel={t("tabs.events.planPhotos")}
+                />
+              ) : null}
+            </View>
+          ) : eventPhotos.length > 0 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              testID="event-detail-standard-hero"
               contentContainerStyle={{ gap: 10 }}
               accessibilityLabel={t("tabs.events.planPhotos")}
             >
-              {(event.galleryPhotos?.length
-                ? event.galleryPhotos
-                : event.imageUrl
-                  ? [event.imageUrl]
-                  : []).map((photo, index) => (
+              {eventPhotos.map((photo, index) => (
                 <Image
                   key={`${photo}-${index}`}
                   source={{ uri: photo }}
@@ -472,7 +551,7 @@ export default function EventDetailsScreen() {
             </ScrollView>
           ) : !isConcludedHangout ? (
             <View style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}>
-              <Feather name="calendar" size={34} color={colors.primary} />
+              <Feather name={event.eventType === "venue" ? "calendar" : "users"} size={34} color={colors.primary} />
             </View>
           ) : null}
 
@@ -1030,6 +1109,25 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 24 },
   cover: { width: "100%", height: 230 },
   coverPlaceholder: { width: "100%", height: 160, alignItems: "center", justifyContent: "center" },
+  hangoutHero: { marginHorizontal: 18, marginTop: 18, borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 24, overflow: "hidden" },
+  hangoutPhotoRow: { gap: 8, padding: 8 },
+  hangoutCover: { width: 286, height: 190, borderTopLeftRadius: 24, borderBottomRightRadius: 20 },
+  hangoutPlaceholder: { minHeight: 170, alignItems: "center", justifyContent: "center", gap: 10 },
+  hangoutPlaceholderText: { fontSize: 13, fontWeight: "700" },
+  hangoutHeroFooter: { flexDirection: "row", alignItems: "center", gap: 11, padding: 13 },
+  hangoutHeroIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  hangoutHeroCopy: { flex: 1, gap: 3 },
+  hangoutHeroEyebrow: { fontSize: 13, fontWeight: "700" },
+  hangoutHeroHint: { fontSize: 11, lineHeight: 16 },
+  planHero: { marginHorizontal: 18, marginTop: 18, minHeight: 122, borderTopLeftRadius: 32, borderBottomRightRadius: 24, padding: 14, flexDirection: "row", alignItems: "center", gap: 13 },
+  planDateTile: { width: 68, height: 82, borderTopLeftRadius: 22, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
+  planMonth: { fontSize: 11, fontWeight: "700", letterSpacing: 1 },
+  planDay: { fontSize: 30, lineHeight: 36, fontWeight: "700" },
+  planHeroCopy: { flex: 1, gap: 4 },
+  planHeroEyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase" },
+  planHeroDate: { fontSize: 15, fontWeight: "700" },
+  planHeroTime: { fontSize: 12, fontWeight: "600" },
+  planHeroImage: { width: 72, height: 82, borderTopRightRadius: 20, borderBottomLeftRadius: 18 },
   body: { paddingHorizontal: 18, paddingTop: 18 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
   badge: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99 },

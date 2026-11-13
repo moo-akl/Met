@@ -85,7 +85,10 @@ export const vi: LocaleTree = {
   dateTime: { time: "Giờ" },
   eventFollowThrough: {
     calendar: "Thêm vào lịch",
-    calendarError: "Không thể chia sẻ sự kiện lịch này.",
+    calendarAdding: "Đang thêm vào lịch…",
+    calendarAdded: "Đã thêm vào lịch của bạn.",
+    calendarPermissionRequired: "Hãy cho phép truy cập lịch trong Cài đặt để thêm sự kiện này.",
+    calendarError: "Không thể thêm sự kiện này vào lịch.",
     reminder: "Nhắc lịch hẹn",
     remindAt: "Nhắc tôi",
     atStart: "Khi sự kiện bắt đầu",
@@ -124,6 +127,9 @@ export const vi: LocaleTree = {
       title: "Sự kiện",
       eventsHeading: "Khám phá điều gì đang diễn ra quanh bạn",
       hangoutsHeading: "Bạn muốn gặp gỡ và làm quen mọi người?!",
+      plansDescription: "Dành cho bạn và bạn bè",
+      hangoutsDescription: "Tạo hoặc tham gia buổi gặp gỡ để kết bạn mới",
+      eventsDescription: "Khám phá điều đang diễn ra gần bạn",
       pastMeetings: "Các buổi gặp trước đây",
       pastMeetingsEmpty: "Các buổi gặp bạn tổ chức hoặc tham gia sẽ hiển thị tại đây.",
       subtitle: "Lịch sắp tới từ địa điểm và thành viên Met",
@@ -657,6 +663,12 @@ export const vi: LocaleTree = {
     slide3Title: "Tạo danh tính của bạn",
     slide3Body:
       "Hãy thiết lập hồ sơ để mọi người biết họ đã gặp ai.",
+    slide4Title: "Kế hoạch, buổi gặp và sự kiện",
+    slide4Body:
+      "Lên kế hoạch riêng với bạn bè, tham gia buổi gặp công khai và khám phá điều đang diễn ra gần bạn.",
+    slide5Title: "Tự tin tham gia",
+    slide5Body:
+      "Khám phá địa điểm, nhận phần thưởng khi check-in và xem đánh giá của chủ buổi gặp trước khi tham gia.",
     tapToChoose: "Chạm để chọn",
     infoTitle: "Một cái tên và một câu.",
     infoSub: "Hãy giữ phần giới thiệu ngắn. Càng ngắn, càng chân thật.",

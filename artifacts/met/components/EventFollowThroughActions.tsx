@@ -1,6 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { EventFeedItem } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
-import { buildEventCalendarIcs } from "@/lib/calendarExport";
+import { addEventToCalendar } from "@/lib/addToCalendar";
 import {
   cancelEventReminder,
   DEFAULT_EVENT_REMINDER_SETTINGS,
@@ -113,26 +111,27 @@ export default function EventFollowThroughActions({ event, uid }: Props) {
     setError("");
     setMessage("");
     try {
-      if (!(await Sharing.isAvailableAsync())) {
-        throw new Error("Sharing is unavailable.");
+      const result = await addEventToCalendar(event, uid);
+      if (result.status === "permission-denied") {
+        setError(t("eventFollowThrough.calendarPermissionRequired"));
+        if (!result.canAskAgain) {
+          Alert.alert(
+            t("eventFollowThrough.calendar"),
+            t("eventFollowThrough.calendarPermissionRequired"),
+            [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: t("common.open"),
+                onPress: () => void Linking.openSettings().catch(() => undefined),
+              },
+            ],
+          );
+        }
+        return;
       }
-      const directory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
-      if (!directory) throw new Error("Calendar export storage is unavailable.");
-
-      const uri = `${directory}met-event-${event.eventType}-${event.id}-${Date.now()}.ics`;
-      await FileSystem.writeAsStringAsync(
-        uri,
-        buildEventCalendarIcs({
-          ...event,
-          location: event.location ?? event.venueName,
-        }),
-      );
-      await Sharing.shareAsync(uri, {
-        mimeType: "text/calendar",
-        dialogTitle: t("eventFollowThrough.calendar"),
-        UTI: "com.apple.ical.ics",
-      });
-    } catch {
+      setMessage(t("eventFollowThrough.calendarAdded"));
+    } catch (cause) {
+      console.warn("[calendar] couldn't add event to the device calendar", cause);
       setError(t("eventFollowThrough.calendarError"));
     } finally {
       setBusy(null);
@@ -216,7 +215,9 @@ export default function EventFollowThroughActions({ event, uid }: Props) {
             <Feather name="calendar" size={17} color={colors.primary} />
           )}
           <Text style={[styles.actionText, { color: colors.text }]}>
-            {t("eventFollowThrough.calendar")}
+            {busy === "calendar"
+              ? t("eventFollowThrough.calendarAdding")
+              : t("eventFollowThrough.calendar")}
           </Text>
         </Pressable>
         <Pressable

@@ -85,7 +85,10 @@ export const pt: LocaleTree = {
   dateTime: { time: "Hora" },
   eventFollowThrough: {
     calendar: "Adicionar ao calendário",
-    calendarError: "Não foi possível compartilhar este evento do calendário.",
+    calendarAdding: "Adicionando ao calendário…",
+    calendarAdded: "Adicionado ao seu calendário.",
+    calendarPermissionRequired: "Permita o acesso ao calendário nos Ajustes para adicionar este evento.",
+    calendarError: "Não foi possível adicionar este evento ao calendário.",
     reminder: "Lembrete do plano",
     remindAt: "Lembrar",
     atStart: "No início do evento",
@@ -124,6 +127,9 @@ export const pt: LocaleTree = {
       title: "Eventos",
       eventsHeading: "Veja o que está acontecendo ao seu redor",
       hangoutsHeading: "Quer sair e conhecer pessoas?!",
+      plansDescription: "Para você e seus amigos",
+      hangoutsDescription: "Crie ou participe de um encontro e faça novos amigos",
+      eventsDescription: "Veja o que está acontecendo por perto",
       pastMeetings: "Encontros anteriores",
       pastMeetingsEmpty: "Aqui aparecem os encontros que organizaste ou a que participaste.",
       subtitle: "Próximos encontros de locais e membros do Met",
@@ -657,6 +663,12 @@ export const pt: LocaleTree = {
     slide3Title: "Crie sua identidade",
     slide3Body:
       "Vamos configurar seu perfil para que as pessoas saibam quem encontraram.",
+    slide4Title: "Planos, encontros e eventos",
+    slide4Body:
+      "Combine planos privados com amigos, participe de encontros públicos e descubra o que está acontecendo por perto.",
+    slide5Title: "Vá com confiança",
+    slide5Body:
+      "Explore lugares, ganhe recompensas ao fazer check-in e veja avaliações dos anfitriões antes de participar.",
     tapToChoose: "Toque para escolher",
     infoTitle: "Um nome e uma frase.",
     infoSub: "Mantenha a bio curta. Quanto mais curta, mais sincera parece.",

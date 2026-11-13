@@ -2,7 +2,7 @@ import React from "react";
 import renderer, { act } from "react-test-renderer";
 import { Image } from "react-native";
 
-const mockEvent = {
+const baseEvent = {
   id: 42,
   eventType: "member",
   ownerUid: "hangout-host",
@@ -26,21 +26,27 @@ const mockEvent = {
     myRating: null,
   },
 };
+let mockEvent = { ...baseEvent };
+let mockRouteParams: { eventType: string; id: string } = {
+  eventType: "member",
+  id: "42",
+};
 const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefined) };
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn() };
-let mockQueryResults: Array<Record<string, unknown>> = [];
-
 jest.mock("@expo/vector-icons", () => {
   const React = require("react");
   const { View } = require("react-native");
   return { Feather: (props: Record<string, unknown>) => React.createElement(View, props) };
 });
 jest.mock("@tanstack/react-query", () => ({
-  useQuery: () => mockQueryResults.shift() ?? {},
+  useQuery: (options: { queryKey?: unknown[] }) =>
+    options.queryKey?.[0] === "event-details"
+      ? { data: mockEvent, isLoading: false, error: undefined }
+      : { data: undefined, isLoading: false, error: undefined },
   useQueryClient: () => mockQueryClient,
 }));
 jest.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ eventType: "member", id: "42" }),
+  useLocalSearchParams: () => mockRouteParams,
   useRouter: () => mockRouter,
 }));
 jest.mock("expo-location", () => ({
@@ -80,8 +86,17 @@ jest.mock("@/lib/eventLinks", () => ({ buildEventDetailsUrl: jest.fn() }));
 jest.mock("@/lib/eventReminders", () => ({ cancelEventReminder: jest.fn() }));
 jest.mock("@/components/EventFollowThroughActions", () => () => null);
 jest.mock("@/components/TrustScoreBadge", () => ({ TrustScoreBadge: () => null }));
+jest.mock("react-native-keyboard-controller", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return {
+    KeyboardAvoidingView: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement(View, props, children),
+  };
+});
 jest.mock("@workspace/api-client-react", () => ({
   getGetEventDetailsQueryKey: () => ["event-details"],
+  getGetEventReviewsQueryKey: () => ["event-reviews"],
   getGetEventDetailsQueryOptions: () => ({ queryKey: ["event-details-options"] }),
   getGetCommunityEventForEditQueryOptions: () => ({ queryKey: ["event-edit-options"] }),
   getGetEventsFeedQueryKey: () => ["events-feed"],
@@ -92,30 +107,34 @@ jest.mock("@workspace/api-client-react", () => ({
   useReportCommunityEvent: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useRsvpCommunityEvent: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useRateCommunityEventHost: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useGetEventReviews: () => ({ data: undefined, isLoading: false, isError: false }),
+  useCreateEventReview: () => ({ mutateAsync: jest.fn(), isPending: false, error: null }),
   useRequestToJoinCommunityEvent: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useWithdrawCommunityEventJoinRequest: () => ({ mutateAsync: jest.fn(), isPending: false }),
 }));
 
 import EventDetailsScreen from "../[eventType]/[id]";
 
-describe("concluded Hangout details", () => {
+function renderScreen() {
+  let root!: renderer.ReactTestRenderer;
+  act(() => {
+    root = renderer.create(<EventDetailsScreen />);
+  });
+  return root;
+}
+
+describe("event detail layouts", () => {
   beforeEach(() => {
-    mockQueryResults = [
-      { data: mockEvent, isLoading: false, error: undefined },
-      { data: undefined, isLoading: false, error: undefined },
-      { data: undefined, isLoading: false, error: undefined },
-    ];
+    mockEvent = { ...baseEvent };
+    mockRouteParams = { eventType: "member", id: "42" };
   });
 
   it("shows a short completed summary and keeps host reviews while hiding active-event content", () => {
-    let root!: renderer.ReactTestRenderer;
-    act(() => {
-      root = renderer.create(<EventDetailsScreen />);
-    });
+    const root = renderScreen();
 
     expect(root.root.findByProps({ testID: "concluded-hangout-summary" })).toBeTruthy();
     expect(root.root.findAllByProps({ testID: "hangout-creator-rating" }).length).toBeGreaterThan(0);
-    expect(root.root.findAllByProps({ testID: "button-submit-hangout-host-rating" }).length).toBeGreaterThan(0);
+    expect(root.root.findAllByProps({ testID: "event-reviews" }).length).toBeGreaterThan(0);
     expect(root.root.findAllByProps({ testID: "button-open-plan-chat" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "button-request-to-join" })).toHaveLength(0);
     expect(
@@ -123,6 +142,57 @@ describe("concluded Hangout details", () => {
     ).toHaveLength(0);
     expect(root.root.findAllByType(Image)).toHaveLength(0);
 
+    act(() => root.unmount());
+  });
+
+  it("gives active Hangouts their own visual hero", () => {
+    mockEvent = {
+      ...baseEvent,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+
+    const root = renderScreen();
+
+    expect(root.root.findByProps({ testID: "event-detail-hangout-hero" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "event-detail-standard-hero" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("gives invite-only Plans their own date-first visual hero", () => {
+    mockEvent = {
+      ...baseEvent,
+      joinApprovalRequired: false,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      visibility: "invite_only",
+    };
+
+    const root = renderScreen();
+
+    expect(root.root.findByProps({ testID: "event-detail-plan-hero" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "event-detail-hangout-hero" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "event-detail-standard-hero" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("keeps venue Event details on the standard event layout", () => {
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      joinApprovalRequired: false,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      visibility: "public",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+
+    expect(root.root.findByProps({ testID: "event-detail-standard-hero" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "event-detail-hangout-hero" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
     act(() => root.unmount());
   });
 });

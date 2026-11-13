@@ -87,7 +87,10 @@ export const en = {
   },
   eventFollowThrough: {
     calendar: "Add to calendar",
-    calendarError: "Couldn't share this calendar event.",
+    calendarAdding: "Adding to calendar…",
+    calendarAdded: "Added to your calendar.",
+    calendarPermissionRequired: "Allow calendar access in Settings to add this event.",
+    calendarError: "Couldn't add this event to your calendar.",
     reminder: "Plan reminder",
     remindAt: "Remind me",
     atStart: "At event start",
@@ -126,6 +129,9 @@ export const en = {
       title: "Events",
       eventsHeading: "Check what's Happening around you",
       hangoutsHeading: "Want Hangout and get to know people?!",
+      plansDescription: "For you and your friends",
+      hangoutsDescription: "Create or join a hangout and get to make new friends",
+      eventsDescription: "check what's happening around",
       pastMeetings: "Past Meetings",
       pastMeetingsEmpty: "Meetings you’ve hosted or joined will appear here.",
       subtitle: "Upcoming plans from venues and Met members",
@@ -666,6 +672,12 @@ export const en = {
     slide3Title: "Link your world",
     slide3Body:
       "Add your handles once. After you match, share Instagram, TikTok, Snapchat, and more in a tap.",
+    slide4Title: "Plans, Hangouts, and Events",
+    slide4Body:
+      "Make private plans with friends, join public Hangouts to meet new people, and discover what's happening nearby.",
+    slide5Title: "Show up with confidence",
+    slide5Body:
+      "Explore venues, check in for rewards, and see host ratings and guest reviews before you join a Hangout.",
     tapToChoose: "Tap to choose",
     infoTitle: "A name and a sentence.",
     infoSub: "Keep your bio short. The shorter, the more honest it feels.",

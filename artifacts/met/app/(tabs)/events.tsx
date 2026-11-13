@@ -67,8 +67,10 @@ function EventsScreen() {
   const { authedUid } = useApp();
   const params = useLocalSearchParams<{ view?: string | string[] }>();
   const requestedView = Array.isArray(params.view) ? params.view[0] : params.view;
-  const [activeView, setActiveView] = useState<"events" | "hangouts">(
-    requestedView === "events" ? "events" : "hangouts",
+  const [activeView, setActiveView] = useState<"plans" | "hangouts" | "events">(
+    requestedView === "plans" || requestedView === "events"
+      ? requestedView
+      : "hangouts",
   );
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<RsvpStatus | null>(null);
@@ -173,7 +175,11 @@ function EventsScreen() {
   }, [fetchNativeLocation, t]);
 
   useEffect(() => {
-    if (requestedView === "events" || requestedView === "hangouts") {
+    if (
+      requestedView === "plans" ||
+      requestedView === "events" ||
+      requestedView === "hangouts"
+    ) {
       setActiveView(requestedView);
     }
   }, [requestedView]);
@@ -229,15 +235,31 @@ function EventsScreen() {
     return () => subscription.remove();
   }, [activeView, fetchNativeLocation, userLocation]);
 
-  const selectView = useCallback((view: "events" | "hangouts") => {
+  const selectView = useCallback((view: "plans" | "events" | "hangouts") => {
     setActiveView(view);
     router.setParams({ view });
   }, [router]);
 
+  const plans = useMemo(() => (feed.data?.events ?? [])
+    .filter((event: EventFeedItem) =>
+      isPlanEvent(event) &&
+      event.eventType === "member" &&
+      event.visibility === "invite_only" &&
+      !event.joinApprovalRequired &&
+      (
+        event.ownerUid === authedUid ||
+        event.isInvited ||
+        event.myRsvp === "going" ||
+        event.myRsvp === "maybe"
+      ),
+    )
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
+  [feed.data?.events, authedUid]);
+
   const events = useMemo(() => {
     const items = (feed.data?.events ?? []).filter(
       (event: EventFeedItem) =>
-        event.eventType === "venue" && !isPlanEvent(event),
+        !isPlanEvent(event),
     );
     const byStartTime = (a: EventFeedItem, b: EventFeedItem) =>
       new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
@@ -272,6 +294,12 @@ function EventsScreen() {
     () => groupEventsByDate(events, lang, t("common.today")),
     [events, lang, t],
   );
+  const planGroups = useMemo(
+    () => groupEventsByDate(plans, lang, t("common.today")),
+    [plans, lang, t],
+  );
+  const visibleGroups = activeView === "plans" ? planGroups : eventGroups;
+  const visibleEvents = activeView === "plans" ? plans : events;
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const hangoutFilterKey = JSON.stringify([
@@ -363,9 +391,20 @@ function EventsScreen() {
         <View style={styles.header}>
           <View style={styles.headerCopy}>
             <Text testID="events-heading" style={[styles.title, { color: colors.text }]}>
-              {activeView === "hangouts"
-                ? t("tabs.events.hangoutsHeading")
-                : t("tabs.events.eventsHeading")}
+              {activeView === "plans"
+                ? t("plans.screenTitle")
+                : activeView === "hangouts"
+                  ? t("tabs.events.nearbyTab")
+                  : t("tabs.events.title")}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              {t(
+                activeView === "plans"
+                  ? "tabs.events.plansDescription"
+                  : activeView === "hangouts"
+                    ? "tabs.events.hangoutsDescription"
+                    : "tabs.events.eventsDescription",
+              )}
             </Text>
             {activeView === "events" && userLocation ? (
               <Text style={[styles.locationHint, { color: colors.primary }]}>{t("tabs.events.nearbyFirst")}</Text>
@@ -404,14 +443,16 @@ function EventsScreen() {
             >
               <Feather name="users" size={20} color={colors.primary} />
             </Pressable>
-            {activeView === "hangouts" ? (
+            {activeView !== "events" ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t("tabs.events.createHangout")}
-                testID="events-create-hangout"
+                accessibilityLabel={t(
+                  activeView === "plans" ? "plans.createA11y" : "tabs.events.createHangout",
+                )}
+                testID={activeView === "plans" ? "events-create-plan" : "events-create-hangout"}
                 onPress={() => router.push({
                   pathname: "/event-create",
-                  params: { mode: "hangout" },
+                  params: { mode: activeView === "plans" ? "friends" : "hangout" },
                 } as never)}
                 style={[styles.iconButton, { backgroundColor: colors.primary }]}
               >
@@ -423,8 +464,9 @@ function EventsScreen() {
 
         <View style={[styles.viewTabs, { borderColor: colors.border }]}>
           {([
+            ["plans", t("plans.screenTitle"), "message-circle"],
+            ["hangouts", t("tabs.events.nearbyTab"), "users"],
             ["events", t("tabs.events.title"), "calendar"],
-            ["hangouts", t("tabs.events.nearbyTab"), "map-pin"],
           ] as const).map(([view, label, icon]) => {
             const selected = activeView === view;
             return (
@@ -449,7 +491,7 @@ function EventsScreen() {
           })}
         </View>
 
-        {activeView === "events" && actionError ? <Text accessibilityRole="alert" style={[styles.errorText, { color: colors.destructive }]}>{actionError}</Text> : null}
+        {actionError ? <Text accessibilityRole="alert" style={[styles.errorText, { color: colors.destructive }]}>{actionError}</Text> : null}
 
         {feed.isLoading ? (
           <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>
@@ -483,15 +525,39 @@ function EventsScreen() {
               event.myJoinRequestStatus,
             ) as never)}
           />
-        ) : events.length === 0 ? (
+        ) : visibleEvents.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: "transparent", borderColor: colors.border }]}>
-            <Feather name="calendar" size={24} color={colors.primary} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("tabs.events.empty")}</Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{t("tabs.events.emptyBody")}</Text>
+            <Feather
+              name={activeView === "plans" ? "message-circle" : "calendar"}
+              size={24}
+              color={colors.primary}
+            />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {activeView === "plans" ? t("plans.screenEmptyTitle") : t("tabs.events.empty")}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              {activeView === "plans" ? t("plans.screenEmptyBody") : t("tabs.events.emptyBody")}
+            </Text>
+            {activeView === "plans" ? (
+              <Pressable
+                accessibilityRole="button"
+                testID="events-empty-create-plan"
+                onPress={() => router.push({
+                  pathname: "/event-create",
+                  params: { mode: "friends" },
+                } as never)}
+                style={[styles.emptyAction, { backgroundColor: colors.primary }]}
+              >
+                <Text style={[styles.emptyActionText, { color: colors.primaryForeground }]}>
+                  {t("plans.make")}
+                </Text>
+                <Feather name="arrow-up-right" size={15} color={colors.primaryForeground} />
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           <View style={styles.eventList}>
-            {eventGroups.map((group) => (
+            {visibleGroups.map((group) => (
                   <View key={group.key} style={[styles.eventDateGroup, rtl ? styles.eventDateGroupRtl : styles.eventDateGroupLtr]}>
                 <Text
                   accessibilityRole="header"
@@ -509,7 +575,9 @@ function EventsScreen() {
                   const key = `${event.eventType}:${event.id}`;
                   const isPending = pendingKey === key;
                   const eventTypeLabel =
-                    event.eventType === "venue"
+                    activeView === "plans"
+                      ? t("tabs.events.friendPlanBadge")
+                      : event.eventType === "venue"
                       ? t("tabs.events.venueEvent")
                       : t("tabs.events.memberEvent");
                   const eventTimeLabel = new Date(event.startsAt).toLocaleString(lang);
@@ -662,6 +730,8 @@ const styles = StyleSheet.create({
   loading: { paddingVertical: 56, alignItems: "center" },
   emptyCard: { borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", gap: 8 },
   emptyTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", marginTop: 4 },
+  emptyAction: { minHeight: 42, borderTopLeftRadius: 20, borderBottomRightRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
+  emptyActionText: { fontSize: 13, fontWeight: "700" },
   eventList: { gap: 0, paddingTop: 3 },
   eventDateGroup: { gap: 0, borderLeftWidth: 1, paddingLeft: 14, marginLeft: 6 },
   eventDateGroupLtr: { borderLeftWidth: 1, borderRightWidth: 0, paddingLeft: 14, paddingRight: 0, marginLeft: 6, marginRight: 0 },
