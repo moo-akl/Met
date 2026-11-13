@@ -3960,6 +3960,12 @@ export const GetEventsFeedQueryParams = zod.object({
 
 export const getEventsFeedResponseEventsItemGalleryPhotosMax = 10;
 
+export const getEventsFeedResponseEventsItemRecurrenceTimeZoneMax = 100;
+
+export const getEventsFeedResponseEventsItemRecurrenceEndDateMax = 10;
+
+
+export const getEventsFeedResponseEventsItemRecurrenceEndDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 export const getEventsFeedResponseEventsItemContactPhoneMax = 40;
 
 export const getEventsFeedResponseEventsItemWebsiteUrlMax = 2000;
@@ -3992,6 +3998,8 @@ export const GetEventsFeedResponse = zod.object({
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getEventsFeedResponseEventsItemGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "recurrenceTimeZone": zod.string().max(getEventsFeedResponseEventsItemRecurrenceTimeZoneMax).optional(),
+  "recurrenceEndDate": zod.string().max(getEventsFeedResponseEventsItemRecurrenceEndDateMax).regex(getEventsFeedResponseEventsItemRecurrenceEndDateRegExp).nullish().describe('Inclusive final occurrence date in recurrenceTimeZone.'),
   "contactPhone": zod.string().max(getEventsFeedResponseEventsItemContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(getEventsFeedResponseEventsItemWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(getEventsFeedResponseEventsItemPublicEmailMax).nullish(),
@@ -4035,6 +4043,10 @@ export const createCommunityEventBodyGalleryPhotosMax = 10;
 export const createCommunityEventBodyRecurrenceTimeZoneDefault = `UTC`;
 export const createCommunityEventBodyRecurrenceTimeZoneMax = 100;
 
+export const createCommunityEventBodyRecurrenceEndDateMax = 10;
+
+
+export const createCommunityEventBodyRecurrenceEndDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 export const createCommunityEventBodyContactPhoneMax = 40;
 
 export const createCommunityEventBodyWebsiteUrlMax = 2000;
@@ -4069,6 +4081,7 @@ export const CreateCommunityEventBody = zod.object({
   "galleryPhotos": zod.array(zod.string().url()).max(createCommunityEventBodyGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
   "recurrenceTimeZone": zod.string().max(createCommunityEventBodyRecurrenceTimeZoneMax).default(createCommunityEventBodyRecurrenceTimeZoneDefault),
+  "recurrenceEndDate": zod.string().max(createCommunityEventBodyRecurrenceEndDateMax).regex(createCommunityEventBodyRecurrenceEndDateRegExp).nullish().describe('Inclusive final occurrence date in recurrenceTimeZone.'),
   "contactPhone": zod.string().max(createCommunityEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createCommunityEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createCommunityEventBodyPublicEmailMax).nullish(),
@@ -4088,6 +4101,12 @@ export const CreateCommunityEventBody = zod.object({
 
 export const createCommunityEventResponseGalleryPhotosMax = 10;
 
+export const createCommunityEventResponseRecurrenceTimeZoneMax = 100;
+
+export const createCommunityEventResponseRecurrenceEndDateMax = 10;
+
+
+export const createCommunityEventResponseRecurrenceEndDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 export const createCommunityEventResponseContactPhoneMax = 40;
 
 export const createCommunityEventResponseWebsiteUrlMax = 2000;
@@ -4119,6 +4138,8 @@ export const CreateCommunityEventResponse = zod.object({
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createCommunityEventResponseGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "recurrenceTimeZone": zod.string().max(createCommunityEventResponseRecurrenceTimeZoneMax).optional(),
+  "recurrenceEndDate": zod.string().max(createCommunityEventResponseRecurrenceEndDateMax).regex(createCommunityEventResponseRecurrenceEndDateRegExp).nullish().describe('Inclusive final occurrence date in recurrenceTimeZone.'),
   "contactPhone": zod.string().max(createCommunityEventResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createCommunityEventResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createCommunityEventResponsePublicEmailMax).nullish(),
@@ -4201,6 +4222,12 @@ export const GetEventDetailsParams = zod.object({
 
 export const getEventDetailsResponseGalleryPhotosMax = 10;
 
+export const getEventDetailsResponseRecurrenceTimeZoneMax = 100;
+
+export const getEventDetailsResponseRecurrenceEndDateMax = 10;
+
+
+export const getEventDetailsResponseRecurrenceEndDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 export const getEventDetailsResponseContactPhoneMax = 40;
 
 export const getEventDetailsResponseWebsiteUrlMax = 2000;
@@ -4232,6 +4259,8 @@ export const GetEventDetailsResponse = zod.object({
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getEventDetailsResponseGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "recurrenceTimeZone": zod.string().max(getEventDetailsResponseRecurrenceTimeZoneMax).optional(),
+  "recurrenceEndDate": zod.string().max(getEventDetailsResponseRecurrenceEndDateMax).regex(getEventDetailsResponseRecurrenceEndDateRegExp).nullish().describe('Inclusive final occurrence date in recurrenceTimeZone.'),
   "contactPhone": zod.string().max(getEventDetailsResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(getEventDetailsResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(getEventDetailsResponsePublicEmailMax).nullish(),
@@ -4549,6 +4578,10 @@ export const getCommunityEventForEditResponseGalleryPhotosMax = 10;
 
 export const getCommunityEventForEditResponseRecurrenceTimeZoneMax = 100;
 
+export const getCommunityEventForEditResponseRecurrenceEndDateMax = 10;
+
+
+export const getCommunityEventForEditResponseRecurrenceEndDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 export const getCommunityEventForEditResponseContactPhoneMax = 40;
 
 export const getCommunityEventForEditResponseWebsiteUrlMax = 2000;
@@ -4575,6 +4608,7 @@ export const GetCommunityEventForEditResponse = zod.object({
   "galleryPhotos": zod.array(zod.string().url()).max(getCommunityEventForEditResponseGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
   "recurrenceTimeZone": zod.string().max(getCommunityEventForEditResponseRecurrenceTimeZoneMax).optional(),
+  "recurrenceEndDate": zod.string().max(getCommunityEventForEditResponseRecurrenceEndDateMax).regex(getCommunityEventForEditResponseRecurrenceEndDateRegExp).nullish().describe('Inclusive final occurrence date in recurrenceTimeZone.'),
   "contactPhone": zod.string().max(getCommunityEventForEditResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(getCommunityEventForEditResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(getCommunityEventForEditResponsePublicEmailMax).nullish(),
@@ -5051,6 +5085,10 @@ export const updateCommunityEventBodyGalleryPhotosMax = 10;
 export const updateCommunityEventBodyRecurrenceTimeZoneDefault = `UTC`;
 export const updateCommunityEventBodyRecurrenceTimeZoneMax = 100;
 
+export const updateCommunityEventBodyRecurrenceEndDateMax = 10;
+
+
+export const updateCommunityEventBodyRecurrenceEndDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 export const updateCommunityEventBodyContactPhoneMax = 40;
 
 export const updateCommunityEventBodyWebsiteUrlMax = 2000;
@@ -5085,6 +5123,7 @@ export const UpdateCommunityEventBody = zod.object({
   "galleryPhotos": zod.array(zod.string().url()).max(updateCommunityEventBodyGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
   "recurrenceTimeZone": zod.string().max(updateCommunityEventBodyRecurrenceTimeZoneMax).default(updateCommunityEventBodyRecurrenceTimeZoneDefault),
+  "recurrenceEndDate": zod.string().max(updateCommunityEventBodyRecurrenceEndDateMax).regex(updateCommunityEventBodyRecurrenceEndDateRegExp).nullish().describe('Inclusive final occurrence date in recurrenceTimeZone.'),
   "contactPhone": zod.string().max(updateCommunityEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateCommunityEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateCommunityEventBodyPublicEmailMax).nullish(),
@@ -5104,6 +5143,12 @@ export const UpdateCommunityEventBody = zod.object({
 
 export const updateCommunityEventResponseGalleryPhotosMax = 10;
 
+export const updateCommunityEventResponseRecurrenceTimeZoneMax = 100;
+
+export const updateCommunityEventResponseRecurrenceEndDateMax = 10;
+
+
+export const updateCommunityEventResponseRecurrenceEndDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 export const updateCommunityEventResponseContactPhoneMax = 40;
 
 export const updateCommunityEventResponseWebsiteUrlMax = 2000;
@@ -5135,6 +5180,8 @@ export const UpdateCommunityEventResponse = zod.object({
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateCommunityEventResponseGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "recurrenceTimeZone": zod.string().max(updateCommunityEventResponseRecurrenceTimeZoneMax).optional(),
+  "recurrenceEndDate": zod.string().max(updateCommunityEventResponseRecurrenceEndDateMax).regex(updateCommunityEventResponseRecurrenceEndDateRegExp).nullish().describe('Inclusive final occurrence date in recurrenceTimeZone.'),
   "contactPhone": zod.string().max(updateCommunityEventResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateCommunityEventResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateCommunityEventResponsePublicEmailMax).nullish(),

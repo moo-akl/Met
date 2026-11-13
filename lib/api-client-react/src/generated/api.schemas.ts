@@ -2031,6 +2031,15 @@ export interface EventFeedItem {
   galleryPhotos?: string[];
   /** @nullable */
   repeatFrequency?: EventFeedItemRepeatFrequency;
+  /** @maxLength 100 */
+  recurrenceTimeZone?: string;
+  /**
+     * Inclusive final occurrence date in recurrenceTimeZone.
+     * @maxLength 10
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  recurrenceEndDate?: string | null;
   /**
      * @maxLength 40
      * @nullable
@@ -2516,6 +2525,13 @@ export interface CommunityEventInput {
   /** @maxLength 100 */
   recurrenceTimeZone?: string;
   /**
+     * Inclusive final occurrence date in recurrenceTimeZone.
+     * @maxLength 10
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  recurrenceEndDate?: string | null;
+  /**
      * @maxLength 40
      * @nullable
      */
@@ -2666,6 +2682,13 @@ export interface CommunityEventManageResponse {
   repeatFrequency?: CommunityEventManageResponseRepeatFrequency;
   /** @maxLength 100 */
   recurrenceTimeZone?: string;
+  /**
+     * Inclusive final occurrence date in recurrenceTimeZone.
+     * @maxLength 10
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  recurrenceEndDate?: string | null;
   /**
      * @maxLength 40
      * @nullable

@@ -27,6 +27,13 @@ import { prepareVenueEventImage } from "@/lib/venueEventImage";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
+import {
+  dateOnlyFromLocalDate,
+  dateOnlyInTimeZone,
+  formatDateOnly,
+  localDateFromDateOnly,
+} from "@/lib/recurrenceEndDate";
 import {
   getGetEventDetailsQueryKey,
   getGetEventsFeedQueryKey,
@@ -67,11 +74,15 @@ export default function CommunityEventForm({
   const isEditing = mode === "edit" && Boolean(initial);
   const planMode = true;
   const isHangout = planKind === "hangout";
+  const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const recurrenceTimeZone = initial?.repeatFrequency
+    ? initial.recurrenceTimeZone || deviceTimeZone
+    : deviceTimeZone;
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { t } = useT();
+  const { t, lang } = useT();
   const { authedUid, encounters } = useApp();
   const { isDark } = useTheme();
   const explorerStatus = useGetMyVerifiedExplorer({
@@ -113,6 +124,15 @@ export default function CommunityEventForm({
   const [startsAt, setStartsAt] = useState<Date>(
     initial ? new Date(initial.startsAt) : defaultStart(),
   );
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | null>(() =>
+    localDateFromDateOnly(initial?.recurrenceEndDate),
+  );
+  const recurrenceStartDate = dateOnlyInTimeZone(startsAt, recurrenceTimeZone);
+  const recurrenceStartDatePickerValue =
+    localDateFromDateOnly(recurrenceStartDate) ?? startsAt;
+  const recurrenceEndDateValue = recurrenceEndDate
+    ? dateOnlyFromLocalDate(recurrenceEndDate)
+    : null;
   const visibility: "public" | "invite_only" = isHangout ? "public" : "invite_only";
   const [verifiedExplorersOnly, setVerifiedExplorersOnly] = useState(
     isHangout && (initial?.verifiedExplorersOnly ?? false),
@@ -407,6 +427,14 @@ export default function CommunityEventForm({
       setFormError(t("tabs.events.passcodeTooLong"));
       return;
     }
+    if (
+      repeatFrequency &&
+      recurrenceEndDateValue &&
+      recurrenceEndDateValue < recurrenceStartDate
+    ) {
+      setFormError(t("tabs.events.recurrenceEndDateBeforeStart"));
+      return;
+    }
 
     const data = {
       title: title.trim(),
@@ -414,7 +442,9 @@ export default function CommunityEventForm({
       imageUrl: galleryPhotos[0] ?? null,
       galleryPhotos,
       repeatFrequency: isHangout ? null : repeatFrequency,
-      recurrenceTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      recurrenceTimeZone,
+      recurrenceEndDate:
+        !isHangout && repeatFrequency ? recurrenceEndDateValue : null,
       contactPhone: contactPhone.trim() || null,
       websiteUrl: websiteUrl.trim()
         ? (/^https?:\/\//i.test(websiteUrl.trim()) ? websiteUrl.trim() : `https://${websiteUrl.trim()}`)
@@ -919,9 +949,103 @@ export default function CommunityEventForm({
               })}
             </View>
             {repeatFrequency ? (
-              <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-                {t("tabs.events.repeatUntilDeleted")}
-              </Text>
+              <>
+                <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                  {recurrenceEndDateValue
+                    ? t("tabs.events.repeatsThroughDate", {
+                        date: formatDateOnly(recurrenceEndDateValue, lang),
+                      })
+                    : t("tabs.events.repeatUntilDeleted")}
+                </Text>
+                <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                  {t("tabs.events.recurrenceEndDateTimeZoneHint", {
+                    timeZone: recurrenceTimeZone,
+                  })}
+                </Text>
+                {recurrenceEndDate ? (
+                  <>
+                    <DateTimePicker
+                      label={t("tabs.events.recurrenceEndDate")}
+                      mode="date"
+                      value={recurrenceEndDate}
+                      onChange={setRecurrenceEndDate}
+                      optional
+                      primaryColor={colors.primary}
+                      labelColor={colors.mutedForeground}
+                      rowBg={colors.card}
+                      valueColor={colors.text}
+                      chevronColor={colors.mutedForeground}
+                      isDark={isDark}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t("tabs.events.clearRecurrenceEndDate")}
+                      testID="clear-plan-end-date"
+                      onPress={() => setRecurrenceEndDate(null)}
+                      style={{
+                        alignSelf: "flex-start",
+                        minHeight: 36,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        paddingHorizontal: 6,
+                      }}
+                    >
+                      <Feather name="x-circle" size={15} color={colors.mutedForeground} />
+                      <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                        {t("tabs.events.clearRecurrenceEndDate")}
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.addRecurrenceEndDate")}
+                    testID="set-plan-end-date"
+                    onPress={() =>
+                      setRecurrenceEndDate(recurrenceStartDatePickerValue)
+                    }
+                    style={{
+                      alignSelf: "flex-start",
+                      minHeight: 38,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 7,
+                      paddingHorizontal: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 19,
+                      backgroundColor: colors.card,
+                    }}
+                  >
+                    <Feather name="calendar" size={15} color={colors.primary} />
+                    <Text style={{
+                      color: colors.primary,
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 13,
+                    }}>
+                      {t("tabs.events.addRecurrenceEndDate")}
+                    </Text>
+                  </Pressable>
+                )}
+                {recurrenceEndDateValue &&
+                recurrenceEndDateValue < recurrenceStartDate ? (
+                  <Text
+                    accessibilityRole="alert"
+                    style={[styles.helper, { color: colors.destructive }]}
+                  >
+                    {t("tabs.events.recurrenceEndDateBeforeStart")}
+                  </Text>
+                ) : null}
+                <Text
+                  testID="repeat-plan-next-occurrence"
+                  style={[styles.helper, { color: colors.primary }]}
+                >
+                  {t("tabs.events.nextOccurrence", {
+                    date: formatRecurringPlanDate(startsAt, lang, recurrenceTimeZone),
+                  })}
+                </Text>
+              </>
             ) : null}
           </View>
         ) : null}

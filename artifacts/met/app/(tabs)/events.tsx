@@ -23,6 +23,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
 import { useT } from "@/lib/i18n";
+import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
 import { api, ApiError } from "@/lib/api/client";
 import { HangoutsNearbyPanel } from "@/components/HangoutsNearbyPanel";
 import { getHangoutOpenPath } from "@/lib/hangoutNavigation";
@@ -580,12 +581,34 @@ function EventsScreen() {
                       : event.eventType === "venue"
                       ? t("tabs.events.venueEvent")
                       : t("tabs.events.memberEvent");
-                  const eventTimeLabel = new Date(event.startsAt).toLocaleString(lang);
+                  const isRecurringPlan =
+                    activeView === "plans" &&
+                    event.eventType === "member" &&
+                    Boolean(event.repeatFrequency);
+                  const repeatCadenceLabel =
+                    event.repeatFrequency === "daily"
+                      ? t("tabs.events.repeatDaily")
+                      : event.repeatFrequency === "weekly"
+                        ? t("tabs.events.repeatWeekly")
+                        : event.repeatFrequency === "monthly"
+                          ? t("tabs.events.repeatMonthly")
+                          : null;
+                  const recurrenceDate = isRecurringPlan
+                    ? formatRecurringPlanDate(
+                        event.startsAt,
+                        lang,
+                        event.recurrenceTimeZone ?? "UTC",
+                      )
+                    : null;
+                  const eventTimeLabel = recurrenceDate
+                    ? t("tabs.events.nextOccurrence", { date: recurrenceDate })
+                    : new Date(event.startsAt).toLocaleString(lang);
                   const eventPlaceLabel =
                     event.location ?? event.venueName ?? event.creatorName;
                   const eventAccessibilityLabel = [
                     event.title,
                     eventTypeLabel,
+                    isRecurringPlan ? repeatCadenceLabel : undefined,
                     event.visibility === "invite_only"
                       ? t("tabs.events.inviteOnly")
                       : undefined,
@@ -637,6 +660,20 @@ function EventsScreen() {
                             ) : null}
                           </View>
                           <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+                          {isRecurringPlan && repeatCadenceLabel ? (
+                            <View
+                              testID={`event-card-recurrence-${event.id}`}
+                              style={[
+                                styles.recurrenceMetaRow,
+                                { flexDirection: rtl ? "row-reverse" : "row" },
+                              ]}
+                            >
+                              <Feather name="repeat" size={13} color={colors.primary} />
+                              <Text style={[styles.recurrenceMetaText, { color: colors.primary }]}>
+                                {repeatCadenceLabel}
+                              </Text>
+                            </View>
+                          ) : null}
                           <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>
                             {eventTimeLabel}
                           </Text>
@@ -745,6 +782,8 @@ const styles = StyleSheet.create({
   privateBadge: { fontSize: 11, fontWeight: "600" },
   eventTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", lineHeight: 27 },
   eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 5 },
+  recurrenceMetaRow: { alignItems: "center", gap: 6, marginTop: 5 },
+  recurrenceMetaText: { fontSize: 12, lineHeight: 17, fontWeight: "600" },
   description: { fontSize: 14, lineHeight: 20, marginTop: 9 },
   detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 10 },
   detailsLinkText: { fontSize: 12, fontWeight: "700" },

@@ -1,7 +1,24 @@
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { communityEventsTable, db } from "@workspace/db";
 
 type Frequency = "daily" | "weekly" | "monthly";
+
+export type RecurringPlanFrequency = Frequency;
+
+export type RecurringPlanSchedule = {
+  startsAt: Date;
+  endsAt: Date | null;
+  frequency: Frequency;
+  recurrenceTimeZone: string;
+  recurrenceDayOfMonth: number | null;
+  recurrenceEndDate: string | null;
+};
+
+type AdvancedRecurringPlanSchedule = Omit<RecurringPlanSchedule, "frequency"> & {
+  frequency: Frequency | null;
+  advancedOccurrences: number;
+  completed: boolean;
+};
 
 function getZonedParts(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -122,6 +139,81 @@ export function dayOfMonthInTimeZone(date: Date, timeZone: string): number {
   return getZonedParts(date, timeZone).day;
 }
 
+export function dateOnlyInTimeZone(date: Date, timeZone: string): string {
+  const parts = getZonedParts(date, timeZone);
+  return [
+    String(parts.year).padStart(4, "0"),
+    String(parts.month).padStart(2, "0"),
+    String(parts.day).padStart(2, "0"),
+  ].join("-");
+}
+
+export function isValidDateOnly(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [, year, month, day] = match;
+  const date = new Date(0);
+  date.setUTCFullYear(Number(year), Number(month) - 1, Number(day));
+  date.setUTCHours(0, 0, 0, 0);
+  return date.toISOString().slice(0, 10) === value;
+}
+
+export function advanceRecurringPlanSchedule(
+  plan: RecurringPlanSchedule,
+  now: Date,
+): AdvancedRecurringPlanSchedule {
+  let nextStart = plan.startsAt;
+  let nextEnd = plan.endsAt;
+  let advancedOccurrences = 0;
+  let completed = false;
+
+  while (sqlWindowEnd(nextStart, nextEnd) <= now && advancedOccurrences < 20_000) {
+    if (
+      plan.recurrenceEndDate &&
+      dateOnlyInTimeZone(nextStart, plan.recurrenceTimeZone) > plan.recurrenceEndDate
+    ) {
+      completed = true;
+      break;
+    }
+
+    const updatedStart = nextOccurrence(
+      nextStart,
+      plan.frequency,
+      plan.recurrenceTimeZone,
+      plan.recurrenceDayOfMonth,
+    );
+    if (
+      plan.recurrenceEndDate &&
+      dateOnlyInTimeZone(updatedStart, plan.recurrenceTimeZone) > plan.recurrenceEndDate
+    ) {
+      completed = true;
+      break;
+    }
+
+    if (nextEnd) {
+      nextEnd = shiftEndByLocalDuration(
+        nextStart,
+        nextEnd,
+        updatedStart,
+        plan.recurrenceTimeZone,
+      );
+    }
+    nextStart = updatedStart;
+    advancedOccurrences += 1;
+  }
+
+  return {
+    ...plan,
+    startsAt: nextStart,
+    endsAt: nextEnd,
+    frequency: completed ? null : plan.frequency,
+    recurrenceDayOfMonth: completed ? null : plan.recurrenceDayOfMonth,
+    recurrenceEndDate: completed ? null : plan.recurrenceEndDate,
+    advancedOccurrences,
+    completed,
+  };
+}
+
 export async function advanceDueRecurringFriendPlans(
   now = new Date(),
 ): Promise<number> {
@@ -133,6 +225,7 @@ export async function advanceDueRecurringFriendPlans(
       repeatFrequency: communityEventsTable.repeatFrequency,
       recurrenceTimeZone: communityEventsTable.recurrenceTimeZone,
       recurrenceDayOfMonth: communityEventsTable.recurrenceDayOfMonth,
+      recurrenceEndDate: communityEventsTable.recurrenceEndDate,
     })
     .from(communityEventsTable)
     .where(and(
@@ -153,36 +246,24 @@ export async function advanceDueRecurringFriendPlans(
   let advanced = 0;
   for (const plan of duePlans) {
     const frequency = plan.repeatFrequency as Frequency;
-    let nextStart = plan.startsAt;
-    let nextEnd = plan.endsAt;
-    let shifts = 0;
-    while (
-      sqlWindowEnd(nextStart, nextEnd) <= now &&
-      shifts < 20_000
-    ) {
-      const updatedStart = nextOccurrence(
-        nextStart,
-        frequency,
-        plan.recurrenceTimeZone || "UTC",
-        plan.recurrenceDayOfMonth,
-      );
-      if (nextEnd) {
-        nextEnd = shiftEndByLocalDuration(
-          nextStart,
-          nextEnd,
-          updatedStart,
-          plan.recurrenceTimeZone || "UTC",
-        );
-      }
-      nextStart = updatedStart;
-      shifts += 1;
-    }
-    if (shifts === 0) continue;
+    const timeZone = plan.recurrenceTimeZone || "UTC";
+    const next = advanceRecurringPlanSchedule({
+      startsAt: plan.startsAt,
+      endsAt: plan.endsAt,
+      frequency,
+      recurrenceTimeZone: timeZone,
+      recurrenceDayOfMonth: plan.recurrenceDayOfMonth,
+      recurrenceEndDate: plan.recurrenceEndDate,
+    }, now);
+    if (next.advancedOccurrences === 0 && !next.completed) continue;
     const [updated] = await db
       .update(communityEventsTable)
       .set({
-        startsAt: nextStart,
-        endsAt: nextEnd,
+        startsAt: next.startsAt,
+        endsAt: next.endsAt,
+        repeatFrequency: next.completed ? null : frequency,
+        recurrenceDayOfMonth: next.recurrenceDayOfMonth,
+        recurrenceEndDate: next.recurrenceEndDate,
         ratingPromptSentAt: null,
         updatedAt: now,
       })
@@ -190,6 +271,9 @@ export async function advanceDueRecurringFriendPlans(
         eq(communityEventsTable.id, plan.id),
         eq(communityEventsTable.startsAt, plan.startsAt),
         eq(communityEventsTable.repeatFrequency, frequency),
+        plan.recurrenceEndDate == null
+          ? isNull(communityEventsTable.recurrenceEndDate)
+          : eq(communityEventsTable.recurrenceEndDate, plan.recurrenceEndDate),
       ))
       .returning({ id: communityEventsTable.id });
     if (updated) advanced += 1;

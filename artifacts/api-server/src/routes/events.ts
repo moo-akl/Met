@@ -119,7 +119,11 @@ import {
   notifyCommunityEventPlanMessage,
 } from "../lib/eventNotifications";
 import { adminStorage, verifyAppCheckToken } from "../lib/firebaseAdmin";
-import { dayOfMonthInTimeZone } from "../lib/communityEventRecurrence";
+import {
+  dateOnlyInTimeZone,
+  dayOfMonthInTimeZone,
+  isValidDateOnly,
+} from "../lib/communityEventRecurrence";
 import {
   EVENT_PHOTO_MAX_COUNT,
   getEventPhotosExpireAt,
@@ -786,6 +790,8 @@ router.get("/events/feed", requireUid, async (req, res) => {
       imageUrl: event.imageUrl,
       galleryPhotos: event.galleryPhotos,
       repeatFrequency: event.repeatFrequency,
+      recurrenceTimeZone: event.recurrenceTimeZone,
+      recurrenceEndDate: event.recurrenceEndDate,
       contactPhone: event.contactPhone,
       websiteUrl: event.websiteUrl,
       publicEmail: event.publicEmail,
@@ -878,6 +884,19 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     res.status(400).json({ message: "Choose a valid time zone." });
     return;
   }
+  const recurrenceEndDate = repeatFrequency
+    ? parsed.data.recurrenceEndDate ?? null
+    : null;
+  if (
+    recurrenceEndDate &&
+    (!isValidDateOnly(recurrenceEndDate) ||
+      recurrenceEndDate < dateOnlyInTimeZone(times.startsAt, recurrenceTimeZone))
+  ) {
+    res.status(400).json({
+      message: "Choose an end date on or after the first occurrence.",
+    });
+    return;
+  }
   const imageUrl = galleryPhotos[0] ?? parsed.data.imageUrl ?? null;
   const inviteLinkEnabled =
     parsed.data.visibility === "invite_only" &&
@@ -943,6 +962,7 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     joinApprovalRequired,
     repeatFrequency: joinApprovalRequired ? null : repeatFrequency,
     recurrenceTimeZone,
+    recurrenceEndDate,
     recurrenceDayOfMonth:
       !joinApprovalRequired && repeatFrequency === "monthly"
         ? dayOfMonthInTimeZone(times.startsAt, recurrenceTimeZone)
@@ -993,6 +1013,8 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     imageUrl: event.imageUrl,
     galleryPhotos: event.galleryPhotos,
     repeatFrequency: event.repeatFrequency,
+    recurrenceTimeZone: event.recurrenceTimeZone,
+    recurrenceEndDate: event.recurrenceEndDate,
     contactPhone: event.contactPhone,
     websiteUrl: event.websiteUrl,
     publicEmail: event.publicEmail,
@@ -1529,8 +1551,10 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         title: event.title,
         description: event.description,
         imageUrl: event.imageUrl,
-      galleryPhotos: event.galleryPhotos,
-      repeatFrequency: event.repeatFrequency,
+        galleryPhotos: event.galleryPhotos,
+        repeatFrequency: event.repeatFrequency,
+        recurrenceTimeZone: event.recurrenceTimeZone,
+        recurrenceEndDate: event.recurrenceEndDate,
         contactPhone: event.contactPhone,
         websiteUrl: event.websiteUrl,
         publicEmail: event.publicEmail,
@@ -1842,6 +1866,9 @@ router.get(
         title: event.title,
         description: event.description,
         imageUrl: event.imageUrl,
+        repeatFrequency: event.repeatFrequency,
+        recurrenceTimeZone: event.recurrenceTimeZone,
+        recurrenceEndDate: event.recurrenceEndDate,
         contactPhone: event.contactPhone,
         websiteUrl: event.websiteUrl,
         publicEmail: event.publicEmail,
@@ -3069,11 +3096,28 @@ router.put(
     const nextImageUrl = nextGalleryPhotos[0] ?? parsed.data.imageUrl ?? null;
     const nextRepeatFrequency = existing.joinApprovalRequired
       ? null
-      : parsed.data.repeatFrequency ?? existing.repeatFrequency;
+      : parsed.data.repeatFrequency === undefined
+        ? existing.repeatFrequency
+        : parsed.data.repeatFrequency;
     const nextRecurrenceTimeZone =
       parsed.data.recurrenceTimeZone ?? existing.recurrenceTimeZone;
     if (!isValidTimeZone(nextRecurrenceTimeZone)) {
       res.status(400).json({ message: "Choose a valid time zone." });
+      return;
+    }
+    const nextRecurrenceEndDate = nextRepeatFrequency
+      ? parsed.data.recurrenceEndDate === undefined
+        ? existing.recurrenceEndDate
+        : parsed.data.recurrenceEndDate
+      : null;
+    if (
+      nextRecurrenceEndDate &&
+      (!isValidDateOnly(nextRecurrenceEndDate) ||
+        nextRecurrenceEndDate < dateOnlyInTimeZone(times.startsAt, nextRecurrenceTimeZone))
+    ) {
+      res.status(400).json({
+        message: "Choose an end date on or after the first occurrence.",
+      });
       return;
     }
     const nextRecurrenceDayOfMonth = nextRepeatFrequency === "monthly"
@@ -3089,6 +3133,7 @@ router.put(
       nextRepeatFrequency !== existing.repeatFrequency ||
       nextRecurrenceTimeZone !== existing.recurrenceTimeZone ||
       nextRecurrenceDayOfMonth !== existing.recurrenceDayOfMonth ||
+      nextRecurrenceEndDate !== existing.recurrenceEndDate ||
       (parsed.data.contactPhone?.trim() || null) !== existing.contactPhone ||
       (parsed.data.websiteUrl?.trim() || null) !== existing.websiteUrl ||
       (parsed.data.publicEmail?.trim() || null) !== existing.publicEmail ||
@@ -3214,6 +3259,7 @@ router.put(
         repeatFrequency: nextRepeatFrequency,
         recurrenceTimeZone: nextRecurrenceTimeZone,
         recurrenceDayOfMonth: nextRecurrenceDayOfMonth,
+        recurrenceEndDate: nextRecurrenceEndDate,
         verifiedExplorersOnly: nextVerifiedExplorersOnly,
         inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
         ...inviteLinkFields,
@@ -3277,6 +3323,8 @@ router.put(
         imageUrl: event.imageUrl,
         galleryPhotos: event.galleryPhotos,
         repeatFrequency: event.repeatFrequency,
+        recurrenceTimeZone: event.recurrenceTimeZone,
+        recurrenceEndDate: event.recurrenceEndDate,
         contactPhone: event.contactPhone,
         websiteUrl: event.websiteUrl,
         publicEmail: event.publicEmail,

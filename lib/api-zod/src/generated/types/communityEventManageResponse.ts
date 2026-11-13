@@ -22,6 +22,13 @@ export interface CommunityEventManageResponse {
   /** @maxLength 100 */
   recurrenceTimeZone?: string;
   /**
+     * Inclusive final occurrence date in recurrenceTimeZone.
+     * @maxLength 10
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  recurrenceEndDate?: string | null;
+  /**
      * @maxLength 40
      * @nullable
      */

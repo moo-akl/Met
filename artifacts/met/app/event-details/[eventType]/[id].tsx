@@ -27,6 +27,7 @@ import EventFollowThroughActions from "@/components/EventFollowThroughActions";
 import { EventReviewSection } from "@/components/EventReviewSection";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
+import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
 import {
   getGetEventDetailsQueryKey,
   getGetEventDetailsQueryOptions,
@@ -119,6 +120,22 @@ export default function EventDetailsScreen() {
       !event?.joinApprovalRequired &&
       event?.visibility === "invite_only",
   );
+  const recurrenceTimeZone = event?.repeatFrequency
+    ? event.recurrenceTimeZone ?? "UTC"
+    : undefined;
+  const eventDateTimeOptions = recurrenceTimeZone
+    ? { timeZone: recurrenceTimeZone }
+    : {};
+  const repeatCadenceLabel = event?.repeatFrequency === "daily"
+    ? t("tabs.events.repeatDaily")
+    : event?.repeatFrequency === "weekly"
+      ? t("tabs.events.repeatWeekly")
+      : event?.repeatFrequency === "monthly"
+        ? t("tabs.events.repeatMonthly")
+        : null;
+  const nextOccurrenceLabel = event?.repeatFrequency && recurrenceTimeZone
+    ? formatRecurringPlanDate(event.startsAt, lang, recurrenceTimeZone)
+    : null;
   const hostRating = event?.meetingHostRating ?? null;
   const eventEndTime = event
     ? new Date(
@@ -505,10 +522,18 @@ export default function EventDetailsScreen() {
             <View testID="event-detail-plan-hero" style={[styles.planHero, { backgroundColor: colors.primarySoft }]}>
               <View style={[styles.planDateTile, { backgroundColor: colors.primary }]}>
                 <Text style={[styles.planMonth, { color: colors.primaryForeground }]}>
-                  {new Date(event.startsAt).toLocaleDateString(lang, { month: "short" }).toUpperCase()}
+                  {new Date(event.startsAt).toLocaleDateString(lang, {
+                    month: "short",
+                    ...eventDateTimeOptions,
+                  }).toUpperCase()}
                 </Text>
                 <Text style={[styles.planDay, { color: colors.primaryForeground }]}>
-                  {new Date(event.startsAt).getDate()}
+                  {recurrenceTimeZone
+                    ? new Date(event.startsAt).toLocaleDateString(lang, {
+                        day: "numeric",
+                        timeZone: recurrenceTimeZone,
+                      })
+                    : new Date(event.startsAt).getDate()}
                 </Text>
               </View>
               <View style={styles.planHeroCopy}>
@@ -516,10 +541,17 @@ export default function EventDetailsScreen() {
                   {t("tabs.events.friendPlanBadge")}
                 </Text>
                 <Text style={[styles.planHeroDate, { color: colors.text }]}>
-                  {new Date(event.startsAt).toLocaleDateString(lang, { weekday: "long" })}
+                  {new Date(event.startsAt).toLocaleDateString(lang, {
+                    weekday: "long",
+                    ...eventDateTimeOptions,
+                  })}
                 </Text>
                 <Text style={[styles.planHeroTime, { color: colors.mutedForeground }]}>
-                  {new Date(event.startsAt).toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" })}
+                  {new Date(event.startsAt).toLocaleTimeString(lang, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    ...eventDateTimeOptions,
+                  })}
                 </Text>
               </View>
               {eventPhotos[0] ? (
@@ -579,15 +611,31 @@ export default function EventDetailsScreen() {
             <View style={styles.metaRow}>
               <Feather name="clock" size={16} color={colors.mutedForeground} />
               <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                {new Date(event.startsAt).toLocaleString(lang)}
+                {new Date(event.startsAt).toLocaleString(lang, eventDateTimeOptions)}
               </Text>
             </View>
             {!isConcludedHangout && event.endsAt ? (
               <View style={styles.metaRow}>
                 <Feather name="clock" size={16} color={colors.mutedForeground} />
                 <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                  {new Date(event.endsAt).toLocaleString(lang)}
+                  {new Date(event.endsAt).toLocaleString(lang, eventDateTimeOptions)}
                 </Text>
+              </View>
+            ) : null}
+            {isFriendPlan && repeatCadenceLabel && nextOccurrenceLabel ? (
+              <View
+                testID="event-detail-next-occurrence"
+                style={[styles.recurrenceCard, { backgroundColor: colors.primarySoft }]}
+              >
+                <Feather name="repeat" size={17} color={colors.primary} />
+                <View style={styles.recurrenceCopy}>
+                  <Text style={[styles.recurrenceCadence, { color: colors.text }]}>
+                    {repeatCadenceLabel}
+                  </Text>
+                  <Text style={[styles.recurrenceDate, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.nextOccurrence", { date: nextOccurrenceLabel })}
+                  </Text>
+                </View>
               </View>
             ) : null}
             {location ? (
@@ -1135,6 +1183,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, lineHeight: 32, fontWeight: "700", marginBottom: 15 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 9 },
   meta: { fontSize: 14, lineHeight: 20, flex: 1 },
+  recurrenceCard: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, marginTop: 4, marginBottom: 10 },
+  recurrenceCopy: { flex: 1, gap: 2 },
+  recurrenceCadence: { fontSize: 13, fontWeight: "700" },
+  recurrenceDate: { fontSize: 12, lineHeight: 18 },
   locationRow: {
     borderWidth: 1,
     borderTopLeftRadius: 26,

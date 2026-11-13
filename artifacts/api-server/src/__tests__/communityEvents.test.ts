@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import eventsRouter from "../routes/events";
 import reportsRouter from "../routes/reports";
+import { nextOccurrence } from "../lib/communityEventRecurrence";
 
 const { mockSendPushWithStatus } = vi.hoisted(() => ({
   mockSendPushWithStatus: vi.fn().mockResolvedValue({ sent: true }),
@@ -55,6 +56,8 @@ const INVITEE_UID = `${testPrefix}-invitee`;
 const OTHER_UID = `${testPrefix}-other`;
 const MUTED_UID = `${testPrefix}-muted`;
 const QUOTA_UID = `${testPrefix}-quota-owner`;
+const MIXED_QUOTA_UID = `${testPrefix}-mixed-quota-owner`;
+const RECURRING_QUOTA_UID = `${testPrefix}-recurring-quota-owner`;
 const app = express();
 app.use(express.json());
 app.use("/api", eventsRouter);
@@ -68,7 +71,12 @@ async function cleanup() {
   const ownedEvents = await db
     .select({ id: communityEventsTable.id })
     .from(communityEventsTable)
-    .where(inArray(communityEventsTable.ownerUid, [OWNER_UID, QUOTA_UID]));
+    .where(inArray(communityEventsTable.ownerUid, [
+      OWNER_UID,
+      QUOTA_UID,
+      MIXED_QUOTA_UID,
+      RECURRING_QUOTA_UID,
+    ]));
 
   if (ownedEvents.length) {
     await db
@@ -116,7 +124,12 @@ async function cleanup() {
 
   await db
     .delete(communityEventsTable)
-    .where(inArray(communityEventsTable.ownerUid, [OWNER_UID, QUOTA_UID]));
+    .where(inArray(communityEventsTable.ownerUid, [
+      OWNER_UID,
+      QUOTA_UID,
+      MIXED_QUOTA_UID,
+      RECURRING_QUOTA_UID,
+    ]));
   await db
     .delete(profilesTable)
     .where(inArray(profilesTable.uid, [
@@ -125,10 +138,17 @@ async function cleanup() {
       OTHER_UID,
       MUTED_UID,
       QUOTA_UID,
+      MIXED_QUOTA_UID,
+      RECURRING_QUOTA_UID,
     ]));
   await db
     .delete(subscriptionsTable)
-    .where(inArray(subscriptionsTable.userUid, [OWNER_UID, QUOTA_UID]));
+    .where(inArray(subscriptionsTable.userUid, [
+      OWNER_UID,
+      QUOTA_UID,
+      MIXED_QUOTA_UID,
+      RECURRING_QUOTA_UID,
+    ]));
 }
 
 describe.runIf(hasDatabase)("community event permissions and privacy", () => {
@@ -140,6 +160,8 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       { uid: OTHER_UID, displayName: "Other Guest", photoUrl: "https://example.com/other.jpg" },
       { uid: MUTED_UID, displayName: "Muted Guest", photoUrl: "https://example.com/muted.jpg" },
       { uid: QUOTA_UID, displayName: "Quota Tester", photoUrl: "https://example.com/quota.jpg" },
+      { uid: MIXED_QUOTA_UID, displayName: "Mixed Quota Tester", photoUrl: "https://example.com/mixed-quota.jpg" },
+      { uid: RECURRING_QUOTA_UID, displayName: "Recurring Quota Tester", photoUrl: "https://example.com/recurring-quota.jpg" },
     ]);
     await db.insert(subscriptionsTable).values({
       userUid: OWNER_UID,
@@ -297,6 +319,149 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       remaining: null,
     });
     expect((await makePlan("pro-unlimited")).status).toBe(201);
+  });
+
+  it("counts private Plans and public Hangouts toward the same Free monthly cap", async () => {
+    const makePlan = (suffix: string) =>
+      request(app)
+        .post("/api/events")
+        .set(uidHeader(MIXED_QUOTA_UID))
+        .send({
+          title: `Mixed quota Plan ${suffix}`,
+          startsAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+          visibility: "invite_only",
+          inviteeUids: [INVITEE_UID],
+        });
+    const makeHangout = (suffix: string) =>
+      request(app)
+        .post("/api/events")
+        .set(uidHeader(MIXED_QUOTA_UID))
+        .send({
+          title: `Mixed quota Hangout ${suffix}`,
+          startsAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: `mixed-quota-hangout-${suffix}`,
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+          inviteeUids: [],
+        });
+
+    for (let index = 1; index <= 3; index += 1) {
+      await makePlan(String(index)).expect(201);
+    }
+    for (let index = 1; index <= 2; index += 1) {
+      await makeHangout(String(index))
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({
+            visibility: "public",
+            joinApprovalRequired: true,
+          });
+        });
+    }
+
+    const usage = await request(app)
+      .get("/api/events/creation-usage")
+      .set(uidHeader(MIXED_QUOTA_UID))
+      .expect(200);
+    expect(usage.body).toMatchObject({
+      tier: "free",
+      used: 5,
+      limit: 5,
+      remaining: 0,
+    });
+
+    const blockedPlan = await makePlan("blocked");
+    expect(blockedPlan.status).toBe(429);
+    expect(blockedPlan.body).toMatchObject({
+      code: "COMMUNITY_EVENT_CREATION_LIMIT_REACHED",
+      used: 5,
+      limit: 5,
+      remaining: 0,
+    });
+
+    const blockedHangout = await makeHangout("blocked");
+    expect(blockedHangout.status).toBe(429);
+    expect(blockedHangout.body).toMatchObject({
+      code: "COMMUNITY_EVENT_CREATION_LIMIT_REACHED",
+      used: 5,
+      limit: 5,
+      remaining: 0,
+    });
+  });
+
+  it("counts a recurring Plan once as its occurrences advance", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(RECURRING_QUOTA_UID))
+      .send({
+        title: "Recurring quota Plan",
+        startsAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+        repeatFrequency: "weekly",
+        recurrenceTimeZone: "UTC",
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({
+      repeatFrequency: "weekly",
+      recurrenceTimeZone: "UTC",
+    });
+    const details = await request(app)
+      .get(`/api/events/member/${created.body.id}`)
+      .set(uidHeader(RECURRING_QUOTA_UID))
+      .expect(200);
+    expect(details.body).toMatchObject({
+      repeatFrequency: "weekly",
+      recurrenceTimeZone: "UTC",
+    });
+
+    const [storedPlan] = await db
+      .select({
+        id: communityEventsTable.id,
+        startsAt: communityEventsTable.startsAt,
+        repeatFrequency: communityEventsTable.repeatFrequency,
+        recurrenceTimeZone: communityEventsTable.recurrenceTimeZone,
+      })
+      .from(communityEventsTable)
+      .where(eq(communityEventsTable.ownerUid, RECURRING_QUOTA_UID));
+    expect(storedPlan).toMatchObject({
+      repeatFrequency: "weekly",
+      recurrenceTimeZone: "UTC",
+    });
+
+    const expectOneMonthlySlot = async () => {
+      const [usage, plans] = await Promise.all([
+        request(app)
+          .get("/api/events/creation-usage")
+          .set(uidHeader(RECURRING_QUOTA_UID))
+          .expect(200),
+        db
+          .select({ id: communityEventsTable.id })
+          .from(communityEventsTable)
+          .where(eq(communityEventsTable.ownerUid, RECURRING_QUOTA_UID)),
+      ]);
+      expect(usage.body).toMatchObject({
+        tier: "free",
+        used: 1,
+        limit: 5,
+        remaining: 4,
+      });
+      expect(plans).toHaveLength(1);
+    };
+
+    await expectOneMonthlySlot();
+    let occurrenceStart = storedPlan!.startsAt;
+    for (let occurrence = 0; occurrence < 3; occurrence += 1) {
+      occurrenceStart = nextOccurrence(occurrenceStart, "weekly", "UTC");
+      await db
+        .update(communityEventsTable)
+        .set({ startsAt: occurrenceStart })
+        .where(eq(communityEventsTable.id, storedPlan!.id));
+      await expectOneMonthlySlot();
+    }
   });
 
   it("searches and pages matching public hangouts beyond the old feed cap", async () => {

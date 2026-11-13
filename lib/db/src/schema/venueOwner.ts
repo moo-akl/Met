@@ -3,6 +3,7 @@ import {
   serial,
   text,
   timestamp,
+  date,
   integer,
   doublePrecision,
   boolean,
@@ -490,6 +491,8 @@ export const communityEventsTable = pgTable(
     recurrenceTimeZone: text("recurrence_time_zone").notNull().default("UTC"),
     /** The creator's original local day, so monthly plans do not drift after short months. */
     recurrenceDayOfMonth: integer("recurrence_day_of_month"),
+    /** Inclusive final local calendar date for recurring friend plans. */
+    recurrenceEndDate: date("recurrence_end_date", { mode: "string" }),
     galleryPhotos: text("gallery_photos")
       .array()
       .notNull()
