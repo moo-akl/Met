@@ -2813,6 +2813,54 @@ paths:
         "404": { description: Plan not found }
         "409": { description: Plan has not ended }
 
+  /events/{eventType}/{eventId}/reviews:
+    parameters:
+      - name: eventType
+        in: path
+        required: true
+        schema: { type: string, enum: [venue, member] }
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getEventReviews
+      tags: [events]
+      summary: List reviews for an event the caller can access
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Named event reviews and the caller's one-time review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventReviewsResponse"
+        "404": { description: Event not found or unavailable to the caller }
+    post:
+      operationId: createEventReview
+      tags: [events]
+      summary: Submit one review after an event has ended
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventReviewInput"
+      responses:
+        "201":
+          description: Review submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventReviewsResponse"
+        "400": { description: Invalid review }
+        "403": { description: Caller did not join this event }
+        "404": { description: Event not found or unavailable to the caller }
+        "409": { description: Caller already reviewed this event or it has not ended }
+
   /events/{eventType}/{eventId}/check-in/location:
     post:
       operationId: checkInEventByLocation
@@ -3035,7 +3083,6 @@ paths:
         "401":
           description: Authentication required
 
-
   /community-events/my-past-hangouts:
     get:
       operationId: getMyPastHangouts
@@ -3052,6 +3099,28 @@ paths:
                 $ref: "#/components/schemas/PastHangoutsResponse"
         "401":
           description: Authentication required
+
+  /community-events/hosts/{hostUid}/past-hangouts:
+    get:
+      operationId: getHostPastHangouts
+      tags: [events]
+      summary: List a host's past public Hangouts and reviews
+      security:
+        - MetUid: []
+      parameters:
+        - name: hostUid
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "200":
+          description: Past public Hangouts with named guest reviews
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostPastHangoutsResponse"
+        "404": { description: Host profile not found }
+        "401": { description: Authentication required }
 
   /community-events/my-past-meetings:
     get:
@@ -3127,7 +3196,6 @@ paths:
           description: Event not found or unavailable to the caller
         "401":
           description: Authentication required
-
 
   /community-events/{eventId}/plan-chat/media-upload:
     parameters:
@@ -6946,6 +7014,10 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
         contactPhone: { type: ["string", "null"], maxLength: 40 }
         websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
         publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
@@ -7013,6 +7085,10 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
         contactPhone: { type: ["string", "null"], maxLength: 40 }
         websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
         publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
@@ -7038,6 +7114,10 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
         contactPhone: { type: ["string", "null"], maxLength: 40 }
         websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
         publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
@@ -7067,6 +7147,11 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
+        repeatFrequency: { type: ["string", "null"], enum: [daily, weekly, monthly, null] }
         contactPhone: { type: ["string", "null"], maxLength: 40 }
         websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
         publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
@@ -7099,6 +7184,59 @@ components:
       required: [rating]
       properties:
         rating: { type: integer, minimum: 1, maximum: 5 }
+    EventReviewInput:
+      type: object
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        reviewText: { type: ["string", "null"], maxLength: 1000 }
+    EventReview:
+      type: object
+      required: [rating, reviewText, reviewerName, reviewerPhotoUrl, createdAt]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        reviewText: { type: ["string", "null"], maxLength: 1000 }
+        reviewerName: { type: string }
+        reviewerPhotoUrl: { type: ["string", "null"], format: uri }
+        createdAt: { type: string, format: date-time }
+    EventReviewsResponse:
+      type: object
+      required: [reviews, myReview, averageRating, reviewCount]
+      properties:
+        reviews:
+          type: array
+          items: { $ref: "#/components/schemas/EventReview" }
+        myReview:
+          oneOf:
+            - $ref: "#/components/schemas/EventReview"
+            - type: "null"
+        averageRating: { type: ["number", "null"], minimum: 1, maximum: 5 }
+        reviewCount: { type: integer, minimum: 0 }
+    HostPastHangout:
+      type: object
+      required: [id, title, startsAt, endsAt, imageUrl, galleryPhotos, averageRating, reviewCount, reviews]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
+        averageRating: { type: ["number", "null"], minimum: 1, maximum: 5 }
+        reviewCount: { type: integer, minimum: 0 }
+        reviews:
+          type: array
+          items: { $ref: "#/components/schemas/EventReview" }
+    HostPastHangoutsResponse:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/HostPastHangout" }
     MeetingHostRating:
       type: object
       required: [averageRating, reviewCount, myRating]
@@ -7252,6 +7390,10 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
         startsAt: { type: string, format: date-time }
         location: { type: ["string", "null"] }
         latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
@@ -7276,6 +7418,12 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
+        repeatFrequency: { type: ["string", "null"], enum: [daily, weekly, monthly, null] }
+        recurrenceTimeZone: { type: string, maxLength: 100, default: UTC }
         contactPhone: { type: ["string", "null"], maxLength: 40 }
         websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
         publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
@@ -7330,6 +7478,12 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }
+        galleryPhotos:
+          type: array
+          maxItems: 10
+          items: { type: string, format: uri }
+        repeatFrequency: { type: ["string", "null"], enum: [daily, weekly, monthly, null] }
+        recurrenceTimeZone: { type: string, maxLength: 100 }
         contactPhone: { type: ["string", "null"], maxLength: 40 }
         websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
         publicEmail: { type: ["string", "null"], maxLength: 254, format: email }

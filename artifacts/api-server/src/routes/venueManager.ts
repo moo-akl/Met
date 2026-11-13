@@ -39,6 +39,10 @@ import { mirrorRevealRequest } from "../lib/firestoreMirror";
 import { sendPush } from "../lib/push";
 import { notifyVenueEventRsvps } from "../lib/eventNotifications";
 import {
+  EVENT_PHOTO_MAX_COUNT,
+  getEventPhotosExpireAt,
+} from "../lib/eventPhotoRetention";
+import {
   buildEventInviteUrl,
   createEventInviteLinkFields,
   createEventInvitePasscodeFields,
@@ -1053,9 +1057,27 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
       return void res.status(400).json({ message: error instanceof Error ? error.message : "Invalid invitation passcode." });
     }
   }
+  const legacyImageUrl = optionalText(req.body?.imageUrl, 2000) ?? null;
+  const rawGallery = req.body?.galleryPhotos === undefined
+    ? legacyImageUrl ? [legacyImageUrl] : []
+    : req.body.galleryPhotos;
+  if (
+    !Array.isArray(rawGallery) ||
+    rawGallery.length > EVENT_PHOTO_MAX_COUNT ||
+    rawGallery.some((photo) => typeof photo !== "string" || !optionalText(photo, 2000))
+  ) {
+    return void res.status(400).json({ message: "Choose up to 10 valid event photos." });
+  }
+  const galleryPhotos = [...new Set(rawGallery.map((photo: string) => optionalText(photo, 2000)!))];
+  const imageUrl = req.body?.galleryPhotos === undefined
+    ? legacyImageUrl
+    : galleryPhotos[0] ?? null;
   const [event] = await db.insert(venueEventsTable).values({
     ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
-    description: optionalText(req.body?.description, 2000) ?? null, imageUrl: optionalText(req.body?.imageUrl, 2000) ?? null,
+    description: optionalText(req.body?.description, 2000) ?? null,
+    imageUrl,
+    galleryPhotos,
+    photosExpireAt: getEventPhotosExpireAt(startsAt, endsAt, Boolean(imageUrl || galleryPhotos.length)),
     capacityLimit, reminderOffsetsHours, isPublished: req.body?.isPublished !== false, visibility, inviteeUids,
     ...inviteLinkFields,
   }).returning();
@@ -1088,13 +1110,47 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
     ? existing.inviteeUids
     : await validateVenueEventInvitees(business.business.placeId, req.body.inviteeUids);
   if (!inviteeUids) return void res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
+  let requestedGallery: string[] | undefined;
+  if (req.body?.galleryPhotos !== undefined) {
+    const rawGallery = req.body.galleryPhotos;
+    if (
+      !Array.isArray(rawGallery) ||
+      rawGallery.length > EVENT_PHOTO_MAX_COUNT ||
+      rawGallery.some((photo) => typeof photo !== "string" || !optionalText(photo, 2000))
+    ) {
+      return void res.status(400).json({ message: "Choose up to 10 valid event photos." });
+    }
+    requestedGallery = [...new Set(rawGallery.map((photo: string) => optionalText(photo, 2000)!))];
+  }
+  const legacyImageUrl = req.body?.imageUrl === undefined
+    ? undefined
+    : optionalText(req.body?.imageUrl, 2000) ?? null;
+  const nextGalleryPhotos = requestedGallery ??
+    (legacyImageUrl !== undefined
+      ? legacyImageUrl ? [legacyImageUrl] : []
+      : existing.galleryPhotos ?? []);
+  const nextImageUrl = requestedGallery !== undefined
+    ? requestedGallery[0] ?? null
+    : legacyImageUrl !== undefined
+      ? legacyImageUrl
+      : existing.imageUrl;
+  const nextStartsAt = startsAt ?? existing.startsAt;
+  const nextEndsAt = req.body?.endsAt === undefined
+    ? existing.endsAt
+    : endsAt ?? null;
   const invitePasscode = typeof req.body?.invitePasscode === "string" ? req.body.invitePasscode.trim() : req.body?.invitePasscode === null ? null : undefined;
   if (invitePasscode && (invitePasscode.length < 6 || invitePasscode.length > 64)) return void res.status(400).json({ message: "Passcodes must be between 6 and 64 characters." });
   if (visibility !== "invite_only" && invitePasscode) return void res.status(400).json({ message: "Passcodes are only available for invite-only events." });
   const patch = Object.fromEntries(Object.entries({
     title, startsAt, endsAt, capacityLimit, reminderOffsetsHours,
     description: optionalText(req.body?.description, 2000),
-    imageUrl: optionalText(req.body?.imageUrl, 2000),
+    imageUrl: nextImageUrl,
+    galleryPhotos: nextGalleryPhotos,
+    photosExpireAt: getEventPhotosExpireAt(
+      nextStartsAt,
+      nextEndsAt,
+      Boolean(nextImageUrl || nextGalleryPhotos.length),
+    ),
     isPublished: typeof req.body?.isPublished === "boolean" ? req.body.isPublished : undefined,
     visibility,
     inviteeUids: visibility === "invite_only" ? inviteeUids : [],

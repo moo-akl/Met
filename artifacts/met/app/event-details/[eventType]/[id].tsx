@@ -24,6 +24,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { getAppCheckToken } from "@/lib/firestore/client";
 import { buildEventDetailsUrl } from "@/lib/eventLinks";
 import EventFollowThroughActions from "@/components/EventFollowThroughActions";
+import { EventReviewSection } from "@/components/EventReviewSection";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
 import {
@@ -37,7 +38,6 @@ import {
   useCreateVenueOwnerEventInviteLink,
   useReportCommunityEvent,
   useRsvpCommunityEvent,
-  useRateCommunityEventHost,
   useRequestToJoinCommunityEvent,
   useWithdrawCommunityEventJoinRequest,
   type EventFeedItem,
@@ -71,8 +71,6 @@ export default function EventDetailsScreen() {
   const [rsvpPending, setRsvpPending] = useState(false);
   const [joinRequestPending, setJoinRequestPending] = useState(false);
   const [checkinPending, setCheckinPending] = useState(false);
-  const [hostRatingSelection, setHostRatingSelection] = useState(0);
-  const [hostRatingPending, setHostRatingPending] = useState(false);
   const [locationPermission, requestLocationPermission] =
     Location.useForegroundPermissions();
   const eventQuery = useQuery({
@@ -117,17 +115,25 @@ export default function EventDetailsScreen() {
   const isOwner = Boolean(event && event.ownerUid === authedUid);
   const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
   const hostRating = event?.meetingHostRating ?? null;
-  const hangoutEnded = Boolean(
-    event && new Date(event.endsAt ?? event.startsAt).getTime() <= Date.now(),
-  );
+  const eventEndTime = event
+    ? new Date(
+        event.endsAt ??
+          new Date(new Date(event.startsAt).getTime() + 4 * 60 * 60 * 1000),
+      )
+    : null;
+  const eventEnded = Boolean(eventEndTime && eventEndTime.getTime() <= Date.now());
+  const hangoutEnded = eventEnded;
   const isConcludedHangout = isHangout && hangoutEnded;
-  const canRateMeetingHost = Boolean(
-    eventType === "member" &&
-      hangoutEnded &&
+  const canReviewEvent = Boolean(
+    event &&
+      eventEnded &&
       !isOwner &&
-      (isHangout
-        ? event?.myJoinRequestStatus === "accepted"
-        : event?.myRsvp === "going" || event?.myRsvp === "maybe"),
+      !event.repeatFrequency &&
+      (event.eventType === "venue"
+        ? event.myRsvp === "going" || event.myRsvp === "maybe"
+        : event.joinApprovalRequired
+          ? event.myJoinRequestStatus === "accepted"
+          : event.myRsvp === "going" || event.myRsvp === "maybe"),
   );
   const creatorUid = event?.eventType === "member" ? event.ownerUid : null;
   const creatorStandingQuery = useQuery({
@@ -153,7 +159,6 @@ export default function EventDetailsScreen() {
   const shareInviteMutation = useCreateCommunityEventInviteLink();
   const shareVenueInviteMutation = useCreateVenueOwnerEventInviteLink();
   const reportCommunityEvent = useReportCommunityEvent();
-  const rateHangoutHost = useRateCommunityEventHost();
 
   const saveRsvp = async (status: RsvpStatus) => {
     if (!event) return;
@@ -175,25 +180,6 @@ export default function EventDetailsScreen() {
       setActionError(error instanceof ApiError ? error.message : "Could not update your RSVP.");
     } finally {
       setRsvpPending(false);
-    }
-  };
-
-  const submitHangoutHostRating = async () => {
-    if (!event || !canRateMeetingHost || hostRatingSelection < 1) return;
-    setHostRatingPending(true);
-    setActionError("");
-    try {
-      await rateHangoutHost.mutateAsync({
-        eventId: event.id,
-        data: { rating: hostRatingSelection },
-      });
-      await queryClient.invalidateQueries({
-        queryKey: getGetEventDetailsQueryKey(eventType, event.id),
-      });
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : t("tabs.events.hangoutRatingSaveError"));
-    } finally {
-      setHostRatingPending(false);
     }
   };
 
@@ -459,8 +445,31 @@ export default function EventDetailsScreen() {
             { paddingBottom: insets.bottom + 28 },
           ]}
         >
-          {!isConcludedHangout && event.imageUrl ? (
-            <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" />
+          {(event.galleryPhotos?.length
+            ? event.galleryPhotos
+            : event.imageUrl
+              ? [event.imageUrl]
+              : []).length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10 }}
+              accessibilityLabel={t("tabs.events.planPhotos")}
+            >
+              {(event.galleryPhotos?.length
+                ? event.galleryPhotos
+                : event.imageUrl
+                  ? [event.imageUrl]
+                  : []).map((photo, index) => (
+                <Image
+                  key={`${photo}-${index}`}
+                  source={{ uri: photo }}
+                  style={[styles.cover, { width: 310 }]}
+                  resizeMode="cover"
+                  accessibilityLabel={t("tabs.events.planPhotos")}
+                />
+              ))}
+            </ScrollView>
           ) : !isConcludedHangout ? (
             <View style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}>
               <Feather name="calendar" size={34} color={colors.primary} />
@@ -580,59 +589,6 @@ export default function EventDetailsScreen() {
                       {t("tabs.events.hangoutHostNoReviews")}
                     </Text>
                   ) : null}
-                  {canRateMeetingHost ? (
-                    <View style={styles.hostRatingForm}>
-                      <Text style={[styles.creatorRating, { color: colors.mutedForeground }]}>
-                        {t("tabs.events.hangoutHostRatingPrompt")}
-                      </Text>
-                      <View style={styles.hostRatingStars}>
-                        {[1, 2, 3, 4, 5].map((rating) => {
-                          const selectedRating =
-                            hostRatingSelection || hostRating?.myRating || 0;
-                          return (
-                            <Pressable
-                              key={rating}
-                              accessibilityRole="button"
-                              accessibilityLabel={t("tabs.events.hangoutRatingStar", { rating })}
-                              accessibilityState={{ selected: rating <= selectedRating }}
-                              testID={`hangout-host-rating-${rating}`}
-                              onPress={() => setHostRatingSelection(rating)}
-                              hitSlop={8}
-                            >
-                              <Text
-                                style={{
-                                  color: rating <= selectedRating ? colors.primary : colors.border,
-                                  fontSize: 25,
-                                  fontWeight: "700",
-                                }}
-                              >
-                                {rating <= selectedRating ? "★" : "☆"}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        testID="button-submit-hangout-host-rating"
-                        disabled={hostRatingPending || hostRatingSelection < 1}
-                        onPress={() => void submitHangoutHostRating()}
-                        style={[
-                          styles.hostRatingSubmit,
-                          { backgroundColor: colors.primary, opacity: hostRatingPending || hostRatingSelection < 1 ? 0.55 : 1 },
-                        ]}
-                      >
-                        {hostRatingPending ? (
-                          <ActivityIndicator size="small" color={colors.primaryForeground} />
-                        ) : null}
-                        <Text style={[styles.hostRatingSubmitText, { color: colors.primaryForeground }]}>
-                          {hostRating?.myRating != null
-                            ? t("tabs.events.hangoutHostRatingUpdate")
-                            : t("tabs.events.hangoutHostRatingSubmit")}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
               </View>
             ) : event.creatorName ? (
               <Text style={[styles.creator, { color: colors.mutedForeground }]}>
@@ -647,7 +603,11 @@ export default function EventDetailsScreen() {
               </Text>
             ) : null}
             <EventFollowThroughActions event={event} uid={authedUid ?? null} />
-            {(isOwner || (canAccessHangout && !isHangout)) ? (
+            {(
+              event.eventType === "venue"
+                ? isOwner || canAccessHangout
+                : isHangout && isOwner
+            ) ? (
             <View style={[styles.attendanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.attendanceHeading}>
                 <View style={[styles.attendanceIcon, { backgroundColor: colors.primarySoft }]}>
@@ -1030,6 +990,15 @@ export default function EventDetailsScreen() {
               </View>
             ) : null}
               </>
+            ) : null}
+
+            {eventEnded ? (
+              <EventReviewSection
+                eventType={event.eventType}
+                eventId={event.id}
+                uid={authedUid ?? null}
+                canReview={canReviewEvent}
+              />
             ) : null}
 
             {actionError ? (

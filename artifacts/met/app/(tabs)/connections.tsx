@@ -32,7 +32,6 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useCountUp } from "@/hooks/useCountUp";
-import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
 import { ensureMyCode } from "@/lib/referrals";
@@ -104,7 +103,6 @@ function ConnectionsScreen() {
   const { encounters, preferences, profile, authedUid } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
 
-  const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   const handleInviteFriends = useCallback(async () => {
@@ -342,7 +340,6 @@ function ConnectionsScreen() {
         title={`${t("appHeader.titleConnections")} (${connections.length})`}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
-          { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
           {
             icon: "user-plus",
             onPress: () => void handleInviteFriends(),

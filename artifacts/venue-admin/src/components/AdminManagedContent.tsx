@@ -98,9 +98,9 @@ function ImageField({ id, value, profileId, onChange, onUploadingChange }: {
   </div>;
 }
 
-type EventDraft = { title: string; description: string; imageUrl: string; startsAt: string; endsAt: string; capacityLimit: string; isPublished: boolean };
-const emptyEvent: EventDraft = { title: "", description: "", imageUrl: "", startsAt: "", endsAt: "", capacityLimit: "", isPublished: false };
-const eventDraft = (item: VenueManagerEvent): EventDraft => ({ title: item.title, description: item.description ?? "", imageUrl: item.imageUrl ?? "", startsAt: localDate(item.startsAt), endsAt: localDate(item.endsAt), capacityLimit: item.capacityLimit?.toString() ?? "", isPublished: item.isPublished });
+type EventDraft = { title: string; description: string; galleryPhotos: string[]; startsAt: string; endsAt: string; capacityLimit: string; isPublished: boolean };
+const emptyEvent: EventDraft = { title: "", description: "", galleryPhotos: [], startsAt: "", endsAt: "", capacityLimit: "", isPublished: false };
+const eventDraft = (item: VenueManagerEvent): EventDraft => ({ title: item.title, description: item.description ?? "", galleryPhotos: item.galleryPhotos?.length ? item.galleryPhotos : item.imageUrl ? [item.imageUrl] : [], startsAt: localDate(item.startsAt), endsAt: localDate(item.endsAt), capacityLimit: item.capacityLimit?.toString() ?? "", isPublished: item.isPublished });
 
 function Events({ profileId }: { profileId: number }) {
   const { toast } = useToast();
@@ -120,7 +120,8 @@ function Events({ profileId }: { profileId: number }) {
     event.preventDefault();
     if (uploading) return;
     if (draft.endsAt && new Date(draft.endsAt) <= new Date(draft.startsAt)) { toast({ variant: "destructive", title: "End must be after start" }); return; }
-    const data: VenueManagerEventInput = { title: draft.title.trim(), description: optional(draft.description), imageUrl: optional(draft.imageUrl), startsAt: isoDate(draft.startsAt), endsAt: draft.endsAt ? isoDate(draft.endsAt) : null, capacityLimit: draft.capacityLimit ? Number(draft.capacityLimit) : null, isPublished: draft.isPublished };
+    const galleryPhotos = draft.galleryPhotos.filter(Boolean);
+    const data: VenueManagerEventInput = { title: draft.title.trim(), description: optional(draft.description), imageUrl: galleryPhotos[0] ?? null, galleryPhotos, startsAt: isoDate(draft.startsAt), endsAt: draft.endsAt ? isoDate(draft.endsAt) : null, capacityLimit: draft.capacityLimit ? Number(draft.capacityLimit) : null, isPublished: draft.isPublished };
     try {
       if (editing === "new") await create.mutateAsync({ id: profileId, data });
       else if (typeof editing === "number") await update.mutateAsync({ id: profileId, eventId: editing, data });
@@ -148,7 +149,39 @@ function Events({ profileId }: { profileId: number }) {
       <form onSubmit={(event) => void save(event)} className="space-y-4">
         <Field id="event-title" label="Title"><Input id="event-title" required maxLength={120} value={draft.title} onChange={(e) => set("title", e.target.value)} /></Field>
         <Field id="event-description" label="Description"><Textarea id="event-description" maxLength={2000} value={draft.description} onChange={(e) => set("description", e.target.value)} /></Field>
-        <ImageField id="event-image" profileId={profileId} value={draft.imageUrl} onChange={(value) => set("imageUrl", value)} onUploadingChange={setUploading} />
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Event photos (up to 10)</p>
+          {draft.galleryPhotos.map((photo, index) => (
+            <div key={`event-photo-${index}`} className="space-y-2 rounded-md border p-3">
+              <ImageField
+                id={`event-image-${index}`}
+                profileId={profileId}
+                value={photo}
+                onChange={(value) => set("galleryPhotos", draft.galleryPhotos.map((current, photoIndex) => photoIndex === index ? value : current))}
+                onUploadingChange={setUploading}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => set("galleryPhotos", draft.galleryPhotos.filter((_, photoIndex) => photoIndex !== index))}
+              >
+                Remove photo
+              </Button>
+            </div>
+          ))}
+          {draft.galleryPhotos.length < 10 ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="button-add-event-photo"
+              onClick={() => set("galleryPhotos", [...draft.galleryPhotos, ""])}
+            >
+              Add photo
+            </Button>
+          ) : null}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2"><Field id="event-start" label="Starts at"><Input id="event-start" type="datetime-local" required value={draft.startsAt} onChange={(e) => set("startsAt", e.target.value)} /></Field><Field id="event-end" label="Ends at (optional)"><Input id="event-end" type="datetime-local" value={draft.endsAt} onChange={(e) => set("endsAt", e.target.value)} /></Field></div>
         <Field id="event-capacity" label="Capacity limit (optional)"><Input id="event-capacity" type="number" min={1} step={1} value={draft.capacityLimit} onChange={(e) => set("capacityLimit", e.target.value)} /></Field>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.isPublished} onChange={(e) => set("isPublished", e.target.checked)} /> Publish this event</label>

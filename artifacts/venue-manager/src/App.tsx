@@ -1933,7 +1933,13 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
 }
 
 function EventModal({ event, message, pending, onClose, onSubmit, businessId, csrfToken }: { event?: VenueManagerEvent; message: string; pending: boolean; onClose: () => void; onSubmit: (data: VenueManagerEventInput | VenueManagerEventUpdate, shareAfterSave?: boolean) => void; businessId: number; csrfToken: string }) {
-  const [imageUrl, setImageUrl] = useState(event?.imageUrl ?? "");
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>(
+    event?.galleryPhotos?.length
+      ? event.galleryPhotos
+      : event?.imageUrl
+        ? [event.imageUrl]
+        : [],
+  );
   const [visibility, setVisibility] = useState<"public" | "invite_only">(event?.visibility ?? "public");
   const [reminderOffsetsHours, setReminderOffsetsHours] = useState<ReminderOffsetHours[]>(event?.reminderOffsetsHours ?? [24, 2]);
   const [inviteeUids, setInviteeUids] = useState<string[]>(event?.inviteeUids ?? []);
@@ -2058,7 +2064,8 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           capacityLimit: f.get("capacityLimit") ? Number(f.get("capacityLimit")) : null,
           reminderOffsetsHours,
           isPublished: f.get("isPublished") === "on",
-          imageUrl: imageUrl || null,
+          imageUrl: galleryPhotos.find(Boolean) ?? null,
+          galleryPhotos: galleryPhotos.filter(Boolean),
           visibility,
           inviteeUids: visibility === "invite_only" ? inviteeUids : [],
           invitePasscode: visibility !== "invite_only"
@@ -2145,7 +2152,47 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
         </div>}
         <label className="full">Description<textarea name="description" rows={4} defaultValue={event?.description ?? ""} /></label>
         <div className="full">
-          <ImageUploadField label="Event image" value={imageUrl} onChange={setImageUrl} businessId={businessId} csrfToken={csrfToken} />
+          <div style={{ display: "grid", gap: 12 }}>
+            <strong>Event photos (up to 10)</strong>
+            {galleryPhotos.map((photo, index) => (
+              <div
+                key={`event-photo-${index}`}
+                style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 8 }}
+              >
+                <ImageUploadField
+                  label={`Event photo ${index + 1}`}
+                  value={photo}
+                  onChange={(value) => setGalleryPhotos((current) =>
+                    current.map((currentPhoto, currentIndex) =>
+                      currentIndex === index ? value : currentPhoto,
+                    ),
+                  )}
+                  businessId={businessId}
+                  csrfToken={csrfToken}
+                />
+                <button
+                  type="button"
+                  className="vm-secondary compact"
+                  data-testid={`button-remove-event-photo-${index}`}
+                  onClick={() => setGalleryPhotos((current) =>
+                    current.filter((_, currentIndex) => currentIndex !== index),
+                  )}
+                >
+                  Remove photo
+                </button>
+              </div>
+            ))}
+            {galleryPhotos.length < 10 ? (
+              <button
+                type="button"
+                className="vm-secondary compact"
+                data-testid="button-add-event-photo"
+                onClick={() => setGalleryPhotos((current) => [...current, ""])}
+              >
+                Add photo
+              </button>
+            ) : null}
+          </div>
         </div>
         <div className="vm-form-actions full">
           <button type="button" className="vm-secondary" onClick={onClose}>Cancel</button>

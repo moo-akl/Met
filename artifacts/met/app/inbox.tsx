@@ -22,6 +22,10 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { clearChatHistory } from "@/lib/firestore/chat";
 import { getFirestoreModule } from "@/lib/firestore/client";
+import {
+  getGetMyCommunityEventPlanChatsQueryKey,
+  useGetMyCommunityEventPlanChats,
+} from "@workspace/api-client-react";
 
 const PINNED_KEY = "inbox_pinned_v1";
 const ARCHIVED_KEY = "inbox_archived_v1";
@@ -44,6 +48,7 @@ function timeAgo(ts: number): string {
 }
 
 interface ChatEntry {
+  kind: "connection";
   chatId: string;
   peerUid: string;
   peerName: string;
@@ -53,6 +58,21 @@ interface ChatEntry {
   isUnread: boolean;
   isFromMe: boolean;
 }
+
+interface PlanChatEntry {
+  kind: "event";
+  chatId: string;
+  eventId: number;
+  eventTitle: string;
+  eventType: "hangout" | "plan";
+  senderUid: string;
+  senderName: string;
+  preview: string;
+  sentAt: number;
+  isUnread: boolean;
+}
+
+type InboxEntry = ChatEntry | PlanChatEntry;
 
 async function loadSet(key: string): Promise<Set<string>> {
   try {
@@ -82,6 +102,18 @@ function InboxScreen() {
   const [archived, setArchived] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
   const webBot = Platform.OS === "web" ? 34 : 0;
+  const eventChatsQuery = useGetMyCommunityEventPlanChats({
+    query: {
+      enabled: !!authedUid,
+      staleTime: 10_000,
+      refetchOnWindowFocus: true,
+      refetchInterval: 20_000,
+      queryKey: [
+        ...getGetMyCommunityEventPlanChatsQueryKey(),
+        authedUid ?? "signed-out",
+      ],
+    },
+  });
 
   // Action sheet state
   const [selectedChat, setSelectedChat] = useState<ChatEntry | null>(null);
@@ -142,6 +174,7 @@ function InboxScreen() {
 
               const peer = connectedMap.get(peerUid);
               entries.push({
+                kind: "connection",
                 chatId,
                 peerUid,
                 peerName: peer?.realName ?? "Unknown",
@@ -234,19 +267,63 @@ function InboxScreen() {
     return { pinnedChats: p, activeChats: a, archivedChats: arch };
   }, [chats, pinned, archived]);
 
+  const eventChats = useMemo<PlanChatEntry[]>(
+    () => (eventChatsQuery.data?.conversations ?? []).map((conversation) => ({
+      kind: "event",
+      chatId: `event-${conversation.eventId}`,
+      eventId: conversation.eventId,
+      eventTitle: conversation.eventTitle,
+      eventType: conversation.eventType,
+      senderUid: conversation.senderUid,
+      senderName: conversation.senderName,
+      preview: conversation.lastMessageText ||
+        (conversation.mediaType === "voice" ? "Voice message" : "Photo"),
+      sentAt: new Date(conversation.createdAt).getTime(),
+      isUnread: conversation.isUnread,
+    })),
+    [eventChatsQuery.data?.conversations],
+  );
+
   const renderRow = useCallback(
-    (item: ChatEntry) => (
+    (item: InboxEntry) => {
+      const isConnection = item.kind === "connection";
+      const isUnread = item.isUnread;
+      const title = isConnection ? item.peerName : item.eventTitle;
+      const preview = isConnection
+        ? `${item.isFromMe ? "You: " : ""}${item.preview}`
+        : `${item.eventType === "hangout" ? "Hangout" : "Plan"} · ${item.senderUid === authedUid ? "You" : item.senderName}: ${item.preview}`;
+      return (
       <Pressable
-        onPress={() => router.push(`/chat/${item.peerUid}`)}
-        onLongPress={() => handleLongPress(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${isConnection ? "chat with" : `${item.eventType} conversation`} ${title}`}
+        testID={`inbox-row-${item.chatId}`}
+        onPress={() => router.push(
+          isConnection ? `/chat/${item.peerUid}` : `/event-chat/${item.eventId}` as never,
+        )}
+        onLongPress={isConnection ? () => handleLongPress(item) : undefined}
         delayLongPress={350}
         style={({ pressed }) => [styles.row, { opacity: pressed ? 0.7 : 1 }]}
       >
-        <Avatar uri={item.peerPhoto} size={52} ring={item.isUnread} />
+        {isConnection ? (
+          <Avatar uri={item.peerPhoto} size={52} ring={isUnread} />
+        ) : (
+          <View
+            style={[
+              styles.eventAvatar,
+              {
+                backgroundColor: colors.primarySoft,
+                borderWidth: isUnread ? 2 : 0,
+                borderColor: colors.primary,
+              },
+            ]}
+          >
+            <Feather name="users" size={21} color={colors.primary} />
+          </View>
+        )}
         <View style={styles.body}>
           <View style={styles.topLine}>
             <View style={styles.nameRow}>
-              {pinned.has(item.chatId) ? (
+              {isConnection && pinned.has(item.chatId) ? (
                 <Feather name="bookmark" size={12} color={colors.primary} style={styles.pinIcon} />
               ) : null}
               <Text
@@ -254,18 +331,18 @@ function InboxScreen() {
                   styles.name,
                   {
                     color: colors.foreground,
-                    fontFamily: item.isUnread ? "Inter_700Bold" : "Inter_600SemiBold",
+                    fontFamily: isUnread ? "Inter_700Bold" : "Inter_600SemiBold",
                   },
                 ]}
                 numberOfLines={1}
               >
-                {item.peerName}
+                {title}
               </Text>
             </View>
             <Text
               style={[
                 styles.timestamp,
-                { color: item.isUnread ? "#EF4444" : colors.mutedForeground },
+                { color: isUnread ? "#EF4444" : colors.mutedForeground },
               ]}
             >
               {timeAgo(item.sentAt)}
@@ -276,30 +353,39 @@ function InboxScreen() {
               style={[
                 styles.preview,
                 {
-                  color: item.isUnread ? colors.foreground : colors.mutedForeground,
-                  fontFamily: item.isUnread ? "Inter_600SemiBold" : "Inter_400Regular",
+                  color: isUnread ? colors.foreground : colors.mutedForeground,
+                  fontFamily: isUnread ? "Inter_600SemiBold" : "Inter_400Regular",
                 },
               ]}
               numberOfLines={1}
             >
-              {item.isFromMe ? `You: ${item.preview}` : item.preview}
+              {preview}
             </Text>
-            {item.isUnread ? <View style={styles.unreadDot} /> : null}
+            {isUnread ? <View style={styles.unreadDot} /> : null}
           </View>
         </View>
         <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
       </Pressable>
-    ),
-    [router, handleLongPress, pinned, colors],
+      );
+    },
+    [router, handleLongPress, pinned, colors, authedUid],
   );
 
   const allEmpty =
-    pinnedChats.length === 0 && activeChats.length === 0 && archivedChats.length === 0;
+    pinnedChats.length === 0 &&
+    activeChats.length === 0 &&
+    archivedChats.length === 0 &&
+    eventChats.length === 0;
 
-  type Section = { title: string; data: ChatEntry[]; key: string };
+  type Section = { title: string; data: InboxEntry[]; key: string };
   const sections: Section[] = [];
   if (pinnedChats.length > 0) sections.push({ title: "Pinned", data: pinnedChats, key: "pinned" });
-  if (activeChats.length > 0) sections.push({ title: "Messages", data: activeChats, key: "active" });
+  if (activeChats.length > 0) {
+    sections.push({ title: "Connections", data: activeChats, key: "connections" });
+  }
+  if (eventChats.length > 0) {
+    sections.push({ title: "Hangouts & plans", data: eventChats, key: "events" });
+  }
 
   const isPinned = selectedChat ? pinned.has(selectedChat.chatId) : false;
   const isArchived = selectedChat ? archived.has(selectedChat.chatId) : false;
@@ -313,10 +399,10 @@ function InboxScreen() {
         <EmptyState
           icon="message-circle"
           title="No messages yet"
-          description="Your chats with connections will appear here"
+          description="Your connection chats and Hangout or plan conversations will appear here"
         />
       ) : (
-        <SectionList
+        <SectionList<InboxEntry, Section>
           sections={sections}
           keyExtractor={(item) => item.chatId}
           contentContainerStyle={{
@@ -430,6 +516,13 @@ function InboxScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  eventAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",

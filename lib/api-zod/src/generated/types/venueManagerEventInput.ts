@@ -21,6 +21,8 @@ export interface VenueManagerEventInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
   /**
      * @maxLength 40
      * @nullable

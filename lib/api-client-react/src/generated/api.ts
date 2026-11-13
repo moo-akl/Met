@@ -91,6 +91,8 @@ import type {
   EventLocationCheckinInput,
   EventLocationSearchResponse,
   EventQrCheckinInput,
+  EventReviewInput,
+  EventReviewsResponse,
   GetEventsFeedParams,
   GetNearbyHangoutsParams,
   GetNotificationInboxParams,
@@ -102,6 +104,7 @@ import type {
   GmailBounceReconciliationPreviewResult,
   HangoutHostRatingInput,
   HealthStatus,
+  HostPastHangoutsResponse,
   HubCheckinInput,
   HubCheckinResult,
   HubCheckinStatus,
@@ -9629,6 +9632,206 @@ export const useRateCommunityEventHost = <TError = ErrorType<void>,
       return useMutation(getRateCommunityEventHostMutationOptions(options), queryClient);
     }
 
+export const getGetEventReviewsUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}/reviews`
+}
+
+/**
+ * @summary List reviews for an event the caller can access
+ */
+export const getEventReviews = async (eventType: 'venue' | 'member',
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<EventReviewsResponse> => {
+
+  return customFetch<EventReviewsResponse>(getGetEventReviewsUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEventReviewsQueryKey = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+    return [
+    `/api/events/${eventType}/${eventId}/reviews`
+    ] as const;
+    }
+
+
+export const getGetEventReviewsQueryOptions = <TData = Awaited<ReturnType<typeof getEventReviews>>, TError = ErrorType<void>>(eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventReviews>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEventReviewsQueryKey(eventType,eventId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEventReviews>>> = ({ signal }) => getEventReviews(eventType,eventId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: eventType !== null && eventType !== undefined && eventId !== null && eventId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEventReviews>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetEventReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof getEventReviews>>>
+export type GetEventReviewsQueryError = ErrorType<void>
+
+
+export function useGetEventReviews<TData = Awaited<ReturnType<typeof getEventReviews>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventReviews>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEventReviews>>,
+          TError,
+          Awaited<ReturnType<typeof getEventReviews>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEventReviews<TData = Awaited<ReturnType<typeof getEventReviews>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventReviews>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEventReviews>>,
+          TError,
+          Awaited<ReturnType<typeof getEventReviews>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEventReviews<TData = Awaited<ReturnType<typeof getEventReviews>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventReviews>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List reviews for an event the caller can access
+ */
+
+export function useGetEventReviews<TData = Awaited<ReturnType<typeof getEventReviews>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventReviews>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetEventReviewsQueryOptions(eventType,eventId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEventReviewUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}/reviews`
+}
+
+/**
+ * @summary Submit one review after an event has ended
+ */
+export const createEventReview = async (eventType: 'venue' | 'member',
+    eventId: number,
+    eventReviewInput: EventReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<EventReviewsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventReviewsResponse>(getCreateEventReviewUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventReviewInput)
+  }
+);}
+
+
+
+
+
+export const getCreateEventReviewMutationKey = () => ['createEventReview'] as const;
+
+export const getCreateEventReviewMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEventReview>>, TError,CreateEventReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEventReview>>, TError,CreateEventReviewMutationVariables, TContext> => {
+
+const mutationKey = getCreateEventReviewMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEventReview>>, CreateEventReviewMutationVariables> = (props) => {
+          const {eventType,eventId,data} = props ?? {};
+
+          return  createEventReview(eventType,eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEventReviewMutationResult = NonNullable<Awaited<ReturnType<typeof createEventReview>>>
+    export type CreateEventReviewMutationBody = BodyType<EventReviewInput>
+    export type CreateEventReviewMutationError = ErrorType<void>
+    export type CreateEventReviewMutationVariables = {eventType: 'venue' | 'member';eventId: number;data: BodyType<EventReviewInput>}
+
+    /**
+ * @summary Submit one review after an event has ended
+ */
+export const useCreateEventReview = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEventReview>>, TError,CreateEventReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createEventReview>>,
+        TError,
+        CreateEventReviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateEventReviewMutationOptions(options), queryClient);
+    }
+
 export const getCheckInEventByLocationUrl = (eventType: 'venue' | 'member',
     eventId: number,) => {
 
@@ -10583,6 +10786,107 @@ export function useGetMyPastHangouts<TData = Awaited<ReturnType<typeof getMyPast
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMyPastHangoutsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetHostPastHangoutsUrl = (hostUid: string,) => {
+
+
+
+
+  return `/api/community-events/hosts/${hostUid}/past-hangouts`
+}
+
+/**
+ * @summary List a host's past public Hangouts and reviews
+ */
+export const getHostPastHangouts = async (hostUid: string, options?: Parameters<typeof customFetch>[1]): Promise<HostPastHangoutsResponse> => {
+
+  return customFetch<HostPastHangoutsResponse>(getGetHostPastHangoutsUrl(hostUid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHostPastHangoutsQueryKey = (hostUid: string,) => {
+    return [
+    `/api/community-events/hosts/${hostUid}/past-hangouts`
+    ] as const;
+    }
+
+
+export const getGetHostPastHangoutsQueryOptions = <TData = Awaited<ReturnType<typeof getHostPastHangouts>>, TError = ErrorType<void>>(hostUid: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostPastHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHostPastHangoutsQueryKey(hostUid);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHostPastHangouts>>> = ({ signal }) => getHostPastHangouts(hostUid, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: hostUid !== null && hostUid !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHostPastHangouts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHostPastHangoutsQueryResult = NonNullable<Awaited<ReturnType<typeof getHostPastHangouts>>>
+export type GetHostPastHangoutsQueryError = ErrorType<void>
+
+
+export function useGetHostPastHangouts<TData = Awaited<ReturnType<typeof getHostPastHangouts>>, TError = ErrorType<void>>(
+ hostUid: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostPastHangouts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHostPastHangouts>>,
+          TError,
+          Awaited<ReturnType<typeof getHostPastHangouts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHostPastHangouts<TData = Awaited<ReturnType<typeof getHostPastHangouts>>, TError = ErrorType<void>>(
+ hostUid: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostPastHangouts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHostPastHangouts>>,
+          TError,
+          Awaited<ReturnType<typeof getHostPastHangouts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHostPastHangouts<TData = Awaited<ReturnType<typeof getHostPastHangouts>>, TError = ErrorType<void>>(
+ hostUid: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostPastHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List a host's past public Hangouts and reviews
+ */
+
+export function useGetHostPastHangouts<TData = Awaited<ReturnType<typeof getHostPastHangouts>>, TError = ErrorType<void>>(
+ hostUid: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostPastHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetHostPastHangoutsQueryOptions(hostUid,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -10,10 +10,8 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
 import {
@@ -22,22 +20,6 @@ import {
   isDiscoveryDismissedSync,
   subscribeDiscovery,
 } from "@/lib/discoveryHints";
-
-function ChatTabIcon({ color }: { color: string }) {
-  const { authedUid } = useApp();
-  const colors = useColors();
-  const hasUnread = useHasUnreadChats(authedUid);
-  return (
-    <View>
-      <Feather name="message-circle" size={22} color={color} />
-      {hasUnread && (
-        <View
-          style={[styles.unreadDot, { backgroundColor: colors.primary }]}
-        />
-      )}
-    </View>
-  );
-}
 
 function HomeTabIcon({ color }: { color: string }) {
   const sessionCount = useSessionCount();
@@ -158,7 +140,7 @@ export default function TabLayout() {
         name="connections"
         options={{
           title: t("tabs.connections"),
-          tabBarIcon: ({ color }) => <ChatTabIcon color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -197,14 +179,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  unreadDot: {
-    position: "absolute",
-    top: -1,
-    right: -4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   tabIconWrap: {
     alignItems: "center",
     justifyContent: "center",

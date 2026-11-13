@@ -357,6 +357,13 @@ export const venueEventsTable = pgTable(
     description: text("description"),
     /** Cover image URL (Firebase Storage). */
     imageUrl: text("image_url"),
+    /** Uploaded event gallery photos; imageUrl remains the first-photo compatibility field. */
+    galleryPhotos: text("gallery_photos")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    /** Gallery references and stored images are removed after this time. */
+    photosExpireAt: timestamp("photos_expire_at", { withTimezone: true }),
     /** Optional public event-specific contact details. */
     contactPhone: text("contact_phone"),
     websiteUrl: text("website_url"),
@@ -478,6 +485,16 @@ export const communityEventsTable = pgTable(
     locationLongitude: doublePrecision("location_longitude"),
     /** 'public' or 'invite_only' */
     visibility: text("visibility").notNull().default("public"),
+    /** Ongoing cadence for invite-only friend plans. */
+    repeatFrequency: text("repeat_frequency").$type<"daily" | "weekly" | "monthly" | null>(),
+    recurrenceTimeZone: text("recurrence_time_zone").notNull().default("UTC"),
+    /** The creator's original local day, so monthly plans do not drift after short months. */
+    recurrenceDayOfMonth: integer("recurrence_day_of_month"),
+    galleryPhotos: text("gallery_photos")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    photosExpireAt: timestamp("photos_expire_at", { withTimezone: true }),
     joinApprovalRequired: boolean("join_approval_required").notNull().default(false),
     /** Explorer-only plans are private and visible only to qualifying members. */
     verifiedExplorersOnly: boolean("verified_explorers_only").notNull().default(false),
@@ -659,6 +676,7 @@ export const communityEventHostRatingsTable = pgTable(
       .references(() => communityEventsTable.id, { onDelete: "cascade" }),
     reviewerUid: text("reviewer_uid").notNull(),
     rating: integer("rating").notNull(),
+    reviewText: text("review_text"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -671,6 +689,29 @@ export const communityEventHostRatingsTable = pgTable(
       "community_event_host_ratings_event_reviewer_uniq",
     ).on(t.eventId, t.reviewerUid),
     eventIdx: index("community_event_host_ratings_event_idx").on(t.eventId),
+  }),
+);
+
+export const venueEventReviewsTable = pgTable(
+  "venue_event_reviews",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => venueEventsTable.id, { onDelete: "cascade" }),
+    reviewerUid: text("reviewer_uid").notNull(),
+    rating: integer("rating").notNull(),
+    reviewText: text("review_text"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventReviewerUniq: uniqueIndex("venue_event_reviews_event_reviewer_uniq").on(
+      t.eventId,
+      t.reviewerUid,
+    ),
+    eventIdx: index("venue_event_reviews_event_idx").on(t.eventId),
   }),
 );
 

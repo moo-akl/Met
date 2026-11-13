@@ -3671,6 +3671,8 @@ export const createVenueOwnerEventBodyTitleMax = 120;
 
 export const createVenueOwnerEventBodyDescriptionMax = 2000;
 
+export const createVenueOwnerEventBodyGalleryPhotosMax = 10;
+
 export const createVenueOwnerEventBodyContactPhoneMax = 40;
 
 export const createVenueOwnerEventBodyWebsiteUrlMax = 2000;
@@ -3693,6 +3695,7 @@ export const CreateVenueOwnerEventBody = zod.object({
   "title": zod.string().min(1).max(createVenueOwnerEventBodyTitleMax),
   "description": zod.string().max(createVenueOwnerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueOwnerEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createVenueOwnerEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createVenueOwnerEventBodyPublicEmailMax).nullish(),
@@ -3706,6 +3709,8 @@ export const CreateVenueOwnerEventBody = zod.object({
   "inviteLinkEnabled": zod.boolean().optional(),
   "invitePasscode": zod.string().min(createVenueOwnerEventBodyInvitePasscodeMin).max(createVenueOwnerEventBodyInvitePasscodeMax).nullish()
 })
+
+export const createVenueOwnerEventResponseEventGalleryPhotosMax = 10;
 
 export const createVenueOwnerEventResponseEventContactPhoneMax = 40;
 
@@ -3721,6 +3726,7 @@ export const CreateVenueOwnerEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueOwnerEventResponseEventContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createVenueOwnerEventResponseEventWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createVenueOwnerEventResponseEventPublicEmailMax).nullish(),
@@ -3751,6 +3757,8 @@ export const updateVenueOwnerEventBodyTitleMax = 120;
 
 export const updateVenueOwnerEventBodyDescriptionMax = 2000;
 
+export const updateVenueOwnerEventBodyGalleryPhotosMax = 10;
+
 export const updateVenueOwnerEventBodyContactPhoneMax = 40;
 
 export const updateVenueOwnerEventBodyWebsiteUrlMax = 2000;
@@ -3773,6 +3781,7 @@ export const UpdateVenueOwnerEventBody = zod.object({
   "title": zod.string().min(1).max(updateVenueOwnerEventBodyTitleMax).optional(),
   "description": zod.string().max(updateVenueOwnerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueOwnerEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateVenueOwnerEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateVenueOwnerEventBodyPublicEmailMax).nullish(),
@@ -3786,6 +3795,8 @@ export const UpdateVenueOwnerEventBody = zod.object({
   "inviteLinkEnabled": zod.boolean().optional(),
   "invitePasscode": zod.string().min(updateVenueOwnerEventBodyInvitePasscodeMin).max(updateVenueOwnerEventBodyInvitePasscodeMax).nullish()
 })
+
+export const updateVenueOwnerEventResponseEventGalleryPhotosMax = 10;
 
 export const updateVenueOwnerEventResponseEventContactPhoneMax = 40;
 
@@ -3801,6 +3812,7 @@ export const UpdateVenueOwnerEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueOwnerEventResponseEventContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateVenueOwnerEventResponseEventWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateVenueOwnerEventResponseEventPublicEmailMax).nullish(),
@@ -3902,6 +3914,8 @@ export const GetNearbyHangoutsQueryParams = zod.object({
   "offset": zod.coerce.number().int().min(getNearbyHangoutsQueryOffsetMin).default(getNearbyHangoutsQueryOffsetDefault)
 })
 
+export const getNearbyHangoutsResponseEventsItemGalleryPhotosMax = 10;
+
 export const getNearbyHangoutsResponseEventsItemLatitudeMin = -90;
 export const getNearbyHangoutsResponseEventsItemLatitudeMax = 90;
 
@@ -3920,6 +3934,7 @@ export const GetNearbyHangoutsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullable(),
   "imageUrl": zod.string().url().nullable(),
+  "galleryPhotos": zod.array(zod.string().url()).max(getNearbyHangoutsResponseEventsItemGalleryPhotosMax).optional(),
   "startsAt": zod.coerce.date(),
   "location": zod.string().nullable(),
   "latitude": zod.number().min(getNearbyHangoutsResponseEventsItemLatitudeMin).max(getNearbyHangoutsResponseEventsItemLatitudeMax).nullable(),
@@ -3942,6 +3957,8 @@ export const getEventsFeedQueryIncludeOngoingDefault = false;
 export const GetEventsFeedQueryParams = zod.object({
   "includeOngoing": zod.coerce.boolean().default(getEventsFeedQueryIncludeOngoingDefault)
 })
+
+export const getEventsFeedResponseEventsItemGalleryPhotosMax = 10;
 
 export const getEventsFeedResponseEventsItemContactPhoneMax = 40;
 
@@ -3973,6 +3990,8 @@ export const GetEventsFeedResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(getEventsFeedResponseEventsItemGalleryPhotosMax).optional(),
+  "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
   "contactPhone": zod.string().max(getEventsFeedResponseEventsItemContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(getEventsFeedResponseEventsItemWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(getEventsFeedResponseEventsItemPublicEmailMax).nullish(),
@@ -4011,6 +4030,11 @@ export const createCommunityEventBodyTitleMax = 120;
 
 export const createCommunityEventBodyDescriptionMax = 2000;
 
+export const createCommunityEventBodyGalleryPhotosMax = 10;
+
+export const createCommunityEventBodyRecurrenceTimeZoneDefault = `UTC`;
+export const createCommunityEventBodyRecurrenceTimeZoneMax = 100;
+
 export const createCommunityEventBodyContactPhoneMax = 40;
 
 export const createCommunityEventBodyWebsiteUrlMax = 2000;
@@ -4042,6 +4066,9 @@ export const CreateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(createCommunityEventBodyTitleMax),
   "description": zod.string().max(createCommunityEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createCommunityEventBodyGalleryPhotosMax).optional(),
+  "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "recurrenceTimeZone": zod.string().max(createCommunityEventBodyRecurrenceTimeZoneMax).default(createCommunityEventBodyRecurrenceTimeZoneDefault),
   "contactPhone": zod.string().max(createCommunityEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createCommunityEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createCommunityEventBodyPublicEmailMax).nullish(),
@@ -4058,6 +4085,8 @@ export const CreateCommunityEventBody = zod.object({
   "joinApprovalRequired": zod.boolean().default(createCommunityEventBodyJoinApprovalRequiredDefault),
   "verifiedExplorersOnly": zod.boolean().default(createCommunityEventBodyVerifiedExplorersOnlyDefault)
 })
+
+export const createCommunityEventResponseGalleryPhotosMax = 10;
 
 export const createCommunityEventResponseContactPhoneMax = 40;
 
@@ -4088,6 +4117,8 @@ export const CreateCommunityEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createCommunityEventResponseGalleryPhotosMax).optional(),
+  "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
   "contactPhone": zod.string().max(createCommunityEventResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createCommunityEventResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createCommunityEventResponsePublicEmailMax).nullish(),
@@ -4148,6 +4179,8 @@ export const GetEventDetailsParams = zod.object({
   "eventId": zod.coerce.number().int()
 })
 
+export const getEventDetailsResponseGalleryPhotosMax = 10;
+
 export const getEventDetailsResponseContactPhoneMax = 40;
 
 export const getEventDetailsResponseWebsiteUrlMax = 2000;
@@ -4177,6 +4210,8 @@ export const GetEventDetailsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(getEventDetailsResponseGalleryPhotosMax).optional(),
+  "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
   "contactPhone": zod.string().max(getEventDetailsResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(getEventDetailsResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(getEventDetailsResponsePublicEmailMax).nullish(),
@@ -4234,6 +4269,107 @@ export const RateCommunityEventHostResponse = zod.object({
   "averageRating": zod.number().min(1).max(rateCommunityEventHostResponseAverageRatingMax).nullable(),
   "reviewCount": zod.number().int().min(rateCommunityEventHostResponseReviewCountMin),
   "myRating": zod.number().int().min(1).max(rateCommunityEventHostResponseMyRatingMax).nullable()
+})
+
+
+/**
+ * @summary List reviews for an event the caller can access
+ */
+
+
+
+export const GetEventReviewsParams = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const getEventReviewsResponseReviewsItemRatingMax = 5;
+
+export const getEventReviewsResponseReviewsItemReviewTextMax = 1000;
+
+export const getEventReviewsResponseMyReviewOneRatingMax = 5;
+
+export const getEventReviewsResponseMyReviewOneReviewTextMax = 1000;
+
+export const getEventReviewsResponseAverageRatingMax = 5;
+
+export const getEventReviewsResponseReviewCountMin = 0;
+
+
+
+export const GetEventReviewsResponse = zod.object({
+  "reviews": zod.array(zod.object({
+  "rating": zod.number().int().min(1).max(getEventReviewsResponseReviewsItemRatingMax),
+  "reviewText": zod.string().max(getEventReviewsResponseReviewsItemReviewTextMax).nullable(),
+  "reviewerName": zod.string(),
+  "reviewerPhotoUrl": zod.string().url().nullable(),
+  "createdAt": zod.coerce.date()
+})),
+  "myReview": zod.union([zod.object({
+  "rating": zod.number().int().min(1).max(getEventReviewsResponseMyReviewOneRatingMax),
+  "reviewText": zod.string().max(getEventReviewsResponseMyReviewOneReviewTextMax).nullable(),
+  "reviewerName": zod.string(),
+  "reviewerPhotoUrl": zod.string().url().nullable(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "averageRating": zod.number().min(1).max(getEventReviewsResponseAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(getEventReviewsResponseReviewCountMin)
+})
+
+
+/**
+ * @summary Submit one review after an event has ended
+ */
+
+
+
+export const CreateEventReviewParams = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const createEventReviewBodyRatingMax = 5;
+
+export const createEventReviewBodyReviewTextMax = 1000;
+
+
+
+export const CreateEventReviewBody = zod.object({
+  "rating": zod.number().int().min(1).max(createEventReviewBodyRatingMax),
+  "reviewText": zod.string().max(createEventReviewBodyReviewTextMax).nullish()
+})
+
+export const createEventReviewResponseReviewsItemRatingMax = 5;
+
+export const createEventReviewResponseReviewsItemReviewTextMax = 1000;
+
+export const createEventReviewResponseMyReviewOneRatingMax = 5;
+
+export const createEventReviewResponseMyReviewOneReviewTextMax = 1000;
+
+export const createEventReviewResponseAverageRatingMax = 5;
+
+export const createEventReviewResponseReviewCountMin = 0;
+
+
+
+export const CreateEventReviewResponse = zod.object({
+  "reviews": zod.array(zod.object({
+  "rating": zod.number().int().min(1).max(createEventReviewResponseReviewsItemRatingMax),
+  "reviewText": zod.string().max(createEventReviewResponseReviewsItemReviewTextMax).nullable(),
+  "reviewerName": zod.string(),
+  "reviewerPhotoUrl": zod.string().url().nullable(),
+  "createdAt": zod.coerce.date()
+})),
+  "myReview": zod.union([zod.object({
+  "rating": zod.number().int().min(1).max(createEventReviewResponseMyReviewOneRatingMax),
+  "reviewText": zod.string().max(createEventReviewResponseMyReviewOneReviewTextMax).nullable(),
+  "reviewerName": zod.string(),
+  "reviewerPhotoUrl": zod.string().url().nullable(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "averageRating": zod.number().min(1).max(createEventReviewResponseAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(createEventReviewResponseReviewCountMin)
 })
 
 
@@ -4389,6 +4525,10 @@ export const GetCommunityEventForEditParams = zod.object({
   "eventId": zod.coerce.number().int()
 })
 
+export const getCommunityEventForEditResponseGalleryPhotosMax = 10;
+
+export const getCommunityEventForEditResponseRecurrenceTimeZoneMax = 100;
+
 export const getCommunityEventForEditResponseContactPhoneMax = 40;
 
 export const getCommunityEventForEditResponseWebsiteUrlMax = 2000;
@@ -4412,6 +4552,9 @@ export const GetCommunityEventForEditResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(getCommunityEventForEditResponseGalleryPhotosMax).optional(),
+  "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "recurrenceTimeZone": zod.string().max(getCommunityEventForEditResponseRecurrenceTimeZoneMax).optional(),
   "contactPhone": zod.string().max(getCommunityEventForEditResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(getCommunityEventForEditResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(getCommunityEventForEditResponsePublicEmailMax).nullish(),
@@ -4576,6 +4719,50 @@ export const GetMyPastHangoutsResponse = zod.object({
   "location": zod.string().nullable(),
   "creatorName": zod.string().nullable(),
   "myRating": zod.number().int().min(1).max(getMyPastHangoutsResponseEventsItemMyRatingMax).nullable()
+}))
+})
+
+
+/**
+ * @summary List a host's past public Hangouts and reviews
+ */
+export const getHostPastHangoutsPathHostUidMax = 128;
+
+
+
+export const GetHostPastHangoutsParams = zod.object({
+  "hostUid": zod.coerce.string().min(1).max(getHostPastHangoutsPathHostUidMax)
+})
+
+export const getHostPastHangoutsResponseEventsItemGalleryPhotosMax = 10;
+
+export const getHostPastHangoutsResponseEventsItemAverageRatingMax = 5;
+
+export const getHostPastHangoutsResponseEventsItemReviewCountMin = 0;
+
+export const getHostPastHangoutsResponseEventsItemReviewsItemRatingMax = 5;
+
+export const getHostPastHangoutsResponseEventsItemReviewsItemReviewTextMax = 1000;
+
+
+
+export const GetHostPastHangoutsResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullable(),
+  "imageUrl": zod.string().url().nullable(),
+  "galleryPhotos": zod.array(zod.string().url()).max(getHostPastHangoutsResponseEventsItemGalleryPhotosMax),
+  "averageRating": zod.number().min(1).max(getHostPastHangoutsResponseEventsItemAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(getHostPastHangoutsResponseEventsItemReviewCountMin),
+  "reviews": zod.array(zod.object({
+  "rating": zod.number().int().min(1).max(getHostPastHangoutsResponseEventsItemReviewsItemRatingMax),
+  "reviewText": zod.string().max(getHostPastHangoutsResponseEventsItemReviewsItemReviewTextMax).nullable(),
+  "reviewerName": zod.string(),
+  "reviewerPhotoUrl": zod.string().url().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 }))
 })
 
@@ -4839,6 +5026,11 @@ export const updateCommunityEventBodyTitleMax = 120;
 
 export const updateCommunityEventBodyDescriptionMax = 2000;
 
+export const updateCommunityEventBodyGalleryPhotosMax = 10;
+
+export const updateCommunityEventBodyRecurrenceTimeZoneDefault = `UTC`;
+export const updateCommunityEventBodyRecurrenceTimeZoneMax = 100;
+
 export const updateCommunityEventBodyContactPhoneMax = 40;
 
 export const updateCommunityEventBodyWebsiteUrlMax = 2000;
@@ -4870,6 +5062,9 @@ export const UpdateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(updateCommunityEventBodyTitleMax),
   "description": zod.string().max(updateCommunityEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateCommunityEventBodyGalleryPhotosMax).optional(),
+  "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "recurrenceTimeZone": zod.string().max(updateCommunityEventBodyRecurrenceTimeZoneMax).default(updateCommunityEventBodyRecurrenceTimeZoneDefault),
   "contactPhone": zod.string().max(updateCommunityEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateCommunityEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateCommunityEventBodyPublicEmailMax).nullish(),
@@ -4886,6 +5081,8 @@ export const UpdateCommunityEventBody = zod.object({
   "joinApprovalRequired": zod.boolean().default(updateCommunityEventBodyJoinApprovalRequiredDefault),
   "verifiedExplorersOnly": zod.boolean().default(updateCommunityEventBodyVerifiedExplorersOnlyDefault)
 })
+
+export const updateCommunityEventResponseGalleryPhotosMax = 10;
 
 export const updateCommunityEventResponseContactPhoneMax = 40;
 
@@ -4916,6 +5113,8 @@ export const UpdateCommunityEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateCommunityEventResponseGalleryPhotosMax).optional(),
+  "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
   "contactPhone": zod.string().max(updateCommunityEventResponseContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateCommunityEventResponseWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateCommunityEventResponsePublicEmailMax).nullish(),
@@ -5069,6 +5268,8 @@ export const ListVenueManagerEventsParams = zod.object({
   "businessId": zod.coerce.number().int().min(1)
 })
 
+export const listVenueManagerEventsResponseEventsItemGalleryPhotosMax = 10;
+
 export const listVenueManagerEventsResponseEventsItemContactPhoneMax = 40;
 
 export const listVenueManagerEventsResponseEventsItemWebsiteUrlMax = 2000;
@@ -5083,6 +5284,7 @@ export const ListVenueManagerEventsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(listVenueManagerEventsResponseEventsItemGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(listVenueManagerEventsResponseEventsItemContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(listVenueManagerEventsResponseEventsItemWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(listVenueManagerEventsResponseEventsItemPublicEmailMax).nullish(),
@@ -5123,6 +5325,8 @@ export const createVenueManagerEventBodyTitleMax = 120;
 
 export const createVenueManagerEventBodyDescriptionMax = 2000;
 
+export const createVenueManagerEventBodyGalleryPhotosMax = 10;
+
 export const createVenueManagerEventBodyContactPhoneMax = 40;
 
 export const createVenueManagerEventBodyWebsiteUrlMax = 2000;
@@ -5145,6 +5349,7 @@ export const CreateVenueManagerEventBody = zod.object({
   "title": zod.string().min(1).max(createVenueManagerEventBodyTitleMax),
   "description": zod.string().max(createVenueManagerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createVenueManagerEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueManagerEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createVenueManagerEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createVenueManagerEventBodyPublicEmailMax).nullish(),
@@ -5158,6 +5363,8 @@ export const CreateVenueManagerEventBody = zod.object({
   "inviteLinkEnabled": zod.boolean().optional(),
   "invitePasscode": zod.string().min(createVenueManagerEventBodyInvitePasscodeMin).max(createVenueManagerEventBodyInvitePasscodeMax).nullish()
 })
+
+export const createVenueManagerEventResponseEventGalleryPhotosMax = 10;
 
 export const createVenueManagerEventResponseEventContactPhoneMax = 40;
 
@@ -5173,6 +5380,7 @@ export const CreateVenueManagerEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createVenueManagerEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueManagerEventResponseEventContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createVenueManagerEventResponseEventWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createVenueManagerEventResponseEventPublicEmailMax).nullish(),
@@ -5215,6 +5423,8 @@ export const updateVenueManagerEventBodyTitleMax = 120;
 
 export const updateVenueManagerEventBodyDescriptionMax = 2000;
 
+export const updateVenueManagerEventBodyGalleryPhotosMax = 10;
+
 export const updateVenueManagerEventBodyContactPhoneMax = 40;
 
 export const updateVenueManagerEventBodyWebsiteUrlMax = 2000;
@@ -5237,6 +5447,7 @@ export const UpdateVenueManagerEventBody = zod.object({
   "title": zod.string().min(1).max(updateVenueManagerEventBodyTitleMax).optional(),
   "description": zod.string().max(updateVenueManagerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateVenueManagerEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueManagerEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateVenueManagerEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateVenueManagerEventBodyPublicEmailMax).nullish(),
@@ -5250,6 +5461,8 @@ export const UpdateVenueManagerEventBody = zod.object({
   "inviteLinkEnabled": zod.boolean().optional(),
   "invitePasscode": zod.string().min(updateVenueManagerEventBodyInvitePasscodeMin).max(updateVenueManagerEventBodyInvitePasscodeMax).nullish()
 })
+
+export const updateVenueManagerEventResponseEventGalleryPhotosMax = 10;
 
 export const updateVenueManagerEventResponseEventContactPhoneMax = 40;
 
@@ -5265,6 +5478,7 @@ export const UpdateVenueManagerEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateVenueManagerEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueManagerEventResponseEventContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateVenueManagerEventResponseEventWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateVenueManagerEventResponseEventPublicEmailMax).nullish(),
@@ -6319,6 +6533,8 @@ export const ListAdminManagedEventsParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const listAdminManagedEventsResponseEventsItemGalleryPhotosMax = 10;
+
 export const listAdminManagedEventsResponseEventsItemContactPhoneMax = 40;
 
 export const listAdminManagedEventsResponseEventsItemWebsiteUrlMax = 2000;
@@ -6333,6 +6549,7 @@ export const ListAdminManagedEventsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(listAdminManagedEventsResponseEventsItemGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(listAdminManagedEventsResponseEventsItemContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(listAdminManagedEventsResponseEventsItemWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(listAdminManagedEventsResponseEventsItemPublicEmailMax).nullish(),
@@ -6360,6 +6577,8 @@ export const createAdminManagedEventBodyTitleMax = 120;
 
 export const createAdminManagedEventBodyDescriptionMax = 2000;
 
+export const createAdminManagedEventBodyGalleryPhotosMax = 10;
+
 export const createAdminManagedEventBodyContactPhoneMax = 40;
 
 export const createAdminManagedEventBodyWebsiteUrlMax = 2000;
@@ -6382,6 +6601,7 @@ export const CreateAdminManagedEventBody = zod.object({
   "title": zod.string().min(1).max(createAdminManagedEventBodyTitleMax),
   "description": zod.string().max(createAdminManagedEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createAdminManagedEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createAdminManagedEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createAdminManagedEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createAdminManagedEventBodyPublicEmailMax).nullish(),
@@ -6395,6 +6615,8 @@ export const CreateAdminManagedEventBody = zod.object({
   "inviteLinkEnabled": zod.boolean().optional(),
   "invitePasscode": zod.string().min(createAdminManagedEventBodyInvitePasscodeMin).max(createAdminManagedEventBodyInvitePasscodeMax).nullish()
 })
+
+export const createAdminManagedEventResponseEventGalleryPhotosMax = 10;
 
 export const createAdminManagedEventResponseEventContactPhoneMax = 40;
 
@@ -6410,6 +6632,7 @@ export const CreateAdminManagedEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createAdminManagedEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createAdminManagedEventResponseEventContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(createAdminManagedEventResponseEventWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(createAdminManagedEventResponseEventPublicEmailMax).nullish(),
@@ -6473,6 +6696,8 @@ export const updateAdminManagedEventBodyTitleMax = 120;
 
 export const updateAdminManagedEventBodyDescriptionMax = 2000;
 
+export const updateAdminManagedEventBodyGalleryPhotosMax = 10;
+
 export const updateAdminManagedEventBodyContactPhoneMax = 40;
 
 export const updateAdminManagedEventBodyWebsiteUrlMax = 2000;
@@ -6495,6 +6720,7 @@ export const UpdateAdminManagedEventBody = zod.object({
   "title": zod.string().min(1).max(updateAdminManagedEventBodyTitleMax).optional(),
   "description": zod.string().max(updateAdminManagedEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateAdminManagedEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateAdminManagedEventBodyContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateAdminManagedEventBodyWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateAdminManagedEventBodyPublicEmailMax).nullish(),
@@ -6508,6 +6734,8 @@ export const UpdateAdminManagedEventBody = zod.object({
   "inviteLinkEnabled": zod.boolean().optional(),
   "invitePasscode": zod.string().min(updateAdminManagedEventBodyInvitePasscodeMin).max(updateAdminManagedEventBodyInvitePasscodeMax).nullish()
 })
+
+export const updateAdminManagedEventResponseEventGalleryPhotosMax = 10;
 
 export const updateAdminManagedEventResponseEventContactPhoneMax = 40;
 
@@ -6523,6 +6751,7 @@ export const UpdateAdminManagedEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateAdminManagedEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateAdminManagedEventResponseEventContactPhoneMax).nullish(),
   "websiteUrl": zod.string().url().max(updateAdminManagedEventResponseEventWebsiteUrlMax).nullish(),
   "publicEmail": zod.string().email().max(updateAdminManagedEventResponseEventPublicEmailMax).nullish(),

@@ -83,6 +83,16 @@ export default function CommunityEventForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "");
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>(
+    initial?.galleryPhotos?.length
+      ? initial.galleryPhotos
+      : initial?.imageUrl
+        ? [initial.imageUrl]
+        : [],
+  );
+  const [repeatFrequency, setRepeatFrequency] = useState<
+    "daily" | "weekly" | "monthly" | null
+  >(initial?.repeatFrequency ?? null);
   const [contactPhone, setContactPhone] = useState(initial?.contactPhone ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(initial?.websiteUrl ?? "");
   const [publicEmail, setPublicEmail] = useState(initial?.publicEmail ?? "");
@@ -126,19 +136,27 @@ export default function CommunityEventForm({
   const locationLookupStarted = useRef(false);
   const [formError, setFormError] = useState("");
 
-  const pickImage = async () => {
+  const pickImages = async () => {
     if (!authedUid || imageUploading) return;
+    const remaining = 10 - galleryPhotos.length;
+    if (remaining <= 0) return;
     setImageUploading(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
         quality: 1,
       });
-      if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
-      const prepared = await prepareVenueEventImage(asset.uri, asset.width);
-      const { url } = await api.uploadVenueEventImage({ uid: authedUid }, prepared);
-      setImageUrl(url);
+      if (result.canceled || result.assets.length === 0) return;
+      const uploadedUrls: string[] = [];
+      for (const asset of result.assets.slice(0, remaining)) {
+        const prepared = await prepareVenueEventImage(asset.uri, asset.width);
+        const { url } = await api.uploadVenueEventImage({ uid: authedUid }, prepared);
+        uploadedUrls.push(url);
+      }
+      setGalleryPhotos((current) => [...current, ...uploadedUrls].slice(0, 10));
+      setImageUrl((current) => current || uploadedUrls[0] || "");
       setFormError("");
     } catch (error) {
       setFormError(
@@ -149,6 +167,12 @@ export default function CommunityEventForm({
     } finally {
       setImageUploading(false);
     }
+  };
+
+  const removePhoto = (url: string) => {
+    const next = galleryPhotos.filter((photo) => photo !== url);
+    setGalleryPhotos(next);
+    setImageUrl(next[0] ?? "");
   };
 
   useEffect(() => {
@@ -360,7 +384,10 @@ export default function CommunityEventForm({
     const data = {
       title: title.trim(),
       description: description.trim() || null,
-      imageUrl: imageUrl.trim() || null,
+      imageUrl: galleryPhotos[0] ?? null,
+      galleryPhotos,
+      repeatFrequency: isHangout ? null : repeatFrequency,
+      recurrenceTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       contactPhone: contactPhone.trim() || null,
       websiteUrl: websiteUrl.trim()
         ? (/^https?:\/\//i.test(websiteUrl.trim()) ? websiteUrl.trim() : `https://${websiteUrl.trim()}`)
@@ -444,39 +471,55 @@ export default function CommunityEventForm({
             { color: colors.text, backgroundColor: colors.card, borderColor: colors.border },
           ]}
         />
-        {isHangout ? (
-          <>
-            <Text style={[styles.label, { color: colors.text }]}>
-              {t("tabs.events.hangoutCoverPhotoOptional")}
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[styles.label, { color: colors.text, marginBottom: 0 }]}>
+              {t("tabs.events.planPhotos")}
             </Text>
-            {imageUrl ? (
-              <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+              {galleryPhotos.length}/10 · {t("tabs.events.photosExpireHint")}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            {galleryPhotos.map((photo, index) => (
+              <View key={`${photo}-${index}`} style={{ position: "relative" }}>
                 <Image
-                  source={{ uri: imageUrl }}
-                  style={{ width: "100%", height: 180, borderRadius: 14 }}
+                  source={{ uri: photo }}
+                  style={{ width: 92, height: 92, borderRadius: 14, backgroundColor: colors.card }}
                   resizeMode="cover"
-                  accessibilityLabel={t("tabs.events.hangoutCoverPhotoOptional")}
+                  accessibilityLabel={t("tabs.events.planPhotos")}
                 />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t("tabs.events.removeHangoutPhoto")}
-                  onPress={() => setImageUrl("")}
-                  style={{ alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 2 }}
+                  accessibilityLabel={t("tabs.events.removePhoto")}
+                  testID={`button-remove-event-photo-${index}`}
+                  onPress={() => removePhoto(photo)}
+                  style={{
+                    position: "absolute",
+                    top: 5,
+                    right: 5,
+                    width: 28,
+                    height: 28,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 14,
+                    backgroundColor: colors.background,
+                  }}
                 >
-                  <Text style={{ color: colors.destructive, fontFamily: "Inter_600SemiBold" }}>
-                    {t("tabs.events.removeHangoutPhoto")}
-                  </Text>
+                  <Feather name="x" size={16} color={colors.text} />
                 </Pressable>
               </View>
-            ) : (
+            ))}
+            {galleryPhotos.length < 10 ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t("tabs.events.addHangoutPhoto")}
-                testID="button-add-hangout-cover"
+                accessibilityLabel={t(isHangout ? "tabs.events.addHangoutPhoto" : "tabs.events.addPlanPhotos")}
+                testID={isHangout ? "button-add-hangout-cover" : "button-add-plan-photos"}
                 disabled={imageUploading}
-                onPress={() => void pickImage()}
-                style={({ pressed }) => [{
-                  minHeight: 76,
+                onPress={() => void pickImages()}
+                style={({ pressed }) => ({
+                  width: 92,
+                  height: 92,
                   borderWidth: 1,
                   borderStyle: "dashed",
                   borderRadius: 14,
@@ -484,33 +527,36 @@ export default function CommunityEventForm({
                   backgroundColor: colors.card,
                   alignItems: "center",
                   justifyContent: "center",
-                  flexDirection: "row",
-                  gap: 9,
+                  gap: 6,
                   opacity: pressed || imageUploading ? 0.7 : 1,
-                }]}
+                })}
               >
                 {imageUploading ? (
                   <ActivityIndicator color={colors.primary} />
                 ) : (
                   <>
-                    <Feather name="image" size={18} color={colors.primary} />
-                    <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
-                      {t("tabs.events.addHangoutPhoto")}
+                    <Feather name="plus" size={20} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
+                      {t("tabs.events.addPhotos")}
                     </Text>
                   </>
                 )}
               </Pressable>
-            )}
-          </>
-        ) : null}
+            ) : null}
+          </View>
+        </View>
         {planMode ? (
           <View
             style={[
               styles.planIntro,
-              { backgroundColor: colors.card, borderColor: colors.border },
+              {
+                backgroundColor: isHangout ? colors.card : colors.primarySoft,
+                borderColor: isHangout ? colors.border : colors.primary,
+                borderLeftWidth: isHangout ? 1 : 4,
+              },
             ]}
           >
-            <Feather name="users" size={18} color={colors.primary} />
+            <Feather name={isHangout ? "users" : "lock"} size={18} color={colors.primary} />
             <View style={styles.planIntroCopy}>
               <Text style={[styles.planIntroTitle, { color: colors.text }]}>
                 {t(isHangout ? "tabs.events.quickPlanHint" : "tabs.events.friendPlanTitle")}
@@ -581,7 +627,7 @@ export default function CommunityEventForm({
             accessibilityRole="button"
             accessibilityLabel={t("tabs.events.addEventPhoto")}
             disabled={imageUploading}
-            onPress={() => void pickImage()}
+            onPress={() => void pickImages()}
             style={({ pressed }) => [
               {
                 minHeight: 76,
@@ -770,6 +816,56 @@ export default function CommunityEventForm({
           chevronColor={colors.mutedForeground}
           isDark={isDark}
         />
+
+        {!isHangout ? (
+          <View style={{ gap: 10 }}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              {t("tabs.events.repeatPlan")}
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {([
+                [null, "tabs.events.repeatNever"],
+                ["daily", "tabs.events.repeatDaily"],
+                ["weekly", "tabs.events.repeatWeekly"],
+                ["monthly", "tabs.events.repeatMonthly"],
+              ] as const).map(([frequency, label]) => {
+                const selected = repeatFrequency === frequency;
+                return (
+                  <Pressable
+                    key={frequency ?? "never"}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    testID={`repeat-plan-${frequency ?? "never"}`}
+                    onPress={() => setRepeatFrequency(frequency)}
+                    style={{
+                      minHeight: 38,
+                      paddingHorizontal: 13,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 19,
+                      borderWidth: 1,
+                      borderColor: selected ? colors.primary : colors.border,
+                      backgroundColor: selected ? colors.primarySoft : colors.card,
+                    }}
+                  >
+                    <Text style={{
+                      color: selected ? colors.primary : colors.mutedForeground,
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 13,
+                    }}>
+                      {t(label)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {repeatFrequency ? (
+              <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                {t("tabs.events.repeatUntilDeleted")}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {!isHangout ? (
           <>

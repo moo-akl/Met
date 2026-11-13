@@ -13,6 +13,7 @@ import {
   db,
   eventAttendanceCorrectionsTable,
   eventAttendanceTable,
+  profilesTable,
   venueBusinessesTable,
   venueEventRsvpsTable,
   venueEventNotificationRunsTable,
@@ -606,6 +607,72 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       .get(`/api/venue-owner/${revokedProfile!.placeId}/events`)
       .set("x-test-uid", GUEST_UID);
     expect(guestRes.status).toBe(404);
+  });
+
+  it("keeps one concurrent venue review and lists its author and text", async () => {
+    const reviewerUid = `${PREFIX}-reviewer`;
+    const reviewTexts = ["Venue review first", "Venue review second"];
+    const { agent, csrf, business } = await claimOwner("review-race");
+
+    try {
+      const startsAt = new Date(Date.now() + 6 * 60 * 60 * 1000);
+      const created = await agent
+        .post(`/api/venue-manager/businesses/${business.id}/events`)
+        .set("x-csrf-token", csrf)
+        .send({
+          title: "Review race event",
+          startsAt: startsAt.toISOString(),
+          endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000).toISOString(),
+          isPublished: true,
+        });
+      expect(created.status).toBe(201);
+      const eventId = Number(created.body.event.id);
+
+      await db
+        .update(venueEventsTable)
+        .set({
+          startsAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+          endsAt: new Date(Date.now() - 60 * 60 * 1000),
+        })
+        .where(eq(venueEventsTable.id, eventId));
+      await db.insert(venueEventRsvpsTable).values({
+        eventId,
+        userUid: reviewerUid,
+        status: "going",
+      });
+      await db.insert(profilesTable).values({
+        uid: reviewerUid,
+        displayName: "Venue Review Guest",
+        photoUrl: null,
+      });
+
+      const responses = await Promise.all(
+        reviewTexts.map((reviewText, index) =>
+          api()
+            .post(`/api/events/venue/${eventId}/reviews`)
+            .set("x-test-uid", reviewerUid)
+            .send({ rating: index + 2, reviewText }),
+        ),
+      );
+      expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+
+      const winnerIndex = responses.findIndex((response) => response.status === 201);
+      const expected = {
+        rating: winnerIndex + 2,
+        reviewerName: "Venue Review Guest",
+        reviewText: reviewTexts[winnerIndex],
+      };
+      expect(responses[winnerIndex]!.body.myReview).toMatchObject(expected);
+
+      const listedReviews = await api()
+        .get(`/api/events/venue/${eventId}/reviews`)
+        .set("x-test-uid", reviewerUid)
+        .expect(200);
+      expect(listedReviews.body.reviews).toHaveLength(1);
+      expect(listedReviews.body.reviews[0]).toMatchObject(expected);
+    } finally {
+      await db.delete(profilesTable).where(eq(profilesTable.uid, reviewerUid));
+    }
   });
 
   it("reflects updated optional fields in the guest list after a PATCH", async () => {

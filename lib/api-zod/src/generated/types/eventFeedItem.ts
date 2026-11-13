@@ -8,6 +8,7 @@
 import type { EventFeedItemEventType } from './eventFeedItemEventType';
 import type { EventFeedItemMyJoinRequestStatus } from './eventFeedItemMyJoinRequestStatus';
 import type { EventFeedItemMyRsvp } from './eventFeedItemMyRsvp';
+import type { EventFeedItemRepeatFrequency } from './eventFeedItemRepeatFrequency';
 import type { EventFeedItemVisibility } from './eventFeedItemVisibility';
 import type { MeetingHostRating } from './meetingHostRating';
 
@@ -20,6 +21,10 @@ export interface EventFeedItem {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
+  /** @nullable */
+  repeatFrequency?: EventFeedItemRepeatFrequency;
   /**
      * @maxLength 40
      * @nullable

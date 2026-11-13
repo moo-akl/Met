@@ -95,6 +95,10 @@ import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { adminAuth, adminStorage } from "../lib/firebaseAdmin";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
 import {
+  EVENT_PHOTO_MAX_COUNT,
+  getEventPhotosExpireAt,
+} from "../lib/eventPhotoRetention";
+import {
   buildEventInviteUrl,
   createEventInviteLinkFields,
   createEventInvitePasscodeFields,
@@ -703,6 +707,9 @@ function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect, 
     inviteLinkEnabled: Boolean(event.inviteTokenHash),
     invitePasscodeRequired: Boolean(event.invitePasscodeHash),
     imageUrl: resolveStorageUrl(baseUrl, publicEvent.imageUrl),
+    galleryPhotos: (publicEvent.galleryPhotos ?? [])
+      .map((photo) => resolveStorageUrl(baseUrl, photo))
+      .filter((photo): photo is string => Boolean(photo)),
   };
 }
 
@@ -2410,6 +2417,7 @@ router.post(
       title: z.string().min(1).max(120),
       description: z.string().max(2000).optional().nullable(),
       imageUrl: z.string().url().optional().nullable(),
+      galleryPhotos: z.array(z.string().url()).max(EVENT_PHOTO_MAX_COUNT).optional(),
       contactPhone: z.string().trim().max(40).optional().nullable(),
       websiteUrl: z.string().trim().url().max(2000).optional().nullable(),
       publicEmail: z.string().trim().email().max(254).optional().nullable(),
@@ -2482,7 +2490,16 @@ router.post(
         placeId: access.placeId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
-        imageUrl: parsed.data.imageUrl ?? null,
+        imageUrl: parsed.data.galleryPhotos
+          ? parsed.data.galleryPhotos[0] ?? null
+          : parsed.data.imageUrl ?? null,
+        galleryPhotos: parsed.data.galleryPhotos ??
+          (parsed.data.imageUrl ? [parsed.data.imageUrl] : []),
+        photosExpireAt: getEventPhotosExpireAt(
+          new Date(parsed.data.startsAt),
+          parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
+          Boolean(parsed.data.galleryPhotos?.length || parsed.data.imageUrl),
+        ),
         contactPhone: parsed.data.contactPhone?.trim() || null,
         websiteUrl: parsed.data.websiteUrl?.trim() || null,
         publicEmail: parsed.data.publicEmail?.trim() || null,
@@ -2599,6 +2616,7 @@ router.put(
       title: z.string().min(1).max(120).optional(),
       description: z.string().max(2000).optional().nullable(),
       imageUrl: z.string().url().optional().nullable(),
+      galleryPhotos: z.array(z.string().url()).max(EVENT_PHOTO_MAX_COUNT).optional(),
       contactPhone: z.string().trim().max(40).optional().nullable(),
       websiteUrl: z.string().trim().url().max(2000).optional().nullable(),
       publicEmail: z.string().trim().email().max(254).optional().nullable(),
@@ -2628,6 +2646,15 @@ router.put(
       res.status(400).json({ message: "Event end time must be after the start time." });
       return;
     }
+    const nextGalleryPhotos = parsed.data.galleryPhotos ??
+      (parsed.data.imageUrl !== undefined
+        ? parsed.data.imageUrl ? [parsed.data.imageUrl] : []
+        : existing.galleryPhotos ?? []);
+    const nextImageUrl = parsed.data.galleryPhotos !== undefined
+      ? nextGalleryPhotos[0] ?? null
+      : parsed.data.imageUrl !== undefined
+        ? parsed.data.imageUrl
+        : existing.imageUrl;
 
     const nextVisibility = parsed.data.visibility ?? existing.visibility;
     const nextInvitees = parsed.data.inviteeUids !== undefined
@@ -2652,7 +2679,16 @@ router.put(
       }
     }
 
-    const updatePayload: Record<string, unknown> = { updatedAt: new Date() };
+    const updatePayload: Record<string, unknown> = {
+      updatedAt: new Date(),
+      imageUrl: nextImageUrl,
+      galleryPhotos: nextGalleryPhotos,
+      photosExpireAt: getEventPhotosExpireAt(
+        nextStartsAt,
+        nextEndsAt,
+        Boolean(nextImageUrl || nextGalleryPhotos.length),
+      ),
+    };
     if (nextVisibility !== "invite_only") {
       updatePayload["inviteTokenHash"] = null;
       updatePayload["inviteTokenEncrypted"] = null;
@@ -5333,17 +5369,19 @@ router.patch(
 // grant access to these routes.
 const adminContentText = (max: number) => z.string().trim().min(1).max(max);
 const adminContentDate = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
-const adminContentImage = z.string().max(2000).refine((value) => {
+const adminContentPhoto = z.string().max(2000).refine((value) => {
   if (value.startsWith("/api/storage/objects/")) return true;
   try { return ["http:", "https:"].includes(new URL(value).protocol); }
   catch { return false; }
-}, "Image must be an http(s) URL or an uploaded storage path.").nullable();
+}, "Image must be an http(s) URL or an uploaded storage path.");
+const adminContentImage = adminContentPhoto.nullable();
 const adminEventInput = z.object({
   title: adminContentText(120),
   startsAt: adminContentDate,
   endsAt: adminContentDate.nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   imageUrl: adminContentImage.optional(),
+  galleryPhotos: z.array(adminContentPhoto).max(EVENT_PHOTO_MAX_COUNT).optional(),
   capacityLimit: z.number().int().positive().nullable().optional(),
   isPublished: z.boolean().optional(),
 }).strict();
@@ -5463,9 +5501,20 @@ router.post(`${adminContentBase}/events`, requireAdminSession, async (req, res):
   const data = adminContentBody(adminEventInput, req, res);
   if (!data) return;
   if (data.endsAt && data.endsAt <= data.startsAt) return void res.status(400).json({ message: "Event must end after it starts." });
+  const galleryPhotos = data.galleryPhotos ?? (data.imageUrl ? [data.imageUrl] : []);
+  const imageUrl = data.galleryPhotos !== undefined
+    ? galleryPhotos[0] ?? null
+    : data.imageUrl ?? null;
   const [created] = await db.insert(venueEventsTable).values({
     ...data, ownerUid: profile.ownerUid, placeId: profile.placeId,
     endsAt: data.endsAt ?? null, isPublished: data.isPublished ?? false,
+    imageUrl,
+    galleryPhotos,
+    photosExpireAt: getEventPhotosExpireAt(
+      data.startsAt,
+      data.endsAt ?? null,
+      Boolean(imageUrl || galleryPhotos.length),
+    ),
   }).returning();
   const { ownerUid: _ownerUid, checkinTokenHash: _checkinTokenHash, checkinTokenEncrypted: _checkinTokenEncrypted, ...event } = created!;
   res.status(201).json({ event });
@@ -5480,9 +5529,30 @@ router.patch(`${adminContentBase}/events/:eventId`, requireAdminSession, async (
   const scope = and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, profile.placeId), eq(venueEventsTable.ownerUid, profile.ownerUid));
   const [existing] = await db.select().from(venueEventsTable).where(scope).limit(1);
   if (!existing) return void res.status(404).json({ message: "Event not found." });
-  if ((data.endsAt ?? existing.endsAt) && (data.endsAt ?? existing.endsAt)! <= (data.startsAt ?? existing.startsAt))
+  const nextStartsAt = data.startsAt ?? existing.startsAt;
+  const nextEndsAt = data.endsAt === undefined ? existing.endsAt : data.endsAt;
+  if (nextEndsAt && nextEndsAt <= nextStartsAt)
     return void res.status(400).json({ message: "Event must end after it starts." });
-  const [updated] = await db.update(venueEventsTable).set({ ...data, updatedAt: new Date() }).where(scope).returning();
+  const nextGalleryPhotos = data.galleryPhotos ??
+    (data.imageUrl !== undefined
+      ? data.imageUrl ? [data.imageUrl] : []
+      : existing.galleryPhotos ?? []);
+  const nextImageUrl = data.galleryPhotos !== undefined
+    ? nextGalleryPhotos[0] ?? null
+    : data.imageUrl !== undefined
+      ? data.imageUrl
+      : existing.imageUrl;
+  const [updated] = await db.update(venueEventsTable).set({
+    ...data,
+    imageUrl: nextImageUrl,
+    galleryPhotos: nextGalleryPhotos,
+    photosExpireAt: getEventPhotosExpireAt(
+      nextStartsAt,
+      nextEndsAt,
+      Boolean(nextImageUrl || nextGalleryPhotos.length),
+    ),
+    updatedAt: new Date(),
+  }).where(scope).returning();
   const { ownerUid: _ownerUid, checkinTokenHash: _checkinTokenHash, checkinTokenEncrypted: _checkinTokenEncrypted, ...event } = updated!;
   res.json({ event });
 });
@@ -9280,7 +9350,7 @@ async function handleVenueMediaUpload(
     return;
   }
   const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
-  const objectPath = `${folder}/${uid}/${Date.now()}.${ext}`;
+  const objectPath = `${folder}/${uid}/${crypto.randomUUID()}.${ext}`;
   const buf = Buffer.from(base64, "base64");
   const bucket = adminStorage().bucket();
   const file = bucket.file(objectPath);

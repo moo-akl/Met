@@ -1741,6 +1741,8 @@ export interface VenueManagerEvent {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
   /**
      * @maxLength 40
      * @nullable
@@ -1829,6 +1831,8 @@ export interface VenueManagerEventInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
   /**
      * @maxLength 40
      * @nullable
@@ -1900,6 +1904,8 @@ export interface VenueManagerEventUpdate {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
   /**
      * @maxLength 40
      * @nullable
@@ -1948,6 +1954,18 @@ export type EventFeedItemEventType = typeof EventFeedItemEventType[keyof typeof 
 export const EventFeedItemEventType = {
   venue: 'venue',
   member: 'member',
+} as const;
+
+/**
+ * @nullable
+ */
+export type EventFeedItemRepeatFrequency = typeof EventFeedItemRepeatFrequency[keyof typeof EventFeedItemRepeatFrequency] | null;
+
+
+export const EventFeedItemRepeatFrequency = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
 } as const;
 
 export type EventFeedItemVisibility = typeof EventFeedItemVisibility[keyof typeof EventFeedItemVisibility];
@@ -2009,6 +2027,10 @@ export interface EventFeedItem {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
+  /** @nullable */
+  repeatFrequency?: EventFeedItemRepeatFrequency;
   /**
      * @maxLength 40
      * @nullable
@@ -2073,6 +2095,74 @@ export interface HangoutHostRatingInput {
      * @maximum 5
      */
   rating: number;
+}
+
+export interface EventReviewInput {
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  reviewText?: string | null;
+}
+
+export interface EventReview {
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  reviewText: string | null;
+  reviewerName: string;
+  /** @nullable */
+  reviewerPhotoUrl: string | null;
+  createdAt: string;
+}
+
+export interface EventReviewsResponse {
+  reviews: EventReview[];
+  myReview: EventReview | null;
+  /**
+     * @minimum 1
+     * @maximum 5
+     * @nullable
+     */
+  averageRating: number | null;
+  /** @minimum 0 */
+  reviewCount: number;
+}
+
+export interface HostPastHangout {
+  id: number;
+  title: string;
+  startsAt: string;
+  /** @nullable */
+  endsAt: string | null;
+  /** @nullable */
+  imageUrl: string | null;
+  /** @maxItems 10 */
+  galleryPhotos: string[];
+  /**
+     * @minimum 1
+     * @maximum 5
+     * @nullable
+     */
+  averageRating: number | null;
+  /** @minimum 0 */
+  reviewCount: number;
+  reviews: EventReview[];
+}
+
+export interface HostPastHangoutsResponse {
+  events: HostPastHangout[];
 }
 
 export interface EventQrCheckinInput {
@@ -2324,6 +2414,8 @@ export interface NearbyHangoutItem {
   description: string | null;
   /** @nullable */
   imageUrl: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
   startsAt: string;
   /** @nullable */
   location: string | null;
@@ -2358,6 +2450,18 @@ export interface NearbyHangoutsResponse {
   nextOffset: number | null;
 }
 
+/**
+ * @nullable
+ */
+export type CommunityEventInputRepeatFrequency = typeof CommunityEventInputRepeatFrequency[keyof typeof CommunityEventInputRepeatFrequency] | null;
+
+
+export const CommunityEventInputRepeatFrequency = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
 export type CommunityEventInputVisibility = typeof CommunityEventInputVisibility[keyof typeof CommunityEventInputVisibility];
 
 
@@ -2379,6 +2483,12 @@ export interface CommunityEventInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
+  /** @nullable */
+  repeatFrequency?: CommunityEventInputRepeatFrequency;
+  /** @maxLength 100 */
+  recurrenceTimeZone?: string;
   /**
      * @maxLength 40
      * @nullable
@@ -2497,6 +2607,18 @@ export interface EventLocationSearchResponse {
   locations: EventLocationSearchResult[];
 }
 
+/**
+ * @nullable
+ */
+export type CommunityEventManageResponseRepeatFrequency = typeof CommunityEventManageResponseRepeatFrequency[keyof typeof CommunityEventManageResponseRepeatFrequency] | null;
+
+
+export const CommunityEventManageResponseRepeatFrequency = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
 export type CommunityEventManageResponseVisibility = typeof CommunityEventManageResponseVisibility[keyof typeof CommunityEventManageResponseVisibility];
 
 
@@ -2512,6 +2634,12 @@ export interface CommunityEventManageResponse {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
+  /** @nullable */
+  repeatFrequency?: CommunityEventManageResponseRepeatFrequency;
+  /** @maxLength 100 */
+  recurrenceTimeZone?: string;
   /**
      * @maxLength 40
      * @nullable

@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useRouter } from "expo-router";
-import { reloadAppAsync } from "expo";
+import * as Updates from "expo-updates";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,6 +24,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getGetNotificationInboxQueryKey,
+  getGetMyCommunityEventPlanChatsQueryKey,
+  useGetMyCommunityEventPlanChats,
   useGetNotificationInbox,
 } from "@workspace/api-client-react";
 
@@ -46,6 +48,7 @@ import { usePermissionReminders } from "@/hooks/usePermissionReminders";
 import { usePermissionStatus } from "@/hooks/usePermissionStatus";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useWeeklyRankings } from "@/hooks/useWeeklyRankings";
+import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
 import {
   type LangCode,
   getLanguage,
@@ -84,7 +87,11 @@ function StoreDemoHomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <CanopyHeader onLanguage={() => Alert.alert("Sample preview", "Language preferences are available in the live app.")} onRequests={() => Alert.alert("Sample preview", "No live requests are shown here.")} />
+      <CanopyHeader
+        onLanguage={() => Alert.alert("Sample preview", "Language preferences are available in the live app.")}
+        onRequests={() => Alert.alert("Sample preview", "No live requests are shown here.")}
+        onMessages={() => Alert.alert("Sample preview", "Messages are available in the live app.")}
+      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -99,7 +106,7 @@ function StoreDemoHomeScreen() {
             <Feather name="activity" size={11} color={light ? "#246B54" : "#A78BFA"} />
             <Text style={[storeDemoHomeStyles.sampleBadgeText, light && storeDemoLightStyles.sampleBadgeText]}>SAMPLE MET NETWORK</Text>
           </View>
-          <Text style={[canopyHome.title, { color: colors.text }]}>A little closer{"\n"}to your world.</Text>
+          <Text style={[canopyHome.title, { color: colors.text }]}>Bring your world closer</Text>
           <Text style={[canopyHome.caption, { color: colors.mutedForeground }]}>
             New York City · read-only sample
           </Text>
@@ -235,13 +242,28 @@ export default function HomeScreen() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       try { window.location.reload(); return; } catch {}
     } else {
-      try { await reloadAppAsync(); return; } catch {}
+      try { await Updates.reloadAsync(); return; } catch {}
       try { DevSettings.reload(); return; } catch {}
     }
     setReloadingLang(false);
   };
 
   const { encounters, preferences, authedUid } = useApp();
+  const hasUnreadDirectMessages = useHasUnreadChats(authedUid);
+  const eventChatsInbox = useGetMyCommunityEventPlanChats({
+    query: {
+      enabled: !!authedUid,
+      staleTime: 10_000,
+      refetchInterval: 30_000,
+      queryKey: [
+        ...getGetMyCommunityEventPlanChatsQueryKey(),
+        authedUid ?? "signed-out",
+      ],
+    },
+  });
+  const hasUnreadMessages =
+    hasUnreadDirectMessages ||
+    Boolean(eventChatsInbox.data?.conversations.some((conversation) => conversation.isUnread));
   const notificationsInbox = useGetNotificationInbox({ limit: 1 }, {
     query: {
       enabled: !!authedUid,
@@ -407,8 +429,10 @@ export default function HomeScreen() {
       <CanopyHeader
         onLanguage={() => setLangPickerOpen(true)}
         onRequests={() => setRequestsOpen(true)}
+        onMessages={() => router.push("/inbox" as never)}
         onNotifications={() => router.push("/notifications" as never)}
         requestCount={incoming.length}
+        hasUnreadMessages={hasUnreadMessages}
         notificationCount={unreadNotificationCount}
       />
 

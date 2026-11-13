@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommunityEventManageResponseRepeatFrequency } from './communityEventManageResponseRepeatFrequency';
 import type { CommunityEventManageResponseVisibility } from './communityEventManageResponseVisibility';
 
 export interface CommunityEventManageResponse {
@@ -14,6 +15,12 @@ export interface CommunityEventManageResponse {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
+  /** @nullable */
+  repeatFrequency?: CommunityEventManageResponseRepeatFrequency;
+  /** @maxLength 100 */
+  recurrenceTimeZone?: string;
   /**
      * @maxLength 40
      * @nullable

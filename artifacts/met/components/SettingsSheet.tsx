@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
-import { reloadAppAsync } from "expo";
+import * as Updates from "expo-updates";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -318,8 +318,9 @@ export function SettingsSheet({ visible, onClose }: Props) {
     }
     // Brief "Switching language…" overlay, then perform a real JS reload so
     // every cached string and the native layout direction picks up the new
-    // locale cleanly. Expo's app-level reload helper works without the
-    // Updates module; DevSettings.reload remains the dev-client fallback.
+    // locale cleanly. expo-updates is the production-grade path on iOS and
+    // Android; DevSettings.reload is the dev-build / Expo Go fallback; on
+    // web we just bounce window.location.
     setTimeout(() => {
       void reloadApp(rtlChanged);
     }, 1500);
@@ -332,9 +333,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
         return;
       } catch {}
     } else {
-      // Use Expo's app-level reload helper without embedding the Updates module.
+      // Try expo-updates first (works in production builds and in Expo Go).
+      // reloadAsync returns a Promise that may reject if the Updates module
+      // is unavailable in this build, so we await + catch instead of relying
+      // on a sync try/catch.
       try {
-        await reloadAppAsync();
+        await Updates.reloadAsync();
         return;
       } catch {}
       // Dev-client / Expo Go fallback.

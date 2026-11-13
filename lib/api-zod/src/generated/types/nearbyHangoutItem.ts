@@ -17,6 +17,8 @@ export interface NearbyHangoutItem {
   description: string | null;
   /** @nullable */
   imageUrl: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
   startsAt: Date;
   /** @nullable */
   location: string | null;

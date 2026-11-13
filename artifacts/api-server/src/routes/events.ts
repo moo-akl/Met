@@ -33,6 +33,7 @@ import {
   eventAttendanceCorrectionsTable,
   profilesTable,
   venueEventRsvpsTable,
+  venueEventReviewsTable,
   venueEventNotificationRunsTable,
   venueEventsTable,
   venueOwnerProfilesTable,
@@ -82,6 +83,12 @@ import {
   UpdateCommunityEventResponse,
   RateCommunityEventHostBody,
   RateCommunityEventHostResponse,
+  CreateEventReviewBody,
+  CreateEventReviewParams,
+  GetEventReviewsResponse,
+  GetEventReviewsParams,
+  GetHostPastHangoutsParams,
+  GetHostPastHangoutsResponse,
   GetMyPastHangoutsResponse,
   GetMyPastMeetingsResponse,
   CreateCommunityEventPlanChatMediaUploadBody,
@@ -111,6 +118,11 @@ import {
   notifyCommunityEventPlanMessage,
 } from "../lib/eventNotifications";
 import { adminStorage, verifyAppCheckToken } from "../lib/firebaseAdmin";
+import { dayOfMonthInTimeZone } from "../lib/communityEventRecurrence";
+import {
+  EVENT_PHOTO_MAX_COUNT,
+  getEventPhotosExpireAt,
+} from "../lib/eventPhotoRetention";
 import { getVerifiedExplorerStatuses } from "../lib/verifiedExplorer";
 import { z } from "zod";
 
@@ -285,6 +297,185 @@ function normalizeInvitees(inviteeUids: string[] | undefined, uid: string) {
   return [...new Set(inviteeUids ?? [])].filter((inviteeUid) => inviteeUid !== uid);
 }
 
+function getOwnedEventPhotoPath(rawUrl: string, uid: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    let objectPath: string | null = null;
+    if (url.hostname === "storage.googleapis.com") {
+      const segments = url.pathname.split("/").filter(Boolean);
+      objectPath = segments.slice(1).map(decodeURIComponent).join("/");
+    } else if (url.hostname === "firebasestorage.googleapis.com") {
+      const match = url.pathname.match(/^\/v0\/b\/[^/]+\/o\/(.+)$/);
+      if (match) objectPath = decodeURIComponent(match[1]!);
+    }
+    if (
+      !objectPath ||
+      !objectPath.startsWith(`venue-event-images/${uid}/`) ||
+      objectPath.split("/").some((part) => part === "..")
+    ) {
+      return null;
+    }
+    return objectPath;
+  } catch {
+    return null;
+  }
+}
+
+function validateGalleryPhotos(
+  photos: string[] | undefined,
+  uid: string,
+  existingPhotos: string[] = [],
+): string[] | null {
+  const uniquePhotos = [...new Set(photos ?? [])];
+  if (uniquePhotos.length > EVENT_PHOTO_MAX_COUNT) return null;
+  return uniquePhotos.every((photo) =>
+    existingPhotos.includes(photo) || getOwnedEventPhotoPath(photo, uid) !== null,
+  )
+    ? uniquePhotos
+    : null;
+}
+
+function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+type ReviewRecord = {
+  rating: number;
+  reviewText: string | null;
+  reviewerName: string | null;
+  reviewerPhotoUrl: string | null;
+  createdAt: Date;
+};
+
+async function getEventReviewsPayload(
+  eventType: "venue" | "member",
+  eventId: number,
+  uid: string,
+) {
+  if (eventType === "member") {
+    const [summary] = await db
+      .select({
+        averageRating: sql<number | null>`AVG(${communityEventHostRatingsTable.rating})::float8`,
+        reviewCount: count(),
+      })
+      .from(communityEventHostRatingsTable)
+      .where(eq(communityEventHostRatingsTable.eventId, eventId));
+    const [reviews, [mine]] = await Promise.all([
+      db
+        .select({
+          rating: communityEventHostRatingsTable.rating,
+          reviewText: communityEventHostRatingsTable.reviewText,
+          reviewerName: profilesTable.displayName,
+          reviewerPhotoUrl: profilesTable.photoUrl,
+          createdAt: communityEventHostRatingsTable.createdAt,
+        })
+        .from(communityEventHostRatingsTable)
+        .leftJoin(
+          profilesTable,
+          eq(profilesTable.uid, communityEventHostRatingsTable.reviewerUid),
+        )
+        .where(eq(communityEventHostRatingsTable.eventId, eventId))
+        .orderBy(desc(communityEventHostRatingsTable.createdAt))
+        .limit(100),
+      db
+        .select({
+          rating: communityEventHostRatingsTable.rating,
+          reviewText: communityEventHostRatingsTable.reviewText,
+          reviewerName: profilesTable.displayName,
+          reviewerPhotoUrl: profilesTable.photoUrl,
+          createdAt: communityEventHostRatingsTable.createdAt,
+        })
+        .from(communityEventHostRatingsTable)
+        .leftJoin(
+          profilesTable,
+          eq(profilesTable.uid, communityEventHostRatingsTable.reviewerUid),
+        )
+        .where(and(
+          eq(communityEventHostRatingsTable.eventId, eventId),
+          eq(communityEventHostRatingsTable.reviewerUid, uid),
+        ))
+        .limit(1),
+    ]);
+    const serialize = (review: ReviewRecord) => ({
+      ...review,
+      reviewerName: review.reviewerName || "Met member",
+      reviewerPhotoUrl: review.reviewerPhotoUrl ?? null,
+      createdAt: review.createdAt.toISOString(),
+    });
+    return GetEventReviewsResponse.parse({
+      reviews: reviews.map(serialize),
+      myReview: mine ? serialize(mine) : null,
+      averageRating: summary?.averageRating == null
+        ? null
+        : Number(summary.averageRating),
+      reviewCount: Number(summary?.reviewCount ?? 0),
+    });
+  }
+
+  const [summary] = await db
+    .select({
+      averageRating: sql<number | null>`AVG(${venueEventReviewsTable.rating})::float8`,
+      reviewCount: count(),
+    })
+    .from(venueEventReviewsTable)
+    .where(eq(venueEventReviewsTable.eventId, eventId));
+  const [reviews, [mine]] = await Promise.all([
+    db
+      .select({
+        rating: venueEventReviewsTable.rating,
+        reviewText: venueEventReviewsTable.reviewText,
+        reviewerName: profilesTable.displayName,
+        reviewerPhotoUrl: profilesTable.photoUrl,
+        createdAt: venueEventReviewsTable.createdAt,
+      })
+      .from(venueEventReviewsTable)
+      .leftJoin(
+        profilesTable,
+        eq(profilesTable.uid, venueEventReviewsTable.reviewerUid),
+      )
+      .where(eq(venueEventReviewsTable.eventId, eventId))
+      .orderBy(desc(venueEventReviewsTable.createdAt))
+      .limit(100),
+    db
+      .select({
+        rating: venueEventReviewsTable.rating,
+        reviewText: venueEventReviewsTable.reviewText,
+        reviewerName: profilesTable.displayName,
+        reviewerPhotoUrl: profilesTable.photoUrl,
+        createdAt: venueEventReviewsTable.createdAt,
+      })
+      .from(venueEventReviewsTable)
+      .leftJoin(
+        profilesTable,
+        eq(profilesTable.uid, venueEventReviewsTable.reviewerUid),
+      )
+      .where(and(
+        eq(venueEventReviewsTable.eventId, eventId),
+        eq(venueEventReviewsTable.reviewerUid, uid),
+      ))
+      .limit(1),
+  ]);
+  const serialize = (review: ReviewRecord) => ({
+    ...review,
+    reviewerName: review.reviewerName || "Met member",
+    reviewerPhotoUrl: review.reviewerPhotoUrl ?? null,
+    createdAt: review.createdAt.toISOString(),
+  });
+  return GetEventReviewsResponse.parse({
+    reviews: reviews.map(serialize),
+    myReview: mine ? serialize(mine) : null,
+    averageRating: summary?.averageRating == null
+      ? null
+      : Number(summary.averageRating),
+    reviewCount: Number(summary?.reviewCount ?? 0),
+  });
+}
+
 router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
   const viewerUid = req.uid!;
   const parsed = GetNearbyHangoutsQueryParams.safeParse(req.query);
@@ -367,6 +558,7 @@ router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
       title: communityEventsTable.title,
       description: communityEventsTable.description,
       imageUrl: communityEventsTable.imageUrl,
+      galleryPhotos: communityEventsTable.galleryPhotos,
       startsAt: communityEventsTable.startsAt,
       location: communityEventsTable.location,
       latitude: communityEventsTable.locationLatitude,
@@ -561,6 +753,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
       title: event.title,
       description: event.description,
       imageUrl: event.imageUrl,
+      galleryPhotos: event.galleryPhotos,
       contactPhone: event.contactPhone,
       websiteUrl: event.websiteUrl,
       publicEmail: event.publicEmail,
@@ -590,6 +783,8 @@ router.get("/events/feed", requireUid, async (req, res) => {
       title: event.title,
       description: event.description,
       imageUrl: event.imageUrl,
+      galleryPhotos: event.galleryPhotos,
+      repeatFrequency: event.repeatFrequency,
       contactPhone: event.contactPhone,
       websiteUrl: event.websiteUrl,
       publicEmail: event.publicEmail,
@@ -667,6 +862,22 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     res.status(400).json({ message: "Choose a place from the location search results." });
     return;
   }
+  const galleryPhotos = validateGalleryPhotos(parsed.data.galleryPhotos, uid);
+  if (!galleryPhotos) {
+    res.status(400).json({ message: "Choose up to 10 photos uploaded to this account." });
+    return;
+  }
+  const repeatFrequency = parsed.data.repeatFrequency ?? null;
+  const recurrenceTimeZone = parsed.data.recurrenceTimeZone ?? "UTC";
+  if (repeatFrequency && joinApprovalRequired) {
+    res.status(400).json({ message: "Only private friend plans can repeat." });
+    return;
+  }
+  if (!isValidTimeZone(recurrenceTimeZone)) {
+    res.status(400).json({ message: "Choose a valid time zone." });
+    return;
+  }
+  const imageUrl = galleryPhotos[0] ?? parsed.data.imageUrl ?? null;
   const inviteLinkEnabled =
     parsed.data.visibility === "invite_only" &&
     parsed.data.inviteLinkEnabled === true;
@@ -713,7 +924,13 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
       ownerUid: uid,
       title: parsed.data.title,
       description: parsed.data.description ?? null,
-      imageUrl: parsed.data.imageUrl ?? null,
+      imageUrl,
+      galleryPhotos,
+      photosExpireAt: getEventPhotosExpireAt(
+        times.startsAt,
+        times.endsAt,
+        Boolean(imageUrl || galleryPhotos.length),
+      ),
       contactPhone: parsed.data.contactPhone?.trim() || null,
       websiteUrl: parsed.data.websiteUrl?.trim() || null,
       publicEmail: parsed.data.publicEmail?.trim() || null,
@@ -725,6 +942,12 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
       locationLongitude: parsed.data.longitude ?? null,
       visibility: parsed.data.visibility,
       joinApprovalRequired,
+      repeatFrequency: joinApprovalRequired ? null : repeatFrequency,
+      recurrenceTimeZone,
+      recurrenceDayOfMonth:
+        !joinApprovalRequired && repeatFrequency === "monthly"
+          ? dayOfMonthInTimeZone(times.startsAt, recurrenceTimeZone)
+          : null,
       verifiedExplorersOnly,
       inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
       ...inviteLinkFields,
@@ -746,6 +969,8 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     title: event.title,
     description: event.description,
     imageUrl: event.imageUrl,
+    galleryPhotos: event.galleryPhotos,
+    repeatFrequency: event.repeatFrequency,
     contactPhone: event.contactPhone,
     websiteUrl: event.websiteUrl,
     publicEmail: event.publicEmail,
@@ -792,6 +1017,238 @@ router.get(
   },
 );
 
+router.get(
+  "/events/:eventType/:eventId/reviews",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const parsed = GetEventReviewsParams.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid event." });
+      return;
+    }
+    const { eventType, eventId } = parsed.data;
+    const uid = req.uid!;
+    let canView = false;
+    if (eventType === "member") {
+      const [event] = await db
+        .select()
+        .from(communityEventsTable)
+        .where(and(
+          eq(communityEventsTable.id, eventId),
+          eq(communityEventsTable.isHidden, false),
+        ))
+        .limit(1);
+      if (!event) {
+        res.status(404).json({ message: "Event not found." });
+        return;
+      }
+      const [rsvp] = await db
+        .select({ id: communityEventRsvpsTable.id })
+        .from(communityEventRsvpsTable)
+        .where(and(
+          eq(communityEventRsvpsTable.eventId, eventId),
+          eq(communityEventRsvpsTable.userUid, uid),
+        ))
+        .limit(1);
+      canView =
+        (event.visibility === "public" && event.joinApprovalRequired) ||
+        event.ownerUid === uid ||
+        event.inviteeUids.includes(uid) ||
+        Boolean(rsvp);
+      if (!canView) {
+        res.status(404).json({ message: "Event not found." });
+        return;
+      }
+    } else {
+      const [row] = await db
+        .select({
+          event: venueEventsTable,
+          isApproved: venueOwnerProfilesTable.isApproved,
+          applicationStatus: venueOwnerProfilesTable.applicationStatus,
+        })
+        .from(venueEventsTable)
+        .innerJoin(
+          venueOwnerProfilesTable,
+          eq(venueOwnerProfilesTable.placeId, venueEventsTable.placeId),
+        )
+        .where(and(
+          eq(venueEventsTable.id, eventId),
+          eq(venueEventsTable.isPublished, true),
+          eq(venueEventsTable.isHidden, false),
+          eq(venueOwnerProfilesTable.isApproved, true),
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+        ))
+        .limit(1);
+      if (!row) {
+        res.status(404).json({ message: "Event not found." });
+        return;
+      }
+      const [rsvp] = await db
+        .select({ id: venueEventRsvpsTable.id })
+        .from(venueEventRsvpsTable)
+        .where(and(
+          eq(venueEventRsvpsTable.eventId, eventId),
+          eq(venueEventRsvpsTable.userUid, uid),
+        ))
+        .limit(1);
+      canView =
+        row.event.visibility === "public" ||
+        row.event.ownerUid === uid ||
+        row.event.inviteeUids.includes(uid) ||
+        Boolean(rsvp);
+      if (!canView) {
+        res.status(404).json({ message: "Event not found." });
+        return;
+      }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await getEventReviewsPayload(eventType, eventId, uid));
+  },
+);
+
+router.post(
+  "/events/:eventType/:eventId/reviews",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const params = CreateEventReviewParams.safeParse(req.params);
+    const parsed = CreateEventReviewBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({ message: "Choose a rating from 1 to 5." });
+      return;
+    }
+    const { eventType, eventId } = params.data;
+    const reviewerUid = req.uid!;
+    const now = new Date();
+    const reviewText = parsed.data.reviewText?.trim() || null;
+    let eligible = false;
+
+    if (eventType === "member") {
+      const [event] = await db
+        .select()
+        .from(communityEventsTable)
+        .where(and(
+          eq(communityEventsTable.id, eventId),
+          eq(communityEventsTable.isHidden, false),
+        ))
+        .limit(1);
+      if (!event || event.ownerUid === reviewerUid) {
+        res.status(404).json({ message: "Event not found." });
+        return;
+      }
+      const eventEndsAt =
+        event.endsAt ?? new Date(event.startsAt.getTime() + 4 * 60 * 60 * 1000);
+      if (eventEndsAt > now) {
+        res.status(409).json({ message: "This event has not ended yet." });
+        return;
+      }
+      if (event.joinApprovalRequired) {
+        const [accepted] = await db
+          .select({ id: communityEventJoinRequestsTable.id })
+          .from(communityEventJoinRequestsTable)
+          .where(and(
+            eq(communityEventJoinRequestsTable.eventId, eventId),
+            eq(communityEventJoinRequestsTable.userUid, reviewerUid),
+            eq(communityEventJoinRequestsTable.status, "accepted"),
+          ))
+          .limit(1);
+        eligible = Boolean(accepted);
+      } else {
+        const [rsvp] = await db
+          .select({ id: communityEventRsvpsTable.id })
+          .from(communityEventRsvpsTable)
+          .where(and(
+            eq(communityEventRsvpsTable.eventId, eventId),
+            eq(communityEventRsvpsTable.userUid, reviewerUid),
+            inArray(communityEventRsvpsTable.status, ["going", "maybe"]),
+          ))
+          .limit(1);
+        eligible = Boolean(rsvp);
+      }
+      if (!eligible) {
+        res.status(403).json({ message: "Only guests who joined this event can review it." });
+        return;
+      }
+      const [inserted] = await db
+        .insert(communityEventHostRatingsTable)
+        .values({ eventId, reviewerUid, rating: parsed.data.rating, reviewText })
+        .onConflictDoNothing({
+          target: [
+            communityEventHostRatingsTable.eventId,
+            communityEventHostRatingsTable.reviewerUid,
+          ],
+        })
+        .returning({ id: communityEventHostRatingsTable.id });
+      if (!inserted) {
+        res.status(409).json({ message: "You have already reviewed this event." });
+        return;
+      }
+    } else {
+      const [event] = await db
+        .select()
+        .from(venueEventsTable)
+        .where(and(
+          eq(venueEventsTable.id, eventId),
+          eq(venueEventsTable.isPublished, true),
+          eq(venueEventsTable.isHidden, false),
+        ))
+        .limit(1);
+      if (!event || event.ownerUid === reviewerUid) {
+        res.status(404).json({ message: "Event not found." });
+        return;
+      }
+      const eventEndsAt =
+        event.endsAt ?? new Date(event.startsAt.getTime() + 4 * 60 * 60 * 1000);
+      if (eventEndsAt > now) {
+        res.status(409).json({ message: "This event has not ended yet." });
+        return;
+      }
+      const [rsvp] = await db
+        .select({ id: venueEventRsvpsTable.id })
+        .from(venueEventRsvpsTable)
+        .where(and(
+          eq(venueEventRsvpsTable.eventId, eventId),
+          eq(venueEventRsvpsTable.userUid, reviewerUid),
+          inArray(venueEventRsvpsTable.status, ["going", "maybe"]),
+        ))
+        .limit(1);
+      const [attendance] = await db
+        .select({ id: eventAttendanceTable.id })
+        .from(eventAttendanceTable)
+        .where(and(
+          eq(eventAttendanceTable.eventType, "venue"),
+          eq(eventAttendanceTable.eventId, eventId),
+          eq(eventAttendanceTable.userUid, reviewerUid),
+        ))
+        .limit(1);
+      eligible = Boolean(rsvp || attendance);
+      if (!eligible) {
+        res.status(403).json({ message: "Only guests who joined this event can review it." });
+        return;
+      }
+      const [inserted] = await db
+        .insert(venueEventReviewsTable)
+        .values({ eventId, reviewerUid, rating: parsed.data.rating, reviewText })
+        .onConflictDoNothing({
+          target: [
+            venueEventReviewsTable.eventId,
+            venueEventReviewsTable.reviewerUid,
+          ],
+        })
+        .returning({ id: venueEventReviewsTable.id });
+      if (!inserted) {
+        res.status(409).json({ message: "You have already reviewed this event." });
+        return;
+      }
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    res.status(201).json(
+      await getEventReviewsPayload(eventType, eventId, reviewerUid),
+    );
+  },
+);
+
 router.post(
   "/community-events/:eventId/host-rating",
   requireUid,
@@ -812,6 +1269,7 @@ router.post(
         startsAt: communityEventsTable.startsAt,
         endsAt: communityEventsTable.endsAt,
         joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+        repeatFrequency: communityEventsTable.repeatFrequency,
       })
       .from(communityEventsTable)
       .where(and(
@@ -824,7 +1282,12 @@ router.post(
       return;
     }
 
-    const eventEnd = event.endsAt ?? event.startsAt;
+    if (event.repeatFrequency) {
+      res.status(409).json({ message: "Ongoing recurring plans cannot be reviewed." });
+      return;
+    }
+    const eventEnd = event.endsAt ??
+      new Date(event.startsAt.getTime() + 4 * 60 * 60 * 1000);
     if (eventEnd.getTime() > Date.now()) {
       res.status(409).json({ message: "This plan has not ended yet." });
       return;
@@ -854,16 +1317,20 @@ router.post(
       return;
     }
 
-    await db
+    const [inserted] = await db
       .insert(communityEventHostRatingsTable)
       .values({ eventId, reviewerUid, rating: parsed.data.rating })
-      .onConflictDoUpdate({
+      .onConflictDoNothing({
         target: [
           communityEventHostRatingsTable.eventId,
           communityEventHostRatingsTable.reviewerUid,
         ],
-        set: { rating: parsed.data.rating, updatedAt: new Date() },
-      });
+      })
+      .returning({ id: communityEventHostRatingsTable.id });
+    if (!inserted) {
+      res.status(409).json({ message: "You have already rated this host for this event." });
+      return;
+    }
 
     const [summary] = await db
       .select({
@@ -1031,6 +1498,8 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         title: event.title,
         description: event.description,
         imageUrl: event.imageUrl,
+      galleryPhotos: event.galleryPhotos,
+      repeatFrequency: event.repeatFrequency,
         contactPhone: event.contactPhone,
         websiteUrl: event.websiteUrl,
         publicEmail: event.publicEmail,
@@ -1675,6 +2144,122 @@ router.get(
 );
 
 router.get(
+  "/community-events/hosts/:hostUid/past-hangouts",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const parsed = GetHostPastHangoutsParams.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid host." });
+      return;
+    }
+    const hostUid = parsed.data.hostUid;
+    const [profile] = await db
+      .select({ uid: profilesTable.uid })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, hostUid))
+      .limit(1);
+    if (!profile) {
+      res.status(404).json({ message: "Host profile not found." });
+      return;
+    }
+    const eventRows = await db
+      .select({
+        id: communityEventsTable.id,
+        title: communityEventsTable.title,
+        startsAt: communityEventsTable.startsAt,
+        endsAt: communityEventsTable.endsAt,
+        imageUrl: communityEventsTable.imageUrl,
+        galleryPhotos: communityEventsTable.galleryPhotos,
+      })
+      .from(communityEventsTable)
+      .where(and(
+        eq(communityEventsTable.ownerUid, hostUid),
+        eq(communityEventsTable.joinApprovalRequired, true),
+        eq(communityEventsTable.visibility, "public"),
+        eq(communityEventsTable.isHidden, false),
+        sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt} + INTERVAL '4 hours') <= NOW()`,
+      ))
+      .orderBy(
+        desc(sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt})`),
+        desc(communityEventsTable.id),
+      )
+      .limit(50);
+
+    const eventIds = eventRows.map((event) => event.id);
+    const [reviews, summaries] = eventIds.length
+      ? await Promise.all([
+          db
+            .select({
+              eventId: communityEventHostRatingsTable.eventId,
+              rating: communityEventHostRatingsTable.rating,
+              reviewText: communityEventHostRatingsTable.reviewText,
+              reviewerName: profilesTable.displayName,
+              reviewerPhotoUrl: profilesTable.photoUrl,
+              createdAt: communityEventHostRatingsTable.createdAt,
+            })
+            .from(communityEventHostRatingsTable)
+            .leftJoin(
+              profilesTable,
+              eq(profilesTable.uid, communityEventHostRatingsTable.reviewerUid),
+            )
+            .where(inArray(communityEventHostRatingsTable.eventId, eventIds))
+            .orderBy(desc(communityEventHostRatingsTable.createdAt))
+            .limit(2_000),
+          db
+            .select({
+              eventId: communityEventHostRatingsTable.eventId,
+              averageRating: sql<number | null>`AVG(${communityEventHostRatingsTable.rating})::float8`,
+              reviewCount: count(),
+            })
+            .from(communityEventHostRatingsTable)
+            .where(inArray(communityEventHostRatingsTable.eventId, eventIds))
+            .groupBy(communityEventHostRatingsTable.eventId),
+        ])
+      : [[], []];
+    const reviewsByEvent = new Map<number, ReviewRecord[]>();
+    for (const review of reviews) {
+      const group = reviewsByEvent.get(review.eventId) ?? [];
+      if (group.length < 100) {
+        group.push({
+          rating: review.rating,
+          reviewText: review.reviewText,
+          reviewerName: review.reviewerName || "Met member",
+          reviewerPhotoUrl: review.reviewerPhotoUrl ?? null,
+          createdAt: review.createdAt,
+        });
+        reviewsByEvent.set(review.eventId, group);
+      }
+    }
+    const summaryByEvent = new Map(summaries.map((summary) => [
+      summary.eventId,
+      {
+        averageRating: summary.averageRating == null
+          ? null
+          : Number(summary.averageRating),
+        reviewCount: Number(summary.reviewCount),
+      },
+    ]));
+    res.setHeader("Cache-Control", "no-store");
+    res.json(GetHostPastHangoutsResponse.parse({
+      events: eventRows.map((event) => {
+        const summary = summaryByEvent.get(event.id);
+        return {
+          ...event,
+          endsAt: event.endsAt ?? null,
+          galleryPhotos: event.galleryPhotos ?? [],
+          averageRating: summary?.averageRating ?? null,
+          reviewCount: summary?.reviewCount ?? 0,
+          reviews: (reviewsByEvent.get(event.id) ?? []).map((review) => ({
+            ...review,
+            createdAt: review.createdAt.toISOString(),
+          })),
+        };
+      }),
+    }));
+  },
+);
+
+router.get(
   "/community-events/my-plan-chats",
   requireUid,
   async (req, res): Promise<void> => {
@@ -1889,7 +2474,6 @@ router.put(
     );
   },
 );
-
 
 router.get(
   "/community-events/:eventId/plan-chat",
@@ -2442,10 +3026,38 @@ router.put(
       res.status(400).json({ message: "Choose a place from the location search results." });
       return;
     }
+    const nextGalleryPhotos = validateGalleryPhotos(
+      parsed.data.galleryPhotos,
+      uid,
+      existing.galleryPhotos ?? [],
+    );
+    if (!nextGalleryPhotos) {
+      res.status(400).json({ message: "Choose up to 10 photos uploaded to this account." });
+      return;
+    }
+    const nextImageUrl = nextGalleryPhotos[0] ?? parsed.data.imageUrl ?? null;
+    const nextRepeatFrequency = existing.joinApprovalRequired
+      ? null
+      : parsed.data.repeatFrequency ?? existing.repeatFrequency;
+    const nextRecurrenceTimeZone =
+      parsed.data.recurrenceTimeZone ?? existing.recurrenceTimeZone;
+    if (!isValidTimeZone(nextRecurrenceTimeZone)) {
+      res.status(400).json({ message: "Choose a valid time zone." });
+      return;
+    }
+    const nextRecurrenceDayOfMonth = nextRepeatFrequency === "monthly"
+      ? existing.repeatFrequency === "monthly" && existing.recurrenceDayOfMonth != null
+        ? existing.recurrenceDayOfMonth
+        : dayOfMonthInTimeZone(times.startsAt, nextRecurrenceTimeZone)
+      : null;
     const hasChanges =
       parsed.data.title !== existing.title ||
       (parsed.data.description ?? null) !== existing.description ||
-      (parsed.data.imageUrl ?? null) !== existing.imageUrl ||
+      nextImageUrl !== existing.imageUrl ||
+      JSON.stringify(nextGalleryPhotos) !== JSON.stringify(existing.galleryPhotos ?? []) ||
+      nextRepeatFrequency !== existing.repeatFrequency ||
+      nextRecurrenceTimeZone !== existing.recurrenceTimeZone ||
+      nextRecurrenceDayOfMonth !== existing.recurrenceDayOfMonth ||
       (parsed.data.contactPhone?.trim() || null) !== existing.contactPhone ||
       (parsed.data.websiteUrl?.trim() || null) !== existing.websiteUrl ||
       (parsed.data.publicEmail?.trim() || null) !== existing.publicEmail ||
@@ -2551,7 +3163,13 @@ router.put(
       .set({
         title: parsed.data.title,
         description: parsed.data.description ?? null,
-        imageUrl: parsed.data.imageUrl ?? null,
+        imageUrl: nextImageUrl,
+        galleryPhotos: nextGalleryPhotos,
+        photosExpireAt: getEventPhotosExpireAt(
+          times.startsAt,
+          times.endsAt,
+          Boolean(nextImageUrl || nextGalleryPhotos.length),
+        ),
         contactPhone: parsed.data.contactPhone?.trim() || null,
         websiteUrl: parsed.data.websiteUrl?.trim() || null,
         publicEmail: parsed.data.publicEmail?.trim() || null,
@@ -2562,6 +3180,9 @@ router.put(
         locationLatitude: parsed.data.latitude ?? null,
         locationLongitude: parsed.data.longitude ?? null,
         visibility: parsed.data.visibility,
+        repeatFrequency: nextRepeatFrequency,
+        recurrenceTimeZone: nextRecurrenceTimeZone,
+        recurrenceDayOfMonth: nextRecurrenceDayOfMonth,
         verifiedExplorersOnly: nextVerifiedExplorersOnly,
         inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
         ...inviteLinkFields,
@@ -2623,6 +3244,8 @@ router.put(
         title: event.title,
         description: event.description,
         imageUrl: event.imageUrl,
+        galleryPhotos: event.galleryPhotos,
+        repeatFrequency: event.repeatFrequency,
         contactPhone: event.contactPhone,
         websiteUrl: event.websiteUrl,
         publicEmail: event.publicEmail,

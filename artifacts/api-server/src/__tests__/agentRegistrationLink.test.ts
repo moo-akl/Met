@@ -682,6 +682,11 @@ describe.skipIf(!hasDatabase)(
               description: "Moderation test event",
               startsAt: new Date(Date.now() + 86_400_000).toISOString(),
               visibility: "public",
+              joinApprovalRequired: true,
+              location: "Bangkok test park",
+              locationPlaceId: `community-report-place-${TEST_PREFIX}`,
+              latitude: 13.7563,
+              longitude: 100.5018,
               inviteeUids: [],
             })
             .expect(201);

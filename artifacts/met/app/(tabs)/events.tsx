@@ -367,11 +367,6 @@ function EventsScreen() {
                 ? t("tabs.events.hangoutsHeading")
                 : t("tabs.events.eventsHeading")}
             </Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              {activeView === "hangouts"
-                ? t("tabs.events.nearbySubtitle")
-                : t("tabs.events.venueOnlySubtitle")}
-            </Text>
             {activeView === "events" && userLocation ? (
               <Text style={[styles.locationHint, { color: colors.primary }]}>{t("tabs.events.nearbyFirst")}</Text>
             ) : activeView === "events" ? (

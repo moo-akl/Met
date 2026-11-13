@@ -124,9 +124,6 @@ export function HomePlanDiscovery() {
             <Feather name="arrow-up-right" size={16} color={colors.primary} />
           </Pressable>
         </View>
-        <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
-          {t("tabs.events.nearbySubtitle")}
-        </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("tabs.events.createHangout")}

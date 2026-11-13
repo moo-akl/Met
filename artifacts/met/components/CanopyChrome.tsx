@@ -9,14 +9,18 @@ import { useT } from "@/lib/i18n";
 export function CanopyHeader({
   onLanguage,
   onRequests,
+  onMessages = () => {},
   onNotifications = () => {},
   requestCount = 0,
+  hasUnreadMessages = false,
   notificationCount = 0,
 }: {
   onLanguage: () => void;
   onRequests: () => void;
+  onMessages?: () => void;
   onNotifications?: () => void;
   requestCount?: number;
+  hasUnreadMessages?: boolean;
   notificationCount?: number;
 }) {
   const c = useColors();
@@ -30,6 +34,19 @@ export function CanopyHeader({
     <View style={s.headerActions}>
       <Pressable accessibilityRole="button" accessibilityLabel="Change language" onPress={onLanguage} style={s.iconButton}>
         <Feather name="globe" size={21} color={c.text} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Messages"
+        accessibilityHint={hasUnreadMessages ? "Unread messages" : undefined}
+        testID="home-messages-button"
+        onPress={onMessages}
+        style={s.iconButton}
+      >
+        <Feather name="message-circle" size={21} color={c.text} />
+        {hasUnreadMessages && (
+          <View style={[s.requestDot, { backgroundColor: c.primary, borderColor: c.background }]} />
+        )}
       </Pressable>
       <Pressable
         accessibilityRole="button"

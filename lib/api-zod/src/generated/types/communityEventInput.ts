@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommunityEventInputRepeatFrequency } from './communityEventInputRepeatFrequency';
 import type { CommunityEventInputVisibility } from './communityEventInputVisibility';
 
 export interface CommunityEventInput {
@@ -20,6 +21,12 @@ export interface CommunityEventInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @maxItems 10 */
+  galleryPhotos?: string[];
+  /** @nullable */
+  repeatFrequency?: CommunityEventInputRepeatFrequency;
+  /** @maxLength 100 */
+  recurrenceTimeZone?: string;
   /**
      * @maxLength 40
      * @nullable

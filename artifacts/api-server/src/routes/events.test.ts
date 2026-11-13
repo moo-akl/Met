@@ -14,10 +14,12 @@ import {
   db,
   eventAttendanceCorrectionsTable,
   eventAttendanceTable,
+  profilesTable,
   reviewsTable,
 } from "@workspace/db";
 import { hashEventCheckinToken } from "../lib/eventCheckinLinks";
 import { hashEventInviteToken } from "../lib/eventInviteLinks";
+import { advanceDueRecurringFriendPlans } from "../lib/communityEventRecurrence";
 
 const explorerState = vi.hoisted(() => ({ uids: new Set<string>() }));
 const mediaStorageState = vi.hoisted(() => ({
@@ -272,6 +274,59 @@ describe("event map feed", () => {
   });
 });
 
+describe("recurring Plan advancement", () => {
+  it.each([
+    {
+      description: "spring-forward",
+      startsAt: "2026-03-07T14:30:00.000Z",
+      endsAt: "2026-03-07T16:30:00.000Z",
+      now: "2026-03-07T16:30:01.000Z",
+      expectedStart: "2026-03-08T13:30:00.000Z",
+      expectedEnd: "2026-03-08T15:30:00.000Z",
+    },
+    {
+      description: "fall-back",
+      startsAt: "2026-10-31T13:30:00.000Z",
+      endsAt: "2026-10-31T15:30:00.000Z",
+      now: "2026-10-31T15:30:01.000Z",
+      expectedStart: "2026-11-01T14:30:00.000Z",
+      expectedEnd: "2026-11-01T16:30:00.000Z",
+    },
+  ])("persists the intended local end time across $description", async ({
+    startsAt,
+    endsAt,
+    now,
+    expectedStart,
+    expectedEnd,
+  }) => {
+    await db
+      .update(communityEventsTable)
+      .set({
+        startsAt: new Date(startsAt),
+        endsAt: new Date(endsAt),
+        visibility: "invite_only",
+        joinApprovalRequired: false,
+        isHidden: false,
+        repeatFrequency: "daily",
+        recurrenceTimeZone: "America/New_York",
+      })
+      .where(eq(communityEventsTable.id, eventId!));
+
+    await advanceDueRecurringFriendPlans(new Date(now));
+
+    const [advancedPlan] = await db
+      .select({
+        startsAt: communityEventsTable.startsAt,
+        endsAt: communityEventsTable.endsAt,
+      })
+      .from(communityEventsTable)
+      .where(eq(communityEventsTable.id, eventId!));
+
+    expect(advancedPlan?.startsAt.toISOString()).toBe(expectedStart);
+    expect(advancedPlan?.endsAt?.toISOString()).toBe(expectedEnd);
+  });
+});
+
 describe("completed Hangout host ratings", () => {
   it("accepts only eligible guests and exposes completed-Hangout aggregates without reviewer identities", async () => {
     const futureRating = await request(app)
@@ -322,12 +377,7 @@ describe("completed Hangout host ratings", () => {
       .post(`/api/community-events/${eventId}/host-rating`)
       .set("x-test-uid", explorerUid)
       .send({ rating: 5 });
-    expect(updatedRating.status).toBe(200);
-    expect(updatedRating.body).toEqual({
-      averageRating: 5,
-      reviewCount: 1,
-      myRating: 5,
-    });
+    expect(updatedRating.status).toBe(409);
 
     await db.insert(communityEventJoinRequestsTable).values({
       eventId: eventId!,
@@ -340,7 +390,7 @@ describe("completed Hangout host ratings", () => {
       .send({ rating: 2 });
     expect(secondRating.status).toBe(200);
     expect(secondRating.body).toEqual({
-      averageRating: 3.5,
+      averageRating: 3,
       reviewCount: 2,
       myRating: 2,
     });
@@ -350,9 +400,9 @@ describe("completed Hangout host ratings", () => {
       .set("x-test-uid", explorerUid)
       .expect(200);
     expect(details.body.meetingHostRating).toEqual({
-      averageRating: 3.5,
+      averageRating: 3,
       reviewCount: 2,
-      myRating: 5,
+      myRating: 4,
     });
     expect(Object.keys(details.body.meetingHostRating).sort()).toEqual([
       "averageRating",
@@ -936,6 +986,7 @@ describe("Hangout and plan chat inbox", () => {
     expect(chat.body.messages[0]?.id).toBe(firstIncomingMessage?.id);
   });
 });
+
 describe("Explorer-only community event access", () => {
   it("hides the plan from feeds and nearby search but returns it to Explorers", async () => {
     const regularFeed = await request(app)
@@ -1132,5 +1183,60 @@ describe("Explorer-only community event access", () => {
     expect(hostManage.status).toBe(200);
     expect(hostManage.body.verifiedExplorersOnly).toBe(true);
     expect(regularManage.status).toBe(404);
+  });
+});
+
+describe("written community event reviews", () => {
+  it("keeps the first concurrent review and returns its author and text", async () => {
+    const reviewerUid = `written-event-reviewer-${seed}`;
+    const currentEventId = eventId!;
+    const reviewTexts = ["First submitted review", "Competing review"];
+    await db.insert(profilesTable).values({
+      uid: reviewerUid,
+      displayName: "Review Test Guest",
+      photoUrl: null,
+    });
+
+    try {
+      await db
+        .update(communityEventsTable)
+        .set({
+          startsAt: new Date(Date.now() - 2 * 60 * 60_000),
+          endsAt: new Date(Date.now() - 60 * 60_000),
+        })
+        .where(eq(communityEventsTable.id, currentEventId));
+      await db.insert(communityEventJoinRequestsTable).values({
+        eventId: currentEventId,
+        userUid: reviewerUid,
+        status: "accepted",
+      });
+
+      const responses = await Promise.all(
+        reviewTexts.map((reviewText, index) =>
+          request(app)
+            .post(`/api/events/member/${currentEventId}/reviews`)
+            .set("x-test-uid", reviewerUid)
+            .send({ rating: index + 2, reviewText }),
+        ),
+      );
+      expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+
+      const winnerIndex = responses.findIndex((response) => response.status === 201);
+      const expected = {
+        rating: winnerIndex + 2,
+        reviewerName: "Review Test Guest",
+        reviewText: reviewTexts[winnerIndex],
+      };
+      expect(responses[winnerIndex]!.body.myReview).toMatchObject(expected);
+
+      const listedReviews = await request(app)
+        .get(`/api/events/member/${currentEventId}/reviews`)
+        .set("x-test-uid", reviewerUid)
+        .expect(200);
+      expect(listedReviews.body.reviews).toHaveLength(1);
+      expect(listedReviews.body.reviews[0]).toMatchObject(expected);
+    } finally {
+      await db.delete(profilesTable).where(eq(profilesTable.uid, reviewerUid));
+    }
   });
 });

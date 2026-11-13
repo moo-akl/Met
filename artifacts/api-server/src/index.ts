@@ -5,6 +5,8 @@ import {
   runDueVenueEventReminders,
 } from "./lib/eventNotifications";
 import { cleanupExpiredPlanChatMedia } from "./lib/planChatMediaCleanup";
+import { advanceDueRecurringFriendPlans } from "./lib/communityEventRecurrence";
+import { cleanupExpiredEventPhotos } from "./lib/eventPhotoCleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -28,11 +30,15 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   const reminderSweep = () => {
-    void Promise.all([
-      runDueVenueEventReminders(),
-      runDueCommunityEventHostRatingPrompts(),
-      cleanupExpiredPlanChatMedia(),
-    ]).catch((error: unknown) => {
+    void (async () => {
+      await advanceDueRecurringFriendPlans();
+      await Promise.all([
+        runDueVenueEventReminders(),
+        runDueCommunityEventHostRatingPrompts(),
+        cleanupExpiredPlanChatMedia(),
+        cleanupExpiredEventPhotos(),
+      ]);
+    })().catch((error: unknown) => {
       logger.error({ error }, "Notification/media cleanup sweep failed");
     });
   };

@@ -84,7 +84,25 @@ export default function EventOrganizerProfileScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           {t("tabs.events.createdBy")}
         </Text>
-        <View style={styles.headerButton} />
+        {event && organizerUid ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("tabs.events.openPastHangouts")}
+            testID="event-organizer-past-hangouts"
+            onPress={() => router.push({
+              pathname: "/event-organizer/past-hangouts",
+              params: {
+                hostUid: organizerUid,
+                hostName: name || t("tabs.events.createdBy"),
+              },
+            } as never)}
+            style={styles.headerButton}
+          >
+            <Feather name="archive" size={19} color={colors.text} />
+          </Pressable>
+        ) : (
+          <View style={styles.headerButton} />
+        )}
       </View>
 
       {eventQuery.isLoading ? (
