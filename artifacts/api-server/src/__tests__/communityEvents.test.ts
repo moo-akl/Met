@@ -151,7 +151,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
 
   afterAll(cleanup);
 
-  it("enforces the Free monthly cap atomically and reports remaining usage", async () => {
+  it("enforces creation caps without blocking invited RSVPs at the Free limit", async () => {
     await db.insert(communityEventsTable).values(
       Array.from({ length: 4 }, (_, index) => ({
         ownerUid: QUOTA_UID,
@@ -198,6 +198,33 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .get("/api/events/creation-usage")
       .set(uidHeader(QUOTA_UID));
     expect(after.body).toMatchObject({
+      tier: "free",
+      used: 5,
+      limit: 5,
+      remaining: 0,
+    });
+
+    const [joinTarget] = await db
+      .insert(communityEventsTable)
+      .values({
+        ownerUid: OWNER_UID,
+        title: "Invited RSVP after hosting cap",
+        startsAt: new Date(Date.now() + 2 * 60 * 60_000),
+        visibility: "invite_only",
+        inviteeUids: [QUOTA_UID],
+      })
+      .returning({ id: communityEventsTable.id });
+    await request(app)
+      .post(`/api/community-events/${joinTarget.id}/rsvp`)
+      .set(uidHeader(QUOTA_UID))
+      .send({ status: "going" })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ success: true, status: "going" });
+      });
+    const deniedAfterRsvp = await makePlan("free-after-rsvp");
+    expect(deniedAfterRsvp.status).toBe(429);
+    expect(deniedAfterRsvp.body).toMatchObject({
       tier: "free",
       used: 5,
       limit: 5,
