@@ -4150,6 +4150,26 @@ export const CreateCommunityEventResponse = zod.object({
 
 
 /**
+ * @summary Get the authenticated member's monthly activity creation usage
+ */
+export const getCommunityEventCreationUsageResponseUsedMin = 0;
+
+export const getCommunityEventCreationUsageResponseLimitMin = 0;
+
+export const getCommunityEventCreationUsageResponseRemainingMin = 0;
+
+
+
+export const GetCommunityEventCreationUsageResponse = zod.object({
+  "tier": zod.enum(['free', 'plus', 'pro']),
+  "used": zod.number().int().min(getCommunityEventCreationUsageResponseUsedMin),
+  "limit": zod.number().int().min(getCommunityEventCreationUsageResponseLimitMin).nullable(),
+  "remaining": zod.number().int().min(getCommunityEventCreationUsageResponseRemainingMin).nullable(),
+  "resetsAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Check in to an event using its event-specific QR code
  */
 export const checkInEventByQrBodyTokenMin = 32;

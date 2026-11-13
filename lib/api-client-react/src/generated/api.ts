@@ -48,6 +48,7 @@ import type {
   ClassifyPendingVenueOutreachRepliesResult,
   ClearFailedVenueOutreachInput,
   ClearFailedVenueOutreachResult,
+  CommunityEventCreationUsage,
   CommunityEventInput,
   CommunityEventInviteLinkResponse,
   CommunityEventJoinRequestDecisionInput,
@@ -66,6 +67,7 @@ import type {
   CommunityEventRsvpBody,
   ConnectionInvitePreview,
   CreateAnnouncementRequest,
+  CreateCommunityEvent429,
   CreateNetwork,
   CreateRevealRequest,
   CreateVenueGuestbookEntryInput,
@@ -9300,7 +9302,7 @@ return customFetch<EventFeedItem>(getCreateCommunityEventUrl(),
 
 export const getCreateCommunityEventMutationKey = () => ['createCommunityEvent'] as const;
 
-export const getCreateCommunityEventMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateCommunityEventMutationOptions = <TError = ErrorType<CreateCommunityEvent429>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityEvent>>, TError,CreateCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createCommunityEvent>>, TError,CreateCommunityEventMutationVariables, TContext> => {
 
@@ -9329,13 +9331,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateCommunityEventMutationResult = NonNullable<Awaited<ReturnType<typeof createCommunityEvent>>>
     export type CreateCommunityEventMutationBody = BodyType<CommunityEventInput>
-    export type CreateCommunityEventMutationError = ErrorType<unknown>
+    export type CreateCommunityEventMutationError = ErrorType<CreateCommunityEvent429>
     export type CreateCommunityEventMutationVariables = {data: BodyType<CommunityEventInput>}
 
     /**
  * @summary Create a member event
  */
-export const useCreateCommunityEvent = <TError = ErrorType<unknown>,
+export const useCreateCommunityEvent = <TError = ErrorType<CreateCommunityEvent429>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityEvent>>, TError,CreateCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createCommunityEvent>>,
@@ -9345,6 +9347,107 @@ export const useCreateCommunityEvent = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateCommunityEventMutationOptions(options), queryClient);
     }
+
+export const getGetCommunityEventCreationUsageUrl = () => {
+
+
+
+
+  return `/api/events/creation-usage`
+}
+
+/**
+ * @summary Get the authenticated member's monthly activity creation usage
+ */
+export const getCommunityEventCreationUsage = async ( options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventCreationUsage> => {
+
+  return customFetch<CommunityEventCreationUsage>(getGetCommunityEventCreationUsageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommunityEventCreationUsageQueryKey = () => {
+    return [
+    `/api/events/creation-usage`
+    ] as const;
+    }
+
+
+export const getGetCommunityEventCreationUsageQueryOptions = <TData = Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommunityEventCreationUsageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>> = ({ signal }) => getCommunityEventCreationUsage({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCommunityEventCreationUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>>
+export type GetCommunityEventCreationUsageQueryError = ErrorType<unknown>
+
+
+export function useGetCommunityEventCreationUsage<TData = Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityEventCreationUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityEventCreationUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCommunityEventCreationUsage<TData = Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityEventCreationUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityEventCreationUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCommunityEventCreationUsage<TData = Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get the authenticated member's monthly activity creation usage
+ */
+
+export function useGetCommunityEventCreationUsage<TData = Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventCreationUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCommunityEventCreationUsageQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCheckInEventByQrUrl = () => {
 

@@ -2735,6 +2735,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventFeedItem"
+        "429":
+          description: Monthly member-activity creation limit reached
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, tier, used, limit, remaining, resetsAt]
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+                  tier: { type: string, enum: [free, plus, pro] }
+                  used: { type: integer }
+                  limit: { type: ["integer", "null"] }
+                  remaining: { type: ["integer", "null"] }
+                  resetsAt: { type: string, format: date-time }
+
+  /events/creation-usage:
+    get:
+      operationId: getCommunityEventCreationUsage
+      tags: [events]
+      summary: Get the authenticated member's monthly activity creation usage
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Monthly member-activity creation allowance and usage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventCreationUsage"
 
   /events/check-in/qr:
     post:
@@ -7380,6 +7410,15 @@ components:
         events:
           type: array
           items: { $ref: "#/components/schemas/EventFeedItem" }
+    CommunityEventCreationUsage:
+      type: object
+      required: [tier, used, limit, remaining, resetsAt]
+      properties:
+        tier: { type: string, enum: [free, plus, pro] }
+        used: { type: integer, minimum: 0 }
+        limit: { type: ["integer", "null"], minimum: 0 }
+        remaining: { type: ["integer", "null"], minimum: 0 }
+        resetsAt: { type: string, format: date-time }
     NearbyHangoutItem:
       type: object
       required: [eventType, id, ownerUid, title, description, imageUrl, startsAt, location, latitude, longitude, creatorName, creatorPhotoUrl, myJoinRequestStatus, verifiedExplorersOnly, isVerifiedExplorerHost]

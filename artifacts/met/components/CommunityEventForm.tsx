@@ -30,9 +30,11 @@ import { useT } from "@/lib/i18n";
 import {
   getGetEventDetailsQueryKey,
   getGetEventsFeedQueryKey,
+  getGetCommunityEventCreationUsageQueryKey,
   getSearchEventLocationsQueryOptions,
   useCreateCommunityEvent,
   useCreateCommunityEventInviteLink,
+  useGetCommunityEventCreationUsage,
   useGetMyVerifiedExplorer,
   useUpdateCommunityEvent,
   type CommunityEventManageResponse,
@@ -74,6 +76,16 @@ export default function CommunityEventForm({
   const { isDark } = useTheme();
   const explorerStatus = useGetMyVerifiedExplorer({
     query: { enabled: !!authedUid, staleTime: 60_000 },
+  });
+  const creationUsage = useGetCommunityEventCreationUsage({
+    query: {
+      enabled: !isEditing && !!authedUid,
+      queryKey: [
+        ...getGetCommunityEventCreationUsageQueryKey(),
+        authedUid ?? "signed-out",
+      ],
+      staleTime: 30_000,
+    },
   });
   const connections = useMemo(
     () => encounters.filter((encounter) => encounter.status === "connected"),
@@ -292,8 +304,23 @@ export default function CommunityEventForm({
 
   const createEvent = useCreateCommunityEvent({
     mutation: {
-      onSuccess: updateFeedItem,
+      onSuccess: (event) => {
+        void queryClient.invalidateQueries({
+          queryKey: getGetCommunityEventCreationUsageQueryKey(),
+        });
+        updateFeedItem(event);
+      },
       onError: (error) => {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          error.status === 429
+        ) {
+          setFormError(t("tabs.events.activityLimitReached"));
+          void creationUsage.refetch();
+          return;
+        }
         setFormError(error instanceof Error
           ? error.message
           : isHangout
@@ -419,6 +446,8 @@ export default function CommunityEventForm({
   };
 
   const isPending = createEvent.isPending || updateEvent.isPending;
+  const creationLimitReached =
+    !isEditing && creationUsage.data?.remaining === 0;
   const matchingLocations = nearestEventLocations(
     locationSearch.data?.locations ?? [],
     deviceLocation,
@@ -457,6 +486,36 @@ export default function CommunityEventForm({
         bottomOffset={24}
         keyboardShouldPersistTaps="handled"
       >
+        {!isEditing && creationUsage.data ? (
+          <View
+            style={[
+              styles.quotaCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.quotaText, { color: colors.mutedForeground }]}>
+              {creationUsage.data.limit === null
+                ? t("tabs.events.monthlyActivityUnlimited")
+                : creationLimitReached
+                  ? t("tabs.events.activityLimitReached")
+                  : t("tabs.events.monthlyActivityUsage", {
+                      used: creationUsage.data.used,
+                      limit: creationUsage.data.limit,
+                    })}
+            </Text>
+            {creationLimitReached ? (
+              <Pressable
+                accessibilityRole="button"
+                testID="activity-quota-upgrade"
+                onPress={() => router.push("/paywall")}
+              >
+                <Text style={[styles.quotaUpgrade, { color: colors.primary }]}>
+                  {t("tabs.events.upgradeForMore")}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         <Text style={[styles.label, { color: colors.text }]}>
           {t(isHangout ? "tabs.events.hangoutName" : "tabs.events.eventName")}
         </Text>
@@ -987,11 +1046,14 @@ export default function CommunityEventForm({
         ) : null}
         <Pressable
           accessibilityRole="button"
-          disabled={isPending || imageUploading}
+          disabled={isPending || imageUploading || creationLimitReached}
           onPress={submit}
           style={[
             styles.submit,
-            { backgroundColor: colors.primary, opacity: isPending ? 0.7 : 1 },
+            {
+              backgroundColor: colors.primary,
+              opacity: isPending || creationLimitReached ? 0.7 : 1,
+            },
           ]}
         >
           {isPending ? (
@@ -1013,6 +1075,16 @@ export default function CommunityEventForm({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  quotaCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 18,
+    gap: 8,
+  },
+  quotaText: { fontSize: 13, lineHeight: 18 },
+  quotaUpgrade: { fontSize: 14, fontWeight: "700" },
   header: {
     paddingHorizontal: 16,
     paddingBottom: 12,

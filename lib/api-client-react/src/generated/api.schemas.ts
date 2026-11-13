@@ -2385,6 +2385,32 @@ export interface EventFeedResponse {
   events: EventFeedItem[];
 }
 
+export type CommunityEventCreationUsageTier = typeof CommunityEventCreationUsageTier[keyof typeof CommunityEventCreationUsageTier];
+
+
+export const CommunityEventCreationUsageTier = {
+  free: 'free',
+  plus: 'plus',
+  pro: 'pro',
+} as const;
+
+export interface CommunityEventCreationUsage {
+  tier: CommunityEventCreationUsageTier;
+  /** @minimum 0 */
+  used: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  limit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  remaining: number | null;
+  resetsAt: string;
+}
+
 export type NearbyHangoutItemEventType = typeof NearbyHangoutItemEventType[keyof typeof NearbyHangoutItemEventType];
 
 
@@ -4853,6 +4879,27 @@ export const GetNearbyHangoutsSortMode = {
 
 export type GetEventsFeedParams = {
 includeOngoing?: boolean;
+};
+
+export type CreateCommunityEvent429Tier = typeof CreateCommunityEvent429Tier[keyof typeof CreateCommunityEvent429Tier];
+
+
+export const CreateCommunityEvent429Tier = {
+  free: 'free',
+  plus: 'plus',
+  pro: 'pro',
+} as const;
+
+export type CreateCommunityEvent429 = {
+  code: string;
+  message: string;
+  tier: CreateCommunityEvent429Tier;
+  used: number;
+  /** @nullable */
+  limit: number | null;
+  /** @nullable */
+  remaining: number | null;
+  resetsAt: string;
 };
 
 export type SearchEventLocationsParams = {

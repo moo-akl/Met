@@ -92,6 +92,13 @@ const FEATURES: FeatureMatrix[] = [
     pro: "Unlimited",
   },
   {
+    icon: "calendar",
+    label: "Plans, Hangouts & Events",
+    free: "5 / month",
+    plus: "20 / month",
+    pro: "Unlimited",
+  },
+  {
     icon: "eye",
     label: "Read receipts",
     free: false,

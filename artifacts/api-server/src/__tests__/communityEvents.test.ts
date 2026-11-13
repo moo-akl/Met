@@ -12,6 +12,7 @@ import {
   eventAttendanceTable,
   eventAttendanceCorrectionsTable,
   profilesTable,
+  subscriptionsTable,
   venueContentReportsTable,
 } from "@workspace/db";
 import eventsRouter from "../routes/events";
@@ -53,6 +54,7 @@ const OWNER_UID = `${testPrefix}-owner`;
 const INVITEE_UID = `${testPrefix}-invitee`;
 const OTHER_UID = `${testPrefix}-other`;
 const MUTED_UID = `${testPrefix}-muted`;
+const QUOTA_UID = `${testPrefix}-quota-owner`;
 const app = express();
 app.use(express.json());
 app.use("/api", eventsRouter);
@@ -66,7 +68,7 @@ async function cleanup() {
   const ownedEvents = await db
     .select({ id: communityEventsTable.id })
     .from(communityEventsTable)
-    .where(eq(communityEventsTable.ownerUid, OWNER_UID));
+    .where(inArray(communityEventsTable.ownerUid, [OWNER_UID, QUOTA_UID]));
 
   if (ownedEvents.length) {
     await db
@@ -114,10 +116,19 @@ async function cleanup() {
 
   await db
     .delete(communityEventsTable)
-    .where(eq(communityEventsTable.ownerUid, OWNER_UID));
+    .where(inArray(communityEventsTable.ownerUid, [OWNER_UID, QUOTA_UID]));
   await db
     .delete(profilesTable)
-    .where(inArray(profilesTable.uid, [OWNER_UID, INVITEE_UID, OTHER_UID, MUTED_UID]));
+    .where(inArray(profilesTable.uid, [
+      OWNER_UID,
+      INVITEE_UID,
+      OTHER_UID,
+      MUTED_UID,
+      QUOTA_UID,
+    ]));
+  await db
+    .delete(subscriptionsTable)
+    .where(inArray(subscriptionsTable.userUid, [OWNER_UID, QUOTA_UID]));
 }
 
 describe.runIf(hasDatabase)("community event permissions and privacy", () => {
@@ -128,10 +139,138 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       { uid: INVITEE_UID, displayName: "Event Invitee", photoUrl: "https://example.com/invitee.jpg" },
       { uid: OTHER_UID, displayName: "Other Guest", photoUrl: "https://example.com/other.jpg" },
       { uid: MUTED_UID, displayName: "Muted Guest", photoUrl: "https://example.com/muted.jpg" },
+      { uid: QUOTA_UID, displayName: "Quota Tester", photoUrl: "https://example.com/quota.jpg" },
     ]);
+    await db.insert(subscriptionsTable).values({
+      userUid: OWNER_UID,
+      tier: "pro",
+      status: "active",
+      expiryDate: null,
+    });
   });
 
   afterAll(cleanup);
+
+  it("enforces the Free monthly cap atomically and reports remaining usage", async () => {
+    await db.insert(communityEventsTable).values(
+      Array.from({ length: 4 }, (_, index) => ({
+        ownerUid: QUOTA_UID,
+        title: `Quota fixture ${index}`,
+        startsAt: new Date(Date.now() + (index + 1) * 60 * 60_000),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+      })),
+    );
+
+    const before = await request(app)
+      .get("/api/events/creation-usage")
+      .set(uidHeader(QUOTA_UID));
+    expect(before.status).toBe(200);
+    expect(before.body).toMatchObject({
+      tier: "free",
+      used: 4,
+      limit: 5,
+      remaining: 1,
+    });
+
+    const makePlan = (suffix: string) =>
+      request(app)
+        .post("/api/events")
+        .set(uidHeader(QUOTA_UID))
+        .send({
+          title: `Quota attempt ${suffix}`,
+          startsAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+          visibility: "invite_only",
+          inviteeUids: [INVITEE_UID],
+        });
+    const attempts = await Promise.all([makePlan("A"), makePlan("B")]);
+
+    expect(attempts.map((result) => result.status).sort()).toEqual([201, 429]);
+    expect(attempts.find((result) => result.status === 429)?.body).toMatchObject({
+      code: "COMMUNITY_EVENT_CREATION_LIMIT_REACHED",
+      tier: "free",
+      used: 5,
+      limit: 5,
+      remaining: 0,
+    });
+
+    const after = await request(app)
+      .get("/api/events/creation-usage")
+      .set(uidHeader(QUOTA_UID));
+    expect(after.body).toMatchObject({
+      tier: "free",
+      used: 5,
+      limit: 5,
+      remaining: 0,
+    });
+
+    await db.insert(subscriptionsTable).values({
+      userUid: QUOTA_UID,
+      tier: "plus",
+      status: "active",
+      expiryDate: null,
+    }).onConflictDoUpdate({
+      target: subscriptionsTable.userUid,
+      set: {
+        tier: "plus",
+        status: "active",
+        expiryDate: null,
+        updatedAt: new Date(),
+      },
+    });
+    const plusUsage = await request(app)
+      .get("/api/events/creation-usage")
+      .set(uidHeader(QUOTA_UID));
+    expect(plusUsage.body).toMatchObject({
+      tier: "plus",
+      used: 5,
+      limit: 20,
+      remaining: 15,
+    });
+
+    await db.insert(communityEventsTable).values(
+      Array.from({ length: 15 }, (_, index) => ({
+        ownerUid: QUOTA_UID,
+        title: `Plus quota fixture ${index}`,
+        startsAt: new Date(Date.now() + (index + 1) * 60 * 60_000),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+      })),
+    );
+    const plusLimit = await makePlan("plus-limit");
+    expect(plusLimit.status).toBe(429);
+    expect(plusLimit.body).toMatchObject({
+      tier: "plus",
+      used: 20,
+      limit: 20,
+      remaining: 0,
+    });
+
+    await db.insert(subscriptionsTable).values({
+      userUid: QUOTA_UID,
+      tier: "pro",
+      status: "active",
+      expiryDate: null,
+    }).onConflictDoUpdate({
+      target: subscriptionsTable.userUid,
+      set: {
+        tier: "pro",
+        status: "active",
+        expiryDate: null,
+        updatedAt: new Date(),
+      },
+    });
+    const proUsage = await request(app)
+      .get("/api/events/creation-usage")
+      .set(uidHeader(QUOTA_UID));
+    expect(proUsage.body).toMatchObject({
+      tier: "pro",
+      used: 20,
+      limit: null,
+      remaining: null,
+    });
+    expect((await makePlan("pro-unlimited")).status).toBe(201);
+  });
 
   it("searches and pages matching public hangouts beyond the old feed cap", async () => {
     await db

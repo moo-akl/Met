@@ -39,6 +39,7 @@ import {
   venueOwnerProfilesTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
+import { readCommunityEventCreationUsage } from "../lib/communityEventCreationQuota";
 import {
   createIpRateLimiter,
   createUserRateLimiter,
@@ -918,41 +919,62 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     }
   }
 
-  const [event] = await db
-    .insert(communityEventsTable)
-    .values({
-      ownerUid: uid,
-      title: parsed.data.title,
-      description: parsed.data.description ?? null,
-      imageUrl,
-      galleryPhotos,
-      photosExpireAt: getEventPhotosExpireAt(
-        times.startsAt,
-        times.endsAt,
-        Boolean(imageUrl || galleryPhotos.length),
-      ),
-      contactPhone: parsed.data.contactPhone?.trim() || null,
-      websiteUrl: parsed.data.websiteUrl?.trim() || null,
-      publicEmail: parsed.data.publicEmail?.trim() || null,
-      startsAt: times.startsAt,
-      endsAt: times.endsAt,
-      location: parsed.data.location?.trim() || null,
-      locationPlaceId: parsed.data.locationPlaceId ?? null,
-      locationLatitude: parsed.data.latitude ?? null,
-      locationLongitude: parsed.data.longitude ?? null,
-      visibility: parsed.data.visibility,
-      joinApprovalRequired,
-      repeatFrequency: joinApprovalRequired ? null : repeatFrequency,
-      recurrenceTimeZone,
-      recurrenceDayOfMonth:
-        !joinApprovalRequired && repeatFrequency === "monthly"
-          ? dayOfMonthInTimeZone(times.startsAt, recurrenceTimeZone)
-          : null,
-      verifiedExplorersOnly,
-      inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
-      ...inviteLinkFields,
-    })
-    .returning();
+  const eventValues = {
+    ownerUid: uid,
+    title: parsed.data.title,
+    description: parsed.data.description ?? null,
+    imageUrl,
+    galleryPhotos,
+    photosExpireAt: getEventPhotosExpireAt(
+      times.startsAt,
+      times.endsAt,
+      Boolean(imageUrl || galleryPhotos.length),
+    ),
+    contactPhone: parsed.data.contactPhone?.trim() || null,
+    websiteUrl: parsed.data.websiteUrl?.trim() || null,
+    publicEmail: parsed.data.publicEmail?.trim() || null,
+    startsAt: times.startsAt,
+    endsAt: times.endsAt,
+    location: parsed.data.location?.trim() || null,
+    locationPlaceId: parsed.data.locationPlaceId ?? null,
+    locationLatitude: parsed.data.latitude ?? null,
+    locationLongitude: parsed.data.longitude ?? null,
+    visibility: parsed.data.visibility,
+    joinApprovalRequired,
+    repeatFrequency: joinApprovalRequired ? null : repeatFrequency,
+    recurrenceTimeZone,
+    recurrenceDayOfMonth:
+      !joinApprovalRequired && repeatFrequency === "monthly"
+        ? dayOfMonthInTimeZone(times.startsAt, recurrenceTimeZone)
+        : null,
+    verifiedExplorersOnly,
+    inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
+    ...inviteLinkFields,
+  };
+  const outcome = await db.transaction(async (tx) => {
+    // Serialize this user's create attempts so simultaneous requests cannot
+    // pass the same remaining monthly slot.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${uid}))`);
+    const usage = await readCommunityEventCreationUsage(tx, uid);
+    if (usage.remaining === 0) {
+      return { kind: "limit" as const, usage };
+    }
+
+    const [createdEvent] = await tx
+      .insert(communityEventsTable)
+      .values(eventValues)
+      .returning();
+    return { kind: "created" as const, event: createdEvent };
+  });
+  if (outcome.kind === "limit") {
+    res.status(429).json({
+      code: "COMMUNITY_EVENT_CREATION_LIMIT_REACHED",
+      message: "You have reached your monthly activity creation limit.",
+      ...outcome.usage,
+    });
+    return;
+  }
+  const event = outcome.event;
   const [profile] = await db
     .select({
       displayName: profilesTable.displayName,
@@ -995,6 +1017,15 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
   });
   res.status(201).json(response);
 });
+
+router.get(
+  "/events/creation-usage",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const usage = await readCommunityEventCreationUsage(db, req.uid!);
+    res.json(usage);
+  },
+);
 
 router.get(
   "/event-locations/search",
