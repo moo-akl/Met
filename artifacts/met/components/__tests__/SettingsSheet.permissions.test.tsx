@@ -48,10 +48,6 @@ jest.mock("expo-web-browser", () => ({
   openBrowserAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock("expo-updates", () => ({
-  reloadAsync: jest.fn().mockResolvedValue(undefined),
-}));
-
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockRouterPush }),
 }));

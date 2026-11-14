@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
-import * as Updates from "expo-updates";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -276,17 +275,11 @@ export function SettingsSheet({ visible, onClose }: Props) {
   // the default in sync with the AppContext default of `false`.
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [rtlNotice, setRtlNotice] = useState(false);
-  const [reloading, setReloading] = useState(false);
-  // The language the user has tapped but not yet confirmed. We show a small
-  // restart-confirmation modal first so the language change isn't applied
-  // accidentally — once confirmed we run the existing apply+reload logic.
+  // The language the user has tapped but not yet confirmed.
   const [pendingLang, setPendingLang] = useState<LangCode | null>(null);
 
   const onPickLanguage = (code: LangCode) => {
-    // Guard: ignore taps once the reload countdown is in flight, and skip a
-    // no-op switch to the already-active language so we don't pop a confirm
-    // modal for nothing.
-    if (reloading || code === lang) return;
+    if (pendingLang || code === lang) return;
     setPendingLang(code);
   };
 
@@ -296,65 +289,26 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
   const confirmPendingLang = async () => {
     const code = pendingLang;
-    if (!code || reloading) return;
-    // Flip the single-flight guard *synchronously*, before any await, so a
-    // rapid second tap on Restart can't kick off a second setLanguage call
-    // or schedule a duplicate reload timer.
+    if (!code) return;
     setPendingLang(null);
-    setReloading(true);
     let rtlChanged = false;
     try {
       ({ rtlChanged } = await setLanguage(code));
     } catch {
-      // If persisting the language fails, undo the guard so the user can
-      // retry. We don't surface the error here because setLanguage already
-      // updates the in-memory locale and the picker will reflect the
-      // current state on next render.
-      setReloading(false);
+      setPendingLang(code);
       return;
     }
-    if (rtlChanged) {
+    if (rtlChanged && Platform.OS !== "web") {
       setRtlNotice(true);
+      if (__DEV__) {
+        try {
+          DevSettings.reload();
+          return;
+        } catch {}
+      }
+      return;
     }
-    // Brief "Switching language…" overlay, then perform a real JS reload so
-    // every cached string and the native layout direction picks up the new
-    // locale cleanly. expo-updates is the production-grade path on iOS and
-    // Android; DevSettings.reload is the dev-build / Expo Go fallback; on
-    // web we just bounce window.location.
-    setTimeout(() => {
-      void reloadApp(rtlChanged);
-    }, 1500);
-  };
-
-  const reloadApp = async (rtlChanged: boolean) => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      try {
-        window.location.reload();
-        return;
-      } catch {}
-    } else {
-      // Try expo-updates first (works in production builds and in Expo Go).
-      // reloadAsync returns a Promise that may reject if the Updates module
-      // is unavailable in this build, so we await + catch instead of relying
-      // on a sync try/catch.
-      try {
-        await Updates.reloadAsync();
-        return;
-      } catch {}
-      // Dev-client / Expo Go fallback.
-      try {
-        DevSettings.reload();
-        return;
-      } catch {}
-    }
-    // Last-ditch fallback: drop the overlay and return to the settings menu.
-    // Strings update reactively, so the user still sees the new language; on
-    // Arabic RTL flips we keep the picker open so the user sees the
-    // restartNotice card asking them to relaunch manually.
-    setReloading(false);
-    if (!rtlChanged) {
-      setView("menu");
-    }
+    setView("menu");
   };
 
   const [view, setView] = useState<SheetView>("menu");
@@ -1602,7 +1556,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
         }}
       />
 
-      {pendingLang && !reloading ? (
+      {pendingLang ? (
         <Pressable
           style={styles.reloadOverlay}
           onPress={cancelPendingLang}
@@ -1616,16 +1570,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
           >
             <Feather name="refresh-cw" size={28} color={colors.primary} />
             <Text style={[styles.reloadTitle, { color: colors.foreground }]}>
-              {t("language.confirmTitle")}
+              {t("language.pickerTitle")}
             </Text>
             <Text
               style={[styles.reloadBody, { color: colors.mutedForeground }]}
             >
-              {t("language.confirmBody", {
-                language:
-                  SUPPORTED_LANGUAGES.find((s) => s.code === pendingLang)
-                    ?.native ?? pendingLang,
-              })}
+              {t("language.pickerSub")}
             </Text>
             <View style={styles.confirmRow}>
               <Pressable
@@ -1662,7 +1612,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 <Text
                   style={[styles.confirmBtnText, { color: "#FFFFFF" }]}
                 >
-                  {t("language.confirmRestart")}
+                  {t("common.continue")}
                 </Text>
               </Pressable>
             </View>
@@ -1670,26 +1620,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
         </Pressable>
       ) : null}
 
-      {reloading ? (
-        <View style={styles.reloadOverlay} pointerEvents="auto">
-          <View
-            style={[
-              styles.reloadCard,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Feather name="globe" size={28} color={colors.primary} />
-            <Text style={[styles.reloadTitle, { color: colors.foreground }]}>
-              {t("language.reloadingTitle")}
-            </Text>
-            <Text
-              style={[styles.reloadBody, { color: colors.mutedForeground }]}
-            >
-              {t("language.reloadingBody")}
-            </Text>
-          </View>
-        </View>
-      ) : null}
     </Modal>
   );
 }
