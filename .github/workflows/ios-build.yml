@@ -98,29 +98,26 @@ jobs:
             exit 1
           fi
 
-      - name: Select latest Xcode with installed iOS SDK
+      - name: Select pinned Xcode 26.0.1 to match the EAS profile
         run: |
-          # The macos-15 runner ships several Xcode versions, but only some
-          # have the iOS platform SDK installed. Pick the newest one that does.
-          BEST=""
-          BEST_VER=""
-          for app in $(ls -d /Applications/Xcode_*.app /Applications/Xcode.app 2>/dev/null | sort -Vr); do
-            DEV="$app/Contents/Developer"
-            if [ -d "$DEV/Platforms/iPhoneOS.platform/Developer/SDKs" ] && \
-               ls "$DEV/Platforms/iPhoneOS.platform/Developer/SDKs/" 2>/dev/null | grep -q "iPhoneOS.*\.sdk"; then
-              VER=$("$DEV/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-              echo "Candidate: $app  (Xcode $VER, iOS SDK present)"
-              if [ -z "$BEST" ]; then BEST="$app"; BEST_VER="$VER"; fi
-            else
-              echo "Skip:      $app  (no iOS SDK)"
-            fi
-          done
-          if [ -z "$BEST" ]; then
-            echo "::error::No Xcode with iOS SDK found on this runner."
+          XCODE_APP="/Applications/Xcode_26.0.1.app"
+          DEV="$XCODE_APP/Contents/Developer"
+          IOS_SDKS="$DEV/Platforms/iPhoneOS.platform/Developer/SDKs"
+          if [ ! -d "$IOS_SDKS" ]; then
+            echo "::error::Pinned Xcode 26.0.1 is unavailable on this runner."
             exit 1
           fi
-          echo "Selected:  $BEST  (Xcode $BEST_VER)"
-          sudo xcode-select -s "$BEST/Contents/Developer"
+          if ! ls "$IOS_SDKS" 2>/dev/null | grep -q 'iPhoneOS.*[.]sdk'; then
+            echo "::error::Pinned Xcode 26.0.1 has no iOS SDK on this runner."
+            exit 1
+          fi
+          XCODE_VERSION=$("$DEV/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
+          if [ "$XCODE_VERSION" != "26.0.1" ]; then
+            echo "::error::Expected Xcode 26.0.1, found $XCODE_VERSION."
+            exit 1
+          fi
+          echo "Selected:  $XCODE_APP  (Xcode $XCODE_VERSION)"
+          sudo xcode-select -s "$DEV"
 
       - name: Show toolchain
         run: |
