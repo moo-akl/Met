@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "342",
+      "buildNumber": "343",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "associatedDomains": [
@@ -224,6 +224,7 @@
       "reactCompiler": true
     },
     "extra": {
+      "startupDiagnostics": true,
       "eas": {
         "projectId": "f9d35bdb-e890-408f-b9d9-4ca36cbeae23"
       }
