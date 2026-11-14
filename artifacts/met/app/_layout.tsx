@@ -63,6 +63,7 @@ import {
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+const FONT_LOAD_TIMEOUT_MS = 8_000;
 
 // Configure expo-notifications once at module load. Idempotent — sets
 // the foreground presentation handler and Android default channel.
@@ -640,6 +641,7 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [fontLoadTimedOut, setFontLoadTimedOut] = useState(false);
   const pathnameRef = useRef(pathname);
   // Shared set of notification identifiers that the tap listener has already
   // processed. The foreground-delivery listener checks this before showing
@@ -661,8 +663,29 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+      void SplashScreen.hideAsync().catch((err) => {
+        console.warn("[startup] failed to hide splash after font load:", err);
+      });
     }
+  }, [fontsLoaded, fontError]);
+
+  // A font-loading promise that never settles must not leave the native splash
+  // visible forever. Continue with the platform's fallback font after a short
+  // grace period; the loaded fonts will still be used if they resolve later.
+  useEffect(() => {
+    if (fontsLoaded || fontError) return;
+
+    const timeout = setTimeout(() => {
+      console.warn(
+        "[startup] font loading timed out; continuing with system fonts",
+      );
+      setFontLoadTimedOut(true);
+      void SplashScreen.hideAsync().catch((err) => {
+        console.warn("[startup] failed to hide splash after font timeout:", err);
+      });
+    }, FONT_LOAD_TIMEOUT_MS);
+
+    return () => clearTimeout(timeout);
   }, [fontsLoaded, fontError]);
 
   // Increment session count once per cold start so session-gated features
@@ -706,7 +729,7 @@ export default function RootLayout() {
     return unsubscribe;
   }, [router]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError && !fontLoadTimedOut) return null;
 
   return (
     <SafeAreaProvider>
