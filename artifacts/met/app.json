@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "346",
+      "buildNumber": "347",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "associatedDomains": [
@@ -197,7 +197,7 @@
         }
       ],
       [
-        "react-native-maps",
+        "./plugins/with-sdk54-maps.js",
         {
           "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
         }
@@ -220,6 +220,7 @@
       "./plugins/with-tiktok-android.js"
     ],
     "experiments": {
+      "autolinkingModuleResolution": true,
       "typedRoutes": true,
       "reactCompiler": true
     },
