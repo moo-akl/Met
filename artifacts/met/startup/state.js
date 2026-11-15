@@ -85,14 +85,14 @@ function createStartupTracker(now = Date.now) {
       });
       return () => { unsubscribe(); restore(); };
     },
-    formatReport(buildNumber) {
+    formatReport(buildNumber, reportSnapshot = snapshot) {
       return [
         "Met iOS startup diagnostic v1",
         `Build: ${String(buildNumber).replace(/[^0-9]/g, "") || "unknown"}`,
-        `Last stage: ${PHASES[snapshot.phase] || snapshot.phase}`,
-        `Status: ${snapshot.error ? "error" : snapshot.ready ? "ready" : snapshot.timedOut ? "timeout" : "starting"}`,
-        ...(snapshot.error ? [`Error: ${snapshot.error}`] : []),
-        ...snapshot.history.map((entry) => `${entry.elapsedMs}ms: ${PHASES[entry.phase] || entry.phase}`),
+        `Last stage: ${PHASES[reportSnapshot.phase] || reportSnapshot.phase}`,
+        `Status: ${reportSnapshot.error ? "error" : reportSnapshot.ready ? "ready" : reportSnapshot.timedOut ? "timeout" : "starting"}`,
+        ...(reportSnapshot.error ? [`Error: ${reportSnapshot.error}`] : []),
+        ...reportSnapshot.history.map((entry) => `${entry.elapsedMs}ms: ${PHASES[entry.phase] || entry.phase}`),
       ].join("\n");
     },
   };

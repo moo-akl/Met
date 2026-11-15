@@ -130,24 +130,42 @@ test("the root layout reports readiness and early provider errors", () => {
   assert.match(layout, /ErrorBoundary onError=\{captureStartupError\}/);
 });
 
-function diagnosticScreenHarness() {
+function diagnosticScreenHarness({ compiled = false } = {}) {
   const React = require("react");
   const babel = require("@babel/core");
   const stateModule = require("../startup/state");
   const tracker = createStartupTracker();
   let Root;
   let shared = false;
+  let sharedMessage;
   const loaded = [];
+  const compilerCaches = new Map();
   const box = ({ children, testID }) => React.createElement("div", { "data-testid": testID }, children);
   const code = babel.transformFileSync(path.join(__dirname, "../startup/registerDiagnosticRoot.jsx"), {
     configFile: false,
     babelrc: false,
     presets: [[require.resolve("babel-preset-expo"), { jsxRuntime: "classic" }]],
+    caller: { name: "metro", platform: "ios", isDev: false, supportsReactCompiler: compiled },
   }).code;
-  vm.runInNewContext(code, {
+  const context = {
+    DiagnosticScreen: null,
+    compilerRuntime: {
+      c(size) {
+        // Retain memo slots across calls to the same compiled screen, as React
+        // does across renders. Only DiagnosticScreen is invoked in this mode.
+        if (!compilerCaches.has(size)) {
+          compilerCaches.set(size, Array(size).fill(Symbol.for("react.memo_cache_sentinel")));
+        }
+        return compilerCaches.get(size);
+      },
+    },
+  };
+  vm.runInNewContext(`${code}\ncaptureScreen(DiagnosticScreen);`, {
+    ...context,
     global: {},
     require(id) {
       loaded.push(id);
+      if (id === "react/compiler-runtime") return context.compilerRuntime;
       if (id.startsWith("@babel/runtime/")) {
         // Babel helpers are RN's dependency, not a new app dependency.
         return require(require.resolve(id, { paths: [require.resolve("react-native/package.json")] }));
@@ -157,7 +175,7 @@ function diagnosticScreenHarness() {
         ActivityIndicator: () => React.createElement("span", null, "Loading"),
         SafeAreaView: box, ScrollView: box, Text: box, View: box, TouchableOpacity: box,
         StyleSheet: { create: (styles) => styles, absoluteFill: {} },
-        Share: { share: async () => { shared = true; } },
+        Share: { share: async ({ message }) => { shared = true; sharedMessage = message; } },
       };
       if (id === "expo") return { registerRootComponent: (component) => { Root = component; } };
       if (id === "expo-splash-screen") return { hideAsync: async () => {} };
@@ -165,10 +183,13 @@ function diagnosticScreenHarness() {
       if (id === "../app.json") return { expo: { ios: { buildNumber: "343" } } };
       throw new Error(`Unexpected eager startup import: ${id}`);
     },
+    captureScreen: (screen) => { context.DiagnosticScreen = screen; },
   });
   return {
     tracker, loaded,
     wasShared: () => shared,
+    sharedMessage: () => sharedMessage,
+    compiledElement: () => context.DiagnosticScreen({ state: tracker.getSnapshot(), onLayout: undefined }),
     render: () => require("react-dom/server").renderToStaticMarkup(React.createElement(Root)),
   };
 }
@@ -199,4 +220,38 @@ test("a startup error screen displays a redacted failure and tested build", () =
   assert.match(html, /BUILD 343/);
   assert.match(html, /REDACTED/);
   assert.equal(html.includes("hidden-access"), false);
+});
+
+test("production compiler refreshes reports after the first screen render", () => {
+  const screen = diagnosticScreenHarness({ compiled: true });
+  const render = (element) => require("react-dom/server").renderToStaticMarkup(element);
+  assert.match(render(screen.compiledElement()), /Starting Met/);
+  screen.tracker.markPhase("router-import");
+  screen.tracker.captureError(new Error("Router import failed token=private-value"));
+  const element = screen.compiledElement();
+  const html = render(element);
+  assert.match(html, /Status: error/);
+  assert.match(html, /Last stage: Loading Expo Router and route modules/);
+  assert.match(html, /Error: Router import failed token=\[REDACTED\]/);
+  assert.equal(html.includes("private-value"), false);
+  function findShare(node) {
+    if (!node || typeof node !== "object") return undefined;
+    if (node.props?.testID === "share-startup-report") return node;
+    return require("react").Children.toArray(node.props?.children)
+      .map(findShare).find(Boolean);
+  }
+  findShare(element).props.onPress();
+  assert.match(screen.sharedMessage(), /Status: error/);
+  assert.match(screen.sharedMessage(), /Router import failed/);
+  assert.equal(screen.sharedMessage().includes("private-value"), false);
+});
+
+test("production compiler refreshes timeout reports after the first screen render", () => {
+  const screen = diagnosticScreenHarness({ compiled: true });
+  screen.compiledElement();
+  screen.tracker.markPhase("router-import");
+  screen.tracker.markTimedOut();
+  const html = require("react-dom/server").renderToStaticMarkup(screen.compiledElement());
+  assert.match(html, /Status: timeout/);
+  assert.match(html, /Last stage: Loading Expo Router and route modules/);
 });

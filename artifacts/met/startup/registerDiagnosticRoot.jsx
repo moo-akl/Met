@@ -36,7 +36,9 @@ const waitForPaint = () => new Promise((resolve) => {
 
 function DiagnosticScreen({ state, onLayout }) {
   const failed = Boolean(state.error || state.timedOut);
-  const report = startupTracker.formatReport(buildNumber);
+  // Pass the reactive snapshot explicitly: the production compiler otherwise
+  // caches this call's constant arguments and freezes the report at first render.
+  const report = startupTracker.formatReport(buildNumber, state);
   return (
     <SafeAreaView style={styles.safe} onLayout={onLayout}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -54,7 +56,10 @@ function DiagnosticScreen({ state, onLayout }) {
               testID="share-startup-report"
               style={styles.button}
               onPress={() => {
-                void Share.share({ title: "Met startup report", message: report }).catch(() => {});
+                void Share.share({
+                  title: "Met startup report",
+                  message: startupTracker.formatReport(buildNumber),
+                }).catch(() => {});
               }}
             >
               <Text style={styles.buttonText}>Share startup report</Text>
@@ -74,11 +79,14 @@ class StartupBoundary extends React.Component {
 }
 
 function DiagnosticRoot() {
-  const [state, setState] = React.useState(startupTracker.getSnapshot);
+  const state = React.useSyncExternalStore(
+    startupTracker.subscribe,
+    startupTracker.getSnapshot,
+    startupTracker.getSnapshot,
+  );
   const [RouterApp, setRouterApp] = React.useState(null);
   const started = React.useRef(false);
 
-  React.useEffect(() => startupTracker.subscribe(setState), []);
   React.useEffect(() => {
     const timeout = setTimeout(() => startupTracker.markTimedOut(), 20_000);
     return () => clearTimeout(timeout);
