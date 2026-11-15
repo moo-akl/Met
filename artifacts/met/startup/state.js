@@ -23,7 +23,7 @@ function redactDiagnosticText(value) {
 function createStartupTracker(now = Date.now) {
   let enabled = false;
   let startedAt = 0;
-  let snapshot = { phase: "javascript-entry", ready: false, error: null, timedOut: false, history: [], nativeChecks: [], warnings: [] };
+  let snapshot = { phase: "javascript-entry", ready: false, error: null, timedOut: false, history: [], nativeChecks: [], nativeInventory: null, warnings: [] };
   const listeners = new Set();
   const emit = (next) => {
     snapshot = next;
@@ -73,6 +73,27 @@ function createStartupTracker(now = Date.now) {
         result = `lookup threw: ${redactDiagnosticText(error instanceof Error ? error.message : error)}`;
       }
       emit({ ...snapshot, nativeChecks: [...snapshot.nativeChecks, `${label}: ${result}`].slice(-8) });
+    },
+    recordNativeInventory(readNames) {
+      if (!enabled || snapshot.ready) return;
+      let inventory;
+      try {
+        const names = [...new Set(
+          readNames().filter(
+            (name) => typeof name === "string" && /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(name),
+          ),
+        )].sort();
+        inventory = {
+          count: names.length,
+          names: names.slice(0, 60),
+          omitted: Math.max(0, names.length - 60),
+        };
+      } catch (error) {
+        inventory = {
+          error: redactDiagnosticText(error instanceof Error ? error.message : error),
+        };
+      }
+      emit({ ...snapshot, nativeInventory: inventory });
     },
     installConsoleCapture(consoleObject) {
       const restorers = [];
@@ -131,6 +152,14 @@ function createStartupTracker(now = Date.now) {
         `Status: ${reportSnapshot.error ? "error" : reportSnapshot.ready ? "ready" : reportSnapshot.timedOut ? "timeout" : "starting"}`,
         ...(reportSnapshot.error ? [`Error: ${reportSnapshot.error}`] : []),
         ...reportSnapshot.nativeChecks.map((check) => `Native check: ${check}`),
+        ...(reportSnapshot.nativeInventory
+          ? reportSnapshot.nativeInventory.error
+            ? [`Native registry: lookup failed: ${reportSnapshot.nativeInventory.error}`]
+            : [
+              `Native registry: ${reportSnapshot.nativeInventory.count} Expo modules`,
+              `Registered modules: ${reportSnapshot.nativeInventory.names.join(", ") || "(none)"}${reportSnapshot.nativeInventory.omitted ? `; ${reportSnapshot.nativeInventory.omitted} more omitted` : ""}`,
+            ]
+          : []),
         ...reportSnapshot.warnings.map((warning) => `Expo warning: ${warning}`),
         ...reportSnapshot.history.map((entry) => `${entry.elapsedMs}ms: ${PHASES[entry.phase] || entry.phase}`),
       ].join("\n");

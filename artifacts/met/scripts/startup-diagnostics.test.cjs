@@ -308,6 +308,39 @@ test("native availability checks report present, missing and throwing lookups sa
   assert.equal(report.includes("hidden"), false);
 });
 
+test("native module inventory reports the registered Expo modules without unsafe names", () => {
+  const tracker = createStartupTracker();
+  tracker.enable();
+  tracker.recordNativeInventory(() => [
+    "ExpoLinking",
+    "ExpoSplashScreen",
+    "ExpoLinking",
+    "not a module",
+    "access_token=private",
+    42,
+  ]);
+  const report = tracker.formatReport("348");
+  assert.match(report, /Native registry: 2 Expo modules/);
+  assert.match(report, /Registered modules: ExpoLinking, ExpoSplashScreen/);
+  assert.equal(report.includes("private"), false);
+});
+
+test("native module inventory reports empty registries, errors, and bounded output", () => {
+  const tracker = createStartupTracker();
+  tracker.enable();
+  tracker.recordNativeInventory(() => []);
+  assert.match(tracker.formatReport("348"), /Registered modules: \(none\)/);
+
+  tracker.recordNativeInventory(() => { throw new Error("registry failed token=private"); });
+  const failedReport = tracker.formatReport("348");
+  assert.match(failedReport, /Native registry: lookup failed: registry failed token=\[REDACTED\]/);
+  assert.equal(failedReport.includes("private"), false);
+
+  tracker.recordNativeInventory(() => Array.from({ length: 65 }, (_, index) => `Module${index}`));
+  assert.match(tracker.formatReport("348"), /Native registry: 65 Expo modules/);
+  assert.match(tracker.formatReport("348"), /5 more omitted/);
+});
+
 test("captures initialization warnings before the first Expo import in compiled builds", () => {
   const screen = diagnosticScreenHarness({
     compiled: true,

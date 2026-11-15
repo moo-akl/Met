@@ -112,6 +112,9 @@ function DiagnosticRoot() {
         // Read only fixed module names. No user data, device identifiers,
         // network requests or forced reinstallation of native modules.
         startupTracker.recordNativeCheck("Expo runtime", () => Boolean(global.expo?.modules));
+        // The Expo JSI host object's enumerable keys come directly from the
+        // native AppContext module registry, unlike checking the JS runtime.
+        startupTracker.recordNativeInventory(() => Object.keys(global.expo?.modules ?? {}));
         for (const name of ["ExpoSplashScreen", "ExpoLinking"]) {
           startupTracker.recordNativeCheck(name, () => Boolean(global.expo?.modules?.[name]));
         }
