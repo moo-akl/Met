@@ -1,3 +1,10 @@
+// Capture Expo loader failures before requiring Expo itself: its optional
+// native lookups can otherwise log and hide the original installation error.
+const { PHASES, startupTracker } = require("./state");
+startupTracker.enable();
+startupTracker.installErrorHandler(global.ErrorUtils);
+startupTracker.installConsoleCapture(console);
+
 // Deliberately independent of theme, app context, fonts and routing.
 const React = require("react");
 const {
@@ -12,11 +19,7 @@ const {
 } = require("react-native");
 const { registerRootComponent } = require("expo");
 const SplashScreen = require("expo-splash-screen");
-const { PHASES, startupTracker } = require("./state");
 const buildNumber = require("../app.json").expo.ios.buildNumber;
-
-startupTracker.enable();
-startupTracker.installErrorHandler(global.ErrorUtils);
 
 // System-independent colors are intentional: loading the app theme could be
 // the startup failure being diagnosed. No profile, storage or network access
@@ -106,6 +109,12 @@ function DiagnosticRoot() {
         messaging().setBackgroundMessageHandler(async () => {});
 
         startupTracker.markPhase("router-import");
+        // Read only fixed module names. No user data, device identifiers,
+        // network requests or forced reinstallation of native modules.
+        startupTracker.recordNativeCheck("Expo runtime", () => Boolean(global.expo?.modules));
+        for (const name of ["ExpoSplashScreen", "ExpoLinking"]) {
+          startupTracker.recordNativeCheck(name, () => Boolean(global.expo?.modules?.[name]));
+        }
         await waitForPaint();
         // Same App and native root registration used by Router's stock entry.
         const { App } = require("expo-router/build/qualified-entry");

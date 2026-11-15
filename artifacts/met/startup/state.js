@@ -23,7 +23,7 @@ function redactDiagnosticText(value) {
 function createStartupTracker(now = Date.now) {
   let enabled = false;
   let startedAt = 0;
-  let snapshot = { phase: "javascript-entry", ready: false, error: null, timedOut: false, history: [] };
+  let snapshot = { phase: "javascript-entry", ready: false, error: null, timedOut: false, history: [], nativeChecks: [], warnings: [] };
   const listeners = new Set();
   const emit = (next) => {
     snapshot = next;
@@ -64,6 +64,44 @@ function createStartupTracker(now = Date.now) {
       if (!enabled || snapshot.ready || snapshot.error) return;
       emit({ ...snapshot, timedOut: true });
     },
+    recordNativeCheck(label, check) {
+      if (!enabled || snapshot.ready) return;
+      let result;
+      try {
+        result = check() ? "available" : "unavailable";
+      } catch (error) {
+        result = `lookup threw: ${redactDiagnosticText(error instanceof Error ? error.message : error)}`;
+      }
+      emit({ ...snapshot, nativeChecks: [...snapshot.nativeChecks, `${label}: ${result}`].slice(-8) });
+    },
+    installConsoleCapture(consoleObject) {
+      const restorers = [];
+      for (const level of ["warn", "error"]) {
+        const previous = consoleObject?.[level];
+        if (typeof previous !== "function") continue;
+        const handler = (...args) => {
+          // Capture only Expo's module-loader messages, not app/user logs.
+          const first = args[0];
+          if (enabled && !snapshot.ready && typeof first === "string" &&
+            /^(?:Unable to install Expo modules:|An error occurred while requiring the '|The native ExpoModulesCore)/.test(first)) {
+            const warning = redactDiagnosticText(first);
+            if (!snapshot.warnings.includes(warning)) {
+              emit({ ...snapshot, warnings: [...snapshot.warnings, warning].slice(-6) });
+            }
+          }
+          return previous.apply(consoleObject, args);
+        };
+        consoleObject[level] = handler;
+        restorers.push(() => {
+          if (consoleObject[level] === handler) consoleObject[level] = previous;
+        });
+      }
+      const restore = () => restorers.forEach((fn) => fn());
+      const unsubscribe = tracker.subscribe((state) => {
+        if (state.ready) { restore(); unsubscribe(); }
+      });
+      return () => { unsubscribe(); restore(); };
+    },
     installErrorHandler(errorUtils) {
       if (!errorUtils?.getGlobalHandler || !errorUtils?.setGlobalHandler) return () => {};
       const previous = errorUtils.getGlobalHandler();
@@ -92,6 +130,8 @@ function createStartupTracker(now = Date.now) {
         `Last stage: ${PHASES[reportSnapshot.phase] || reportSnapshot.phase}`,
         `Status: ${reportSnapshot.error ? "error" : reportSnapshot.ready ? "ready" : reportSnapshot.timedOut ? "timeout" : "starting"}`,
         ...(reportSnapshot.error ? [`Error: ${reportSnapshot.error}`] : []),
+        ...reportSnapshot.nativeChecks.map((check) => `Native check: ${check}`),
+        ...reportSnapshot.warnings.map((warning) => `Expo warning: ${warning}`),
         ...reportSnapshot.history.map((entry) => `${entry.elapsedMs}ms: ${PHASES[entry.phase] || entry.phase}`),
       ].join("\n");
     },

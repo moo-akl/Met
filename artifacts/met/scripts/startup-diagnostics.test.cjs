@@ -130,7 +130,7 @@ test("the root layout reports readiness and early provider errors", () => {
   assert.match(layout, /ErrorBoundary onError=\{captureStartupError\}/);
 });
 
-function diagnosticScreenHarness({ compiled = false } = {}) {
+function diagnosticScreenHarness({ compiled = false, earlyWarning } = {}) {
   const React = require("react");
   const babel = require("@babel/core");
   const stateModule = require("../startup/state");
@@ -160,8 +160,10 @@ function diagnosticScreenHarness({ compiled = false } = {}) {
       },
     },
   };
+  const fakeConsole = { warn() {}, error() {} };
   vm.runInNewContext(`${code}\ncaptureScreen(DiagnosticScreen);`, {
     ...context,
+    console: fakeConsole,
     global: {},
     require(id) {
       loaded.push(id);
@@ -177,7 +179,10 @@ function diagnosticScreenHarness({ compiled = false } = {}) {
         StyleSheet: { create: (styles) => styles, absoluteFill: {} },
         Share: { share: async ({ message }) => { shared = true; sharedMessage = message; } },
       };
-      if (id === "expo") return { registerRootComponent: (component) => { Root = component; } };
+      if (id === "expo") {
+        if (earlyWarning) fakeConsole.error(earlyWarning);
+        return { registerRootComponent: (component) => { Root = component; } };
+      }
       if (id === "expo-splash-screen") return { hideAsync: async () => {} };
       if (id === "./state") return { ...stateModule, startupTracker: tracker };
       if (id === "../app.json") return { expo: { ios: { buildNumber: "343" } } };
@@ -254,4 +259,64 @@ test("production compiler refreshes timeout reports after the first screen rende
   const html = require("react-dom/server").renderToStaticMarkup(screen.compiledElement());
   assert.match(html, /Status: timeout/);
   assert.match(html, /Last stage: Loading Expo Router and route modules/);
+});
+
+test("captures only Expo loader warnings, redacts them and preserves normal logging", () => {
+  const screen = createStartupTracker();
+  screen.enable();
+  const calls = [];
+  const original = (...args) => calls.push(args);
+  const logger = { warn: original, error: original };
+  const cleanup = screen.installConsoleCapture(logger);
+  logger.warn("Unrelated private application message");
+  logger.error("Unable to install Expo modules: token=private-value");
+  logger.warn("An error occurred while requiring the 'ExpoLinking' module: denied");
+  logger.error("Unable to install Expo modules: token=private-value");
+  assert.equal(calls.length, 4);
+  assert.equal(screen.getSnapshot().warnings.length, 2);
+  const report = screen.formatReport("345");
+  assert.match(report, /Expo warning: Unable to install Expo modules: token=\[REDACTED\]/);
+  assert.match(report, /ExpoLinking/);
+  assert.equal(report.includes("private-value"), false);
+  assert.equal(report.includes("Unrelated private"), false);
+  cleanup();
+  assert.equal(logger.warn, original);
+  assert.equal(logger.error, original);
+});
+
+test("loader warning capture restores the console after successful startup", () => {
+  const tracker = createStartupTracker();
+  tracker.enable();
+  const original = () => {};
+  const logger = { warn: original, error: original };
+  tracker.installConsoleCapture(logger);
+  tracker.markReady();
+  assert.equal(logger.warn, original);
+  assert.equal(logger.error, original);
+});
+
+test("native availability checks report present, missing and throwing lookups safely", () => {
+  const tracker = createStartupTracker();
+  tracker.enable();
+  tracker.recordNativeCheck("Expo runtime", () => true);
+  tracker.recordNativeCheck("ExpoLinking", () => false);
+  tracker.recordNativeCheck("ExpoConstants", () => { throw new Error("lookup failed token=hidden"); });
+  const report = tracker.formatReport("345");
+  assert.match(report, /Native check: Expo runtime: available/);
+  assert.match(report, /Native check: ExpoLinking: unavailable/);
+  assert.match(report, /Native check: ExpoConstants: lookup threw: lookup failed token=\[REDACTED\]/);
+  assert.equal(report.includes("hidden"), false);
+});
+
+test("captures initialization warnings before the first Expo import in compiled builds", () => {
+  const screen = diagnosticScreenHarness({
+    compiled: true,
+    earlyWarning: "Unable to install Expo modules: initialization failed",
+  });
+  screen.compiledElement();
+  screen.tracker.markPhase("router-import");
+  screen.tracker.captureError(new Error("Cannot find native module 'ExpoLinking'"));
+  const html = require("react-dom/server").renderToStaticMarkup(screen.compiledElement());
+  assert.match(html, /initialization failed/);
+  assert.match(html, /ExpoLinking/);
 });
