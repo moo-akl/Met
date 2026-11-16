@@ -15,12 +15,12 @@ const coreRoot = path.dirname(require.resolve("expo-modules-core/package.json", 
 
 test("iOS config uses a dedicated Expo modules provider name", () => {
   assert.ok(appConfig.plugins.includes("./plugins/with-met-expo-modules-provider.js"));
-  assert.equal(appConfig.ios.buildNumber, "349");
+  assert.equal(appConfig.ios.buildNumber, "350");
   assert.equal(plugin.PROVIDER_NAME, "MetExpoModulesProvider");
   assert.equal(plugin.PROVIDER_FILE_NAME, "MetExpoModulesProvider.swift");
 });
 
-test("Podfile directs Expo autolinking to generate Met's unique provider", () => {
+test("Podfile anchors Expo autolinking to Met's app root and unique provider", () => {
   const source = [
     "target 'Met' do",
     "  use_react_native!",
@@ -29,8 +29,17 @@ test("Podfile directs Expo autolinking to generate Met's unique provider", () =>
   ].join("\n");
   const result = plugin.patchPodfile(source);
 
-  assert.match(result, /use_expo_modules!\(providerName: "MetExpoModulesProvider\.swift"\)/);
+  assert.match(
+    result,
+    /use_expo_modules!\(providerName: "MetExpoModulesProvider\.swift", projectRoot: File\.expand_path\("\.\.", __dir__\), appRoot: File\.expand_path\("\.\.", __dir__\)\)/,
+  );
   assert.equal(plugin.patchPodfile(result), result);
+
+  const oldProviderCall = '  use_expo_modules!(providerName: "MetExpoModulesProvider.swift")';
+  assert.match(
+    plugin.patchPodfile(oldProviderCall),
+    /projectRoot: File\.expand_path\("\.\.", __dir__\), appRoot: File\.expand_path\("\.\.", __dir__\)/,
+  );
   assert.throws(
     () => plugin.patchPodfile("target 'Met' do\nend"),
     /Could not find the generated use_expo_modules! call/,

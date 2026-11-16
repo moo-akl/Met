@@ -6,11 +6,15 @@ const PROVIDER_NAME = "MetExpoModulesProvider";
 const PROVIDER_FILE_NAME = `${PROVIDER_NAME}.swift`;
 
 function patchPodfile(contents) {
-  if (contents.includes(`providerName: "${PROVIDER_FILE_NAME}"`)) {
+  const replacement =
+    `use_expo_modules!(providerName: "${PROVIDER_FILE_NAME}", ` +
+    'projectRoot: File.expand_path("..", __dir__), ' +
+    'appRoot: File.expand_path("..", __dir__))';
+  if (contents.includes(replacement)) {
     return contents;
   }
 
-  const call = /^([ \t]*)use_expo_modules!\s*(?:\(\s*\))?[ \t]*$/m;
+  const call = /^([ \t]*)use_expo_modules!\s*(?:\([^)\r\n]*\))?[ \t]*$/m;
   if (!call.test(contents)) {
     throw new Error(
       "[with-met-expo-modules-provider] Could not find the generated use_expo_modules! call.",
@@ -19,7 +23,7 @@ function patchPodfile(contents) {
 
   return contents.replace(
     call,
-    `$1use_expo_modules!(providerName: "${PROVIDER_FILE_NAME}")`,
+    `$1${replacement}`,
   );
 }
 
@@ -106,7 +110,7 @@ module.exports = function withMetExpoModulesProvider(config) {
       }
 
       console.log(
-        `[with-met-expo-modules-provider] Using the uniquely named ${PROVIDER_NAME}.`,
+        `[with-met-expo-modules-provider] Using ${PROVIDER_NAME} and anchoring Expo autolinking to the app root.`,
       );
       return cfg;
     },
