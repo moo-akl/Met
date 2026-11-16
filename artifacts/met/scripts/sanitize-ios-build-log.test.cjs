@@ -68,6 +68,14 @@ test("reports only allowlisted native provider checks", () => {
     sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present /private/path/App.swift"),
     null,
   );
+  assert.equal(
+    sanitizeLine("\u001b[32m› [MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present\u001b[39m"),
+    "iOS provider check: ExpoLinkingModule present.",
+  );
+  assert.equal(
+    sanitizeLine("Build output: [MET_EXPO_PROVIDER_CHECK] Target=matched"),
+    "iOS provider check: app target matched.",
+  );
 });
 
 test("suppresses credential-like details inside compiler diagnostics", () => {
