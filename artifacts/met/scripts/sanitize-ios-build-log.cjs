@@ -101,12 +101,17 @@ function summarizeNativeCompileError(line) {
 }
 
 function sanitizeLine(line) {
-  if (typeof line !== "string" || line.length > MAX_LINE_LENGTH || isSensitiveFormat(line)) {
+  if (typeof line !== "string" || line.length > MAX_LINE_LENGTH) {
     return null;
   }
 
-  const providerCheck = line.match(
-    /^\s*\[MET_EXPO_PROVIDER_CHECK\]\s+(ValidatorInstalled|ProviderGeneration|Target|ExpoModulesProvider|ExpoLinkingModule|SplashScreenModule)=([a-z]+)\s*$/,
+  // Expo/EAS may prepend terminal styling or a progress label to plugin output.
+  // Parse only the exact allowlisted marker suffix; never return the prefix.
+  const normalizedLine = line.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+  const markerIndex = normalizedLine.lastIndexOf("[MET_EXPO_PROVIDER_CHECK]");
+  const markerLine = markerIndex >= 0 ? normalizedLine.slice(markerIndex).trim() : "";
+  const providerCheck = markerLine.match(
+    /^\[MET_EXPO_PROVIDER_CHECK\]\s+(ValidatorInstalled|ProviderGeneration|Target|ExpoModulesProvider|ExpoLinkingModule|SplashScreenModule)=([a-z]+)\s*$/
   );
   if (providerCheck) {
     const [, item, status] = providerCheck;
@@ -130,9 +135,13 @@ function sanitizeLine(line) {
     }
   }
   if (
-    /^\s*\[MET_EXPO_PROVIDER_CHECK\] (?:Could not locate the Expo provider generator|Expo provider generation failed|Generated provider is missing required entries|App target name is unavailable|Expo autolinking package is unavailable|Expo provider generator is unavailable)\.?$/.test(line)
+    /^\s*\[MET_EXPO_PROVIDER_CHECK\] (?:Could not locate the Expo provider generator|Expo provider generation failed|Generated provider is missing required entries|App target name is unavailable|Expo autolinking package is unavailable|Expo provider generator is unavailable)\.?$/.test(markerLine)
   ) {
     return "iOS provider check: validation failed.";
+  }
+
+  if (isSensitiveFormat(line)) {
+    return null;
   }
 
   const gradleTask = line.match(/Execution failed for task ['"]([^'"]+)['"]/i);
