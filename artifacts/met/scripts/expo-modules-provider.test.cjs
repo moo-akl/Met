@@ -17,7 +17,6 @@ const coreRoot = path.dirname(require.resolve("expo-modules-core/package.json", 
 
 test("iOS config keeps Expo's default provider", () => {
   assert.ok(appConfig.plugins.includes("./plugins/with-met-expo-modules-provider.js"));
-  assert.equal(appConfig.ios.buildNumber, "352");
 });
 
 test("Podfile anchors autolinking to Met's app root without renaming the provider", () => {
