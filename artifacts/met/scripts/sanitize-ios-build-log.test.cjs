@@ -39,6 +39,37 @@ test("includes short safe details for otherwise unknown compiler diagnostics", (
   );
 });
 
+test("reports only allowlisted native provider checks", () => {
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ValidatorInstalled=present"),
+    "iOS provider check: instrumentation installed.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ValidatorInstalled=failed"),
+    "iOS provider check: instrumentation could not be installed.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Target=matched"),
+    "iOS provider check: app target matched.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present"),
+    "iOS provider check: ExpoLinkingModule present.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] SplashScreenModule=missing"),
+    "iOS provider check: SplashScreenModule missing.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Generated provider is missing required entries."),
+    "iOS provider check: validation failed.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present /private/path/App.swift"),
+    null,
+  );
+});
+
 test("suppresses credential-like details inside compiler diagnostics", () => {
   const credentialDiagnostic =
     "/private/path/App.swift:10: error: token rejected for secret-value";

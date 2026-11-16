@@ -105,6 +105,36 @@ function sanitizeLine(line) {
     return null;
   }
 
+  const providerCheck = line.match(
+    /^\s*\[MET_EXPO_PROVIDER_CHECK\]\s+(ValidatorInstalled|ProviderGeneration|Target|ExpoModulesProvider|ExpoLinkingModule|SplashScreenModule)=([a-z]+)\s*$/,
+  );
+  if (providerCheck) {
+    const [, item, status] = providerCheck;
+    if (item === "ValidatorInstalled" && status === "present") {
+      return "iOS provider check: instrumentation installed.";
+    }
+    if (item === "ValidatorInstalled" && status === "failed") {
+      return "iOS provider check: instrumentation could not be installed.";
+    }
+    if (item === "ProviderGeneration" && status === "failed") {
+      return "iOS provider check: provider generation failed.";
+    }
+    if (item === "Target" && ["matched", "unexpected"].includes(status)) {
+      return `iOS provider check: app target ${status}.`;
+    }
+    if (
+      ["ExpoModulesProvider", "ExpoLinkingModule", "SplashScreenModule"].includes(item) &&
+      ["present", "missing"].includes(status)
+    ) {
+      return `iOS provider check: ${item} ${status}.`;
+    }
+  }
+  if (
+    /^\s*\[MET_EXPO_PROVIDER_CHECK\] (?:Could not locate the Expo provider generator|Expo provider generation failed|Generated provider is missing required entries|App target name is unavailable|Expo autolinking package is unavailable|Expo provider generator is unavailable)\.?$/.test(line)
+  ) {
+    return "iOS provider check: validation failed.";
+  }
+
   const gradleTask = line.match(/Execution failed for task ['"]([^'"]+)['"]/i);
   if (gradleTask && /^[A-Za-z0-9:_-]{1,100}$/.test(gradleTask[1])) {
     return `Gradle task failed: ${gradleTask[1]}.`;

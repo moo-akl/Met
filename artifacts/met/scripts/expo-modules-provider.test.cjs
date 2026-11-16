@@ -49,6 +49,29 @@ test("Podfile anchors autolinking to Met's app root without renaming the provide
   );
 });
 
+test("CocoaPods' generated provider is checked for the app's required modules", () => {
+  const managerPath = plugin.resolveAutolinkingManagerPath(appRoot);
+  assert.ok(managerPath, "Expo's autolinking provider generator is installed");
+  const source = fs.readFileSync(managerPath, "utf8");
+  const result = plugin.patchAutolinkingManager(source, appConfig.name);
+
+  assert.match(result, /target_name != "Met"/);
+  assert.match(result, /File\.read\(target_path\)/);
+  assert.match(result, /Target=matched/);
+  assert.match(result, /Target=unexpected/);
+  assert.match(result, /provider_source\.include\?\("ExpoLinkingModule\.self"\)/);
+  assert.match(result, /provider_source\.include\?\("SplashScreenModule\.self"\)/);
+  assert.match(result, /MET_EXPO_PROVIDER_CHECK/);
+  assert.equal(
+    plugin.patchAutolinkingManager(result, appConfig.name),
+    result,
+  );
+  assert.throws(
+    () => plugin.patchAutolinkingManager("module Expo\nend\n", appConfig.name),
+    /Could not locate the Expo provider generator/,
+  );
+});
+
 test("Expo runtime and bridge retain the default provider name", () => {
   const appContext = fs.readFileSync(
     path.join(coreRoot, "ios", "Core", "AppContext.swift"),
