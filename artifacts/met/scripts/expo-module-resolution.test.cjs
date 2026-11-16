@@ -9,8 +9,8 @@ const pkg = require("../package.json");
 const expoRoot = path.dirname(require.resolve("expo/package.json"));
 const expo = require(path.join(expoRoot, "package.json"));
 
-test("Metro uses native autolinking decisions for the pnpm dependency graph", () => {
-  assert.equal(app.experiments.autolinkingModuleResolution, true);
+test("Expo's autolinking dependencies stay aligned without the experimental resolver", () => {
+  assert.equal(app.experiments.autolinkingModuleResolution, undefined);
   assert.equal(pkg.devDependencies["expo-modules-autolinking"], undefined);
   const autolinker = require(require.resolve("expo-modules-autolinking/package.json", {
     paths: [expoRoot],

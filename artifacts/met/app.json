@@ -206,7 +206,6 @@
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",
       "./plugins/with-modular-headers.js",
-      "./plugins/with-met-expo-modules-provider.js",
       "./plugins/with-rnfb-firestore-header-fix.js",
       "./plugins/with-met-ble.js",
       "./plugins/with-android-build-fixes.js",
@@ -221,7 +220,6 @@
       "./plugins/with-tiktok-android.js"
     ],
     "experiments": {
-      "autolinkingModuleResolution": true,
       "typedRoutes": true,
       "reactCompiler": true
     },
