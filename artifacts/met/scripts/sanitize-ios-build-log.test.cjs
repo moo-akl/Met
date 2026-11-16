@@ -30,6 +30,30 @@ test("reports signing diagnostics and safe compiler summaries", () => {
   );
 });
 
+test("includes short safe details for otherwise unknown compiler diagnostics", () => {
+  assert.equal(
+    sanitizeLine(
+      "/private/path/ExpoModulesProvider.swift:18:9: error: could not construct module dependency graph for ExpoModulesCore",
+    ),
+    "Native compile error: other compiler diagnostic (ExpoModulesProvider.swift:18): could not construct module dependency graph for ExpoModulesCore.",
+  );
+});
+
+test("suppresses credential-like details inside compiler diagnostics", () => {
+  const credentialDiagnostic =
+    "/private/path/App.swift:10: error: token rejected for secret-value";
+  const opaqueDiagnostic = `/private/path/App.swift:11: error: ${"A".repeat(64)}`;
+
+  assert.equal(
+    sanitizeLine(credentialDiagnostic),
+    "Native compile error: other compiler diagnostic (App.swift:10).",
+  );
+  assert.equal(
+    sanitizeLine(opaqueDiagnostic),
+    "Native compile error: other compiler diagnostic (App.swift:11).",
+  );
+});
+
 test("suppresses private keys, encoded credentials, environment output, JSON, and unknown lines", () => {
   const sensitiveLines = [
     "-----BEGIN PRIVATE KEY-----",

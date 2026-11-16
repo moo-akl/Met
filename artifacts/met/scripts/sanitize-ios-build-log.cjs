@@ -63,6 +63,28 @@ function getNativeSourceLocation(line) {
   return `${match[1]}:${lineNumber}`;
 }
 
+function getSafeCompilerDetail(diagnostic) {
+  const detail = diagnostic
+    .replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (
+    !detail ||
+    detail.length > 180 ||
+    /(?:\b(?:tokens?|secrets?|passwords?|keys?|auth|credentials?|authorization|bearer|issuer|certificate|provisioning)\b|private[\s_-]*keys?|api[\s_-]*keys?)/i.test(detail) ||
+    /[A-Za-z0-9_+/=-]{40,}/.test(detail) ||
+    /(?:gh[pousr]_|github_pat_|xox[baprs]-|sk-[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]{8,}\.)/i.test(detail) ||
+    /\b[A-Z_][A-Z0-9_]{1,80}\s*=/.test(detail) ||
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(detail) ||
+    /https?:\/\/|(?:\/|\\)[^\s:]+(?:\/|\\)/i.test(detail) ||
+    /^\s*[\[{]/.test(detail)
+  ) {
+    return null;
+  }
+  return detail;
+}
+
 function summarizeNativeCompileError(line) {
   const diagnostic = line.replace(/^.*?\b(?:fatal\s+)?error:\s*/i, "");
   const category =
@@ -70,7 +92,12 @@ function summarizeNativeCompileError(line) {
     "other compiler diagnostic";
   const location = getNativeSourceLocation(line);
   const suffix = location ? ` (${location})` : "";
-  return `Native compile error: ${category}${suffix}.`;
+  const detail =
+    category === "other compiler diagnostic"
+      ? getSafeCompilerDetail(diagnostic)
+      : null;
+  const detailSuffix = detail ? `: ${detail}` : "";
+  return `Native compile error: ${category}${suffix}${detailSuffix}.`;
 }
 
 function sanitizeLine(line) {
