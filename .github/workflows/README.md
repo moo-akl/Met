@@ -60,7 +60,10 @@ Any tag matching `ios-build-*` triggers a build.
 3. Installs pnpm 10.26.1 + Node 20 + EAS CLI 18.9.1 + CocoaPods.
 4. Decodes your ASC API key from the base64 secret into the standard `artifacts/met/.secrets/` path.
 5. Runs `eas build --platform ios --profile <selected> --local --output met-ios.ipa --non-interactive`.
-6. Uploads `met-ios.ipa` as a downloadable artifact (kept 30 days).
+6. Reads the actual generated Expo provider from the retained temporary build workspace and uploads a compact status report (kept 30 days).
+7. Uploads `met-ios.ipa` as a downloadable artifact (kept 30 days).
+
+Only the filtered provider report is retained; raw logs and the temporary build workspace are not uploaded, and the workspace is removed after capture.
 
 The `--local` flag tells EAS to do everything on the GitHub runner instead of EAS Cloud — credentials still come from your EAS account (so no manual provisioning profile / certificate handling), but compilation happens on the free runner.
 

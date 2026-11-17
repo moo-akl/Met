@@ -142,3 +142,25 @@ test("reports Android stages, Gradle tasks, and safe native locations", () => {
     "Native compile error: type mismatch (CameraModule.kt:9).",
   );
 });
+test("reports provider capture state without claiming runtime registration", () => {
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ProviderGeneration=present"),
+    "iOS provider check: generated provider file found.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ProviderGeneration=unavailable"),
+    "iOS provider check: provider capture was unavailable.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Target=unavailable"),
+    "iOS provider check: target could not be identified.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] RuntimeRegistration=notchecked"),
+    "iOS provider check: runtime registration was not measured.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] RuntimeRegistration=registered"),
+    null,
+  );
+});
