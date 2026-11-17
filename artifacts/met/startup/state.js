@@ -43,6 +43,10 @@ function createStartupTracker(now = Date.now) {
     },
     markPhase(phase) {
       if (!enabled || snapshot.ready || snapshot.error) return;
+      // Stage reports are state transitions, not render events. Preserve the
+      // snapshot identity on repeats so subscribers cannot feed updates back
+      // into the app while the same asynchronous startup work is pending.
+      if (snapshot.phase === phase && snapshot.history.length > 0) return;
       emit({
         ...snapshot,
         phase,

@@ -81,12 +81,24 @@ class StartupBoundary extends React.Component {
   render() { return this.state.error ? null : this.props.children; }
 }
 
-function DiagnosticRoot() {
+function DiagnosticOverlay({ onLayout }) {
   const state = React.useSyncExternalStore(
     startupTracker.subscribe,
     startupTracker.getSnapshot,
     startupTracker.getSnapshot,
   );
+  if (state.ready) return null;
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <DiagnosticScreen state={state} onLayout={onLayout} />
+    </View>
+  );
+}
+
+function DiagnosticRoot() {
+  // Keep diagnostic subscriptions below the router's parent. In this Router
+  // version a parent rerender can recreate route identities and remount the
+  // layout, causing its startup effect to report the same stage again.
   const [RouterApp, setRouterApp] = React.useState(null);
   const started = React.useRef(false);
 
@@ -132,11 +144,7 @@ function DiagnosticRoot() {
   return (
     <View style={styles.root}>
       {RouterApp && <StartupBoundary><RouterApp /></StartupBoundary>}
-      {!state.ready && (
-        <View style={StyleSheet.absoluteFill}>
-          <DiagnosticScreen state={state} onLayout={startApp} />
-        </View>
-      )}
+      <DiagnosticOverlay onLayout={startApp} />
     </View>
   );
 }
