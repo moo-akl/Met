@@ -8,6 +8,55 @@ const { assertNativeLockUnchanged, lockedExpoVersion } = require("./native-lock-
 const appRoot = path.resolve(__dirname, "..");
 const moduleRoot = path.join(appRoot, "modules/expo-met-ble");
 
+async function calendarInfoPlist(options, initialPlist = {}) {
+  const withCalendar = require("expo-calendar/app.plugin.js").default;
+  const config = withCalendar({ name: "Met", slug: "met" }, options);
+  const result = await config.mods.ios.infoPlist({
+    ...config,
+    modResults: structuredClone(initialPlist),
+    modRequest: { nextMod: async (value) => value },
+  });
+  return result.modResults;
+}
+
+const calendarUsageKeys = [
+  "NSCalendarsUsageDescription",
+  "NSCalendarsFullAccessUsageDescription",
+  "NSRemindersUsageDescription",
+  "NSRemindersFullAccessUsageDescription",
+];
+
+test("Calendar startup keeps usage descriptions for both permission requesters", async () => {
+  const app = require("../app.json").expo;
+  const calendarPlugin = app.plugins.find(
+    (plugin) => Array.isArray(plugin) && plugin[0] === "expo-calendar",
+  );
+  assert.ok(calendarPlugin, "The native Calendar feature must stay configured");
+  const plist = await calendarInfoPlist(calendarPlugin[1], app.ios.infoPlist);
+  for (const key of calendarUsageKeys) {
+    assert.ok(typeof plist[key] === "string" && plist[key].trim(),
+      `${key} is required by Calendar's native startup permission checks`);
+  }
+});
+
+test("the old remindersPermission false setting deletes even explicit plist descriptions", async () => {
+  const initial = Object.fromEntries(calendarUsageKeys.map((key) => [key, "Fixture description"]));
+  const plist = await calendarInfoPlist({
+    calendarPermission: "Fixture calendar description",
+    remindersPermission: false,
+  }, initial);
+  assert.ok(plist.NSCalendarsFullAccessUsageDescription);
+  assert.equal(plist.NSRemindersUsageDescription, undefined);
+  assert.equal(plist.NSRemindersFullAccessUsageDescription, undefined);
+});
+
+test("final IPA permission validation rejects incomplete and mismatched archives", () => {
+  execFileSync("python3", [path.join(__dirname, "ios-startup-permissions.test.py")], {
+    cwd: appRoot,
+    stdio: "pipe",
+  });
+});
+
 test("only generated app-level native directories are ignored", () => {
   const isIgnored = (filePath) => {
     try {

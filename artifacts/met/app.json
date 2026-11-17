@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "355",
+      "buildNumber": "356",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "associatedDomains": [
@@ -142,7 +142,7 @@
         "expo-calendar",
         {
           "calendarPermission": "Met needs calendar access to add events, Hangouts, and plans to your device calendar.",
-          "remindersPermission": false
+          "remindersPermission": "Met's calendar integration checks reminders permission status. Met does not request access to your reminders."
         }
       ],
       [
