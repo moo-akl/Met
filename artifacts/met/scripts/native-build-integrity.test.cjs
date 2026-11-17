@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { test } = require("node:test");
+const { assertNativeLockUnchanged, lockedExpoVersion } = require("./native-lock-guard.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
 const moduleRoot = path.join(appRoot, "modules/expo-met-ble");
@@ -50,4 +51,83 @@ test("Expo BLE native build configuration has required toolchain guards", () => 
   assert.match(gradle, /\buseDefaultAndroidSdkVersions\s*\(\s*\)/);
   assert.doesNotMatch(gradle, /\bgetKotlinVersion\b/);
   assert.match(podspec, /\bs\.swift_version\s*=\s*['"]5\.0['"]/);
+});
+
+function lockFixture() {
+  return [
+    "lockfileVersion: '9.0'",
+    "overrides:",
+    "  'rollup>@rollup/rollup-darwin-arm64': '-'",
+    "importers:",
+    "  .: {}",
+    "  artifacts/met:",
+    "    devDependencies:",
+    "      expo:",
+    "        specifier: ~54.0.38",
+    "        version: 54.0.38(react@19.1.0)",
+    "packages:",
+    "  expo@54.0.38:",
+    "    resolution: {integrity: expo-integrity}",
+    "  expo-modules-core@3.0.30:",
+    "    resolution: {integrity: core-integrity}",
+    "  react@19.1.0:",
+    "    resolution: {integrity: react-integrity}",
+    "  react-native@0.81.5:",
+    "    resolution: {integrity: rn-integrity}",
+    "snapshots:",
+    "  expo@54.0.38(react@19.1.0):",
+    "    dependencies:",
+    "      expo-modules-core: 3.0.30",
+    "  expo-modules-core@3.0.30: {}",
+    "  react@19.1.0: {}",
+    "  react-native@0.81.5: {}",
+    "",
+  ].join("\n");
+}
+
+test("native lock guard accepts unchanged and platform-adapted locks", () => {
+  const before = lockFixture();
+  const after = before.replace("  'rollup>@rollup/rollup-darwin-arm64': '-'\n", "")
+    .replace("  .: {}", "  .:\n    devDependencies:\n      expo:\n        specifier: 54.0.38\n        version: 54.0.38(react@19.1.0)")
+    .replace("packages:\n", "packages:\n  '@rollup/rollup-darwin-arm64@4.0.0':\n    resolution: {integrity: platform-only}\n");
+  assert.equal(lockedExpoVersion(before), "54.0.38");
+  assert.equal(assertNativeLockUnchanged(before, after).nativePackageCount, 4);
+  assert.match(assertNativeLockUnchanged(before, before).fingerprint, /^[a-f0-9]{64}$/);
+});
+
+test("native lock guard permits optional-tree promotion without changing dependencies", () => {
+  const before = lockFixture().replace("      expo-modules-core: 3.0.30", "      expo-modules-core: 3.0.30\n    optional: true");
+  assert.equal(assertNativeLockUnchanged(before, lockFixture()).nativePackageCount, 4);
+});
+
+test("native lock guard rejects changed app resolutions and native versions", () => {
+  const before = lockFixture();
+  assert.throws(() => assertNativeLockUnchanged(before, before.replace("version: 54.0.38(", "version: 54.0.39(")), /Met dependency resolution changed/);
+  assert.throws(() => assertNativeLockUnchanged(before, before.replace("expo-modules-core@3.0.30:", "expo-modules-core@3.0.31:")), /Native package versions or integrity changed/);
+  assert.throws(() => assertNativeLockUnchanged(before, before.replace("core-integrity", "different-integrity")), /Native package versions or integrity changed/);
+});
+
+test("native lock guard rejects rewritten or missing native snapshots", () => {
+  const before = lockFixture();
+  assert.throws(() => assertNativeLockUnchanged(before, before.replace("expo-modules-core: 3.0.30", "expo-modules-core: 3.0.31")), /native dependency snapshot changed/);
+  assert.throws(() => assertNativeLockUnchanged(before, before.replace("  expo-modules-core@3.0.30: {}", "")), /native dependency snapshot changed/);
+});
+
+test("native lock guard rejects unreadable or incomplete baselines", () => {
+  const before = lockFixture();
+  for (const broken of [
+    "",
+    before.replace("9.0", "10.0"),
+    before.replace("  artifacts/met:", "  artifacts/other:"),
+    before.replace("  expo-modules-core@3.0.30:", "  other@3.0.30:"),
+    before.replace("snapshots:", "other:"),
+    before.replace("  react@19.1.0: {}", "  react@19.1.0: {}\n  react@19.1.0: {}"),
+  ]) {
+    assert.throws(() => assertNativeLockUnchanged(broken, before), /\[native-lock\]/);
+  }
+});
+
+test("committed native graph validates against itself", () => {
+  const lock = fs.readFileSync(path.resolve(appRoot, "../../pnpm-lock.yaml"), "utf8");
+  assert.ok(assertNativeLockUnchanged(lock, lock).nativePackageCount > 20);
 });
