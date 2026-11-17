@@ -148,7 +148,7 @@ jobs:
 
       - name: Check iOS build integrity
         working-directory: artifacts/met
-        run: node --test scripts/native-build-integrity.test.cjs scripts/expo-modules-provider.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs scripts/metro-expo-observer-adapter.test.cjs scripts/ios-profile-plist.test.cjs scripts/ios-profile-cms.test.cjs
+        run: node --test scripts/native-build-integrity.test.cjs scripts/expo-modules-provider.test.cjs scripts/capture-ios-expo-provider.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs scripts/metro-expo-observer-adapter.test.cjs scripts/ios-profile-plist.test.cjs scripts/ios-profile-cms.test.cjs
 
       - name: Install EAS CLI
         if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
@@ -212,6 +212,9 @@ jobs:
       - name: Build iOS locally (no EAS credits)
         if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         working-directory: artifacts/met
+        env:
+          EAS_LOCAL_BUILD_WORKINGDIR: ${{ runner.temp }}/met-ios-eas-${{ github.run_id }}
+          EAS_LOCAL_BUILD_SKIP_CLEANUP: "1"
         run: |
           set -o pipefail
           eas build \
@@ -221,6 +224,26 @@ jobs:
             --output "$(pwd)/${{ steps.profile.outputs.output }}" \
             --non-interactive 2>&1 | node scripts/sanitize-ios-build-log.cjs
 
+      - name: Capture generated Expo provider
+        if: ${{ always() && github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
+        continue-on-error: true
+        working-directory: artifacts/met
+        env:
+          MET_IOS_PROVIDER_WORKDIR: ${{ runner.temp }}/met-ios-eas-${{ github.run_id }}
+          MET_IOS_PROVIDER_REPORT: ${{ runner.temp }}/met-ios-provider-${{ github.run_id }}.txt
+        run: |
+          set -o pipefail
+          node scripts/capture-ios-expo-provider.cjs 2>&1 | node scripts/sanitize-ios-build-log.cjs
+
+      - name: Upload iOS provider report
+        if: ${{ always() && github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: met-ios-provider-report-${{ github.run_number }}
+          path: ${{ runner.temp }}/met-ios-provider-${{ github.run_id }}.txt
+          retention-days: 30
+          if-no-files-found: warn
       - name: Verify output
         if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         run: |
@@ -256,3 +279,16 @@ jobs:
       - name: Remove temporary signing key
         if: ${{ always() }}
         run: rm -f artifacts/met/.secrets/AuthKey_*.p8
+      - name: Remove temporary EAS build workspace
+        if: ${{ always() }}
+        env:
+          PROVIDER_WORKDIR: ${{ runner.temp }}/met-ios-eas-${{ github.run_id }}
+          PROVIDER_REPORT: ${{ runner.temp }}/met-ios-provider-${{ github.run_id }}.txt
+        run: |
+          EXPECTED_WORKDIR="${RUNNER_TEMP}/met-ios-eas-${GITHUB_RUN_ID}"
+          if [ "$PROVIDER_WORKDIR" = "$EXPECTED_WORKDIR" ]; then
+            rm -rf -- "$PROVIDER_WORKDIR" || echo "::warning::Temporary iOS workspace cleanup failed."
+          else
+            echo "::warning::Temporary iOS workspace path did not match the expected location."
+          fi
+          rm -f -- "$PROVIDER_REPORT" || echo "::warning::Provider report cleanup failed."

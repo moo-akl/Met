@@ -111,7 +111,7 @@ function sanitizeLine(line) {
   const markerIndex = normalizedLine.lastIndexOf("[MET_EXPO_PROVIDER_CHECK]");
   const markerLine = markerIndex >= 0 ? normalizedLine.slice(markerIndex).trim() : "";
   const providerCheck = markerLine.match(
-    /^\[MET_EXPO_PROVIDER_CHECK\]\s+(ValidatorInstalled|ProviderGeneration|Target|ExpoModulesProvider|ExpoLinkingModule|SplashScreenModule)=([a-z]+)\s*$/
+    /^\[MET_EXPO_PROVIDER_CHECK\]\s+(ValidatorInstalled|ProviderGeneration|Target|ExpoModulesProvider|ExpoLinkingModule|SplashScreenModule|RuntimeRegistration)=([a-z]+)\s*$/
   );
   if (providerCheck) {
     const [, item, status] = providerCheck;
@@ -121,17 +121,28 @@ function sanitizeLine(line) {
     if (item === "ValidatorInstalled" && status === "failed") {
       return "iOS provider check: instrumentation could not be installed.";
     }
+    if (item === "ProviderGeneration" && status === "present") {
+      return "iOS provider check: generated provider file found.";
+    }
     if (item === "ProviderGeneration" && status === "failed") {
-      return "iOS provider check: provider generation failed.";
+      return "iOS provider check: generated provider file not found.";
+    }
+    if (item === "ProviderGeneration" && status === "unavailable") {
+      return "iOS provider check: provider capture was unavailable.";
     }
     if (item === "Target" && ["matched", "unexpected"].includes(status)) {
       return `iOS provider check: app target ${status}.`;
+    }
+    if (item === "Target" && status === "unavailable") {
+      return "iOS provider check: target could not be identified.";
     }
     if (
       ["ExpoModulesProvider", "ExpoLinkingModule", "SplashScreenModule"].includes(item) &&
       ["present", "missing"].includes(status)
     ) {
       return `iOS provider check: ${item} ${status}.`;
+    }    if (item === "RuntimeRegistration" && status === "notchecked") {
+      return "iOS provider check: runtime registration was not measured.";
     }
   }
   if (
