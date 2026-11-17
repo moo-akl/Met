@@ -47,7 +47,7 @@ import { getLanguage, setLanguage, SUPPORTED_LANGUAGES, useT, type LangCode } fr
 import { validateHandle, checkHandleReachable } from "@/lib/socialValidation";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
-import { loadDragHintDismissed, loadProfile, loadValueTourSeen, saveDragHintDismissed } from "@/lib/storage";
+import { loadDragHintDismissed, loadProfile, saveDragHintDismissed } from "@/lib/storage";
 import { runAppleSignIn } from "@/lib/onboardingAppleAuth";
 import { runGoogleSignIn } from "@/lib/onboardingGoogleAuth";
 import { ValueTour } from "@/components/ValueTour";
@@ -1067,8 +1067,7 @@ export default function OnboardingScreen() {
             onPress={() => {
               void (async () => {
                 setLanguage(selectedLang);
-                const seen = await loadValueTourSeen().catch(() => true);
-                setPhase(seen ? "intro" : "valueTour");
+                setPhase("auth");
               })();
             }}
             style={({ pressed }) => ({
@@ -1127,7 +1126,7 @@ export default function OnboardingScreen() {
           }}
         >
           <Pressable
-            onPress={() => setPhase("language")}
+            onPress={() => setPhase("auth")}
             hitSlop={12}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
@@ -1502,23 +1501,30 @@ export default function OnboardingScreen() {
             <Pressable
               onPress={() => {
                 if (permissionsOnly) { router.back(); return; }
-                if (phase === "auth") setPhase("intro");
+                if (phase === "auth") {
+                  if (qr === "1" || qrIntentRef.current) router.back();
+                  else setPhase("language");
+                }
                 else if (phase === "info") setPhase("photo");
                 else if (phase === "socials") setPhase(nameFromApple ? "photo" : "info");
                 else if (phase === "interests") setPhase("socials");
-                else if (phase === "invite") setPhase("interests");
+                else if (phase === "invite") setPhase("info");
               }}
               hitSlop={12}
             >
               <Feather name="chevron-left" size={24} color={colors.foreground} />
             </Pressable>
           )}
-          {phase === "auth" || phase === "verify" ? (
+          {permissionsOnly ||
+          phase === "auth" ||
+          phase === "verify" ||
+          phase === "socials" ||
+          phase === "interests" ? (
             <View style={{ flex: 1 }} />
           ) : (
             <View style={styles.stepDots}>
-              {(["photo", "info", "socials", "interests", "invite"] as Phase[]).map((p, i) => {
-                const order = ["photo", "info", "socials", "interests", "invite"];
+              {(["photo", "info", "invite"] as Phase[]).map((p, i) => {
+                const order = ["photo", "info", "invite"];
                 const currentIndex = order.indexOf(phase);
                 const active = i <= currentIndex;
                 return (
@@ -1777,6 +1783,14 @@ export default function OnboardingScreen() {
                   />
                 </Pressable>
               </View>
+              {authMode === "signup" ? (
+                <Text
+                  testID="signup-password-requirement"
+                  style={[styles.stepSub, { color: colors.mutedForeground, marginTop: 6 }]}
+                >
+                  {t("onboarding.passwordMinimum")}
+                </Text>
+              ) : null}
             </View>
 
             <PrimaryButton
@@ -1824,6 +1838,20 @@ export default function OnboardingScreen() {
                 </Text>
               </Pressable>
             ) : null}
+
+            <Pressable
+              accessibilityRole="button"
+              testID="onboarding-learn-about-met"
+              onPress={() => {
+                setSlide(0);
+                setPhase("intro");
+              }}
+              hitSlop={8}
+            >
+              <Text style={[styles.forgotText, { color: colors.primary }]}>
+                {t("onboarding.learnAboutMet")}
+              </Text>
+            </Pressable>
 
             {Platform.OS === "web" && __DEV__ ? (
               // Dev-only escape hatch so the web preview can advance to
@@ -2047,7 +2075,7 @@ export default function OnboardingScreen() {
             ) : (
               <PrimaryButton
                 label={t("common.continue")}
-                onPress={() => setPhase("socials")}
+                onPress={() => setPhase("invite")}
                 disabled={!name.trim()}
               />
             )}
@@ -2130,6 +2158,11 @@ export default function OnboardingScreen() {
                   : t("common.skip")
               }
               onPress={() => setPhase("interests")}
+            />
+            <PrimaryButton
+              label={t("common.skip")}
+              variant="ghost"
+              onPress={() => setPhase("invite")}
             />
           </View>
         ) : null}
@@ -2249,6 +2282,11 @@ export default function OnboardingScreen() {
               label={interests.length > 0 ? t("common.continue") : t("common.skip")}
               onPress={() => { setInterestSearch(""); setPhase("invite"); }}
             />
+            <PrimaryButton
+              label={t("common.skip")}
+              variant="ghost"
+              onPress={() => { setInterestSearch(""); setPhase("invite"); }}
+            />
           </View>
         ) : null}
 
@@ -2304,6 +2342,14 @@ export default function OnboardingScreen() {
               onPress={handleFinish}
               loading={saving}
             />
+            {!permissionsOnly ? (
+              <PrimaryButton
+                label={t("onboarding.addOptionalProfile")}
+                variant="ghost"
+                onPress={() => setPhase("socials")}
+                disabled={saving}
+              />
+            ) : null}
           </View>
         ) : null}
       </KeyboardAwareScrollView>

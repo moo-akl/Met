@@ -206,10 +206,45 @@ export default function EventDetailsScreen() {
         }),
       ]);
     } catch (error) {
-      setActionError(error instanceof ApiError ? error.message : "Could not update your RSVP.");
+      setActionError(t("tabs.events.eventActionError"));
     } finally {
       setRsvpPending(false);
     }
+  };
+
+  const updateFriendPlanInvitation = async (status: "going" | "not_going") => {
+    if (!event || event.eventType !== "member" || !isFriendPlan || isOwner) return;
+    setRsvpPending(true);
+    setActionError("");
+    try {
+      await memberRsvp.mutateAsync({ eventId: event.id, data: { status } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: getGetEventDetailsQueryKey(event.eventType, event.id),
+        }),
+      ]);
+      if (status === "not_going") router.replace("/plans" as never);
+    } catch {
+      setActionError(t("tabs.events.planInvitationActionError"));
+    } finally {
+      setRsvpPending(false);
+    }
+  };
+
+  const leaveFriendPlan = () => {
+    Alert.alert(
+      t("tabs.events.leavePlan"),
+      t("tabs.events.leavePlanConfirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("tabs.events.leavePlan"),
+          style: "destructive",
+          onPress: () => void updateFriendPlanInvitation("not_going"),
+        },
+      ],
+    );
   };
 
   const updateJoinRequest = async () => {
@@ -230,11 +265,7 @@ export default function EventDetailsScreen() {
         }),
       ]);
     } catch (error) {
-      setActionError(
-        error instanceof ApiError
-          ? error.message
-          : "Could not update your join request.",
-      );
+      setActionError(t("tabs.events.eventActionError"));
     } finally {
       setJoinRequestPending(false);
     }
@@ -303,11 +334,13 @@ export default function EventDetailsScreen() {
   );
   const canOpenPlanChat = Boolean(
     event?.eventType === "member" &&
-      (isOwner ||
-        event.isInvited ||
-        event.myRsvp === "going" ||
-        event.myRsvp === "maybe" ||
-        event.myJoinRequestStatus === "accepted"),
+      (isFriendPlan
+        ? isOwner || event.myRsvp === "going" || event.myRsvp === "maybe"
+        : isOwner ||
+          event.isInvited ||
+          event.myRsvp === "going" ||
+          event.myRsvp === "maybe" ||
+          event.myJoinRequestStatus === "accepted"),
   );
   const planChatLabel = isHangout
     ? t("tabs.events.hangoutChat")
@@ -468,6 +501,18 @@ export default function EventDetailsScreen() {
           <Text style={[styles.stateText, { color: colors.text }]}>
             {t("tabs.events.loadError")}
           </Text>
+          {eventQuery.isError ? (
+            <Pressable
+              accessibilityRole="button"
+              testID="event-details-retry"
+              onPress={() => void eventQuery.refetch()}
+              style={[styles.retryButton, { backgroundColor: colors.primarySoft }]}
+            >
+              <Text style={[styles.retryButtonText, { color: colors.primary }]}>
+                {t("common.retry")}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : (
         <ScrollView
@@ -511,58 +556,68 @@ export default function EventDetailsScreen() {
                   <Text style={[styles.hangoutHeroEyebrow, { color: colors.primary }]}>
                     {t("tabs.events.quickPlan")}
                   </Text>
-                  <Text style={[styles.hangoutHeroHint, { color: colors.mutedForeground }]}>
-                    {t("tabs.events.joinApprovalHint")}
-                  </Text>
                 </View>
                 <Feather name="arrow-up-right" size={18} color={colors.primary} />
               </View>
             </View>
           ) : isFriendPlan ? (
-            <View testID="event-detail-plan-hero" style={[styles.planHero, { backgroundColor: colors.primarySoft }]}>
-              <View style={[styles.planDateTile, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.planMonth, { color: colors.primaryForeground }]}>
-                  {new Date(event.startsAt).toLocaleDateString(lang, {
-                    month: "short",
-                    ...eventDateTimeOptions,
-                  }).toUpperCase()}
-                </Text>
-                <Text style={[styles.planDay, { color: colors.primaryForeground }]}>
-                  {recurrenceTimeZone
-                    ? new Date(event.startsAt).toLocaleDateString(lang, {
-                        day: "numeric",
-                        timeZone: recurrenceTimeZone,
-                      })
-                    : new Date(event.startsAt).getDate()}
-                </Text>
+            <>
+              <View testID="event-detail-plan-hero" style={[styles.planHero, { backgroundColor: colors.primarySoft }]}>
+                <View style={[styles.planDateTile, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.planMonth, { color: colors.primaryForeground }]}>
+                    {new Date(event.startsAt).toLocaleDateString(lang, {
+                      month: "short",
+                      ...eventDateTimeOptions,
+                    }).toUpperCase()}
+                  </Text>
+                  <Text style={[styles.planDay, { color: colors.primaryForeground }]}>
+                    {recurrenceTimeZone
+                      ? new Date(event.startsAt).toLocaleDateString(lang, {
+                          day: "numeric",
+                          timeZone: recurrenceTimeZone,
+                        })
+                      : new Date(event.startsAt).getDate()}
+                  </Text>
+                </View>
+                <View style={styles.planHeroCopy}>
+                  <Text style={[styles.planHeroEyebrow, { color: colors.primary }]}>
+                    {t("tabs.events.friendPlanBadge")}
+                  </Text>
+                  <Text style={[styles.planHeroDate, { color: colors.text }]}>
+                    {new Date(event.startsAt).toLocaleDateString(lang, {
+                      weekday: "long",
+                      ...eventDateTimeOptions,
+                    })}
+                  </Text>
+                  <Text style={[styles.planHeroTime, { color: colors.mutedForeground }]}>
+                    {new Date(event.startsAt).toLocaleTimeString(lang, {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      ...eventDateTimeOptions,
+                    })}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.planHeroCopy}>
-                <Text style={[styles.planHeroEyebrow, { color: colors.primary }]}>
-                  {t("tabs.events.friendPlanBadge")}
-                </Text>
-                <Text style={[styles.planHeroDate, { color: colors.text }]}>
-                  {new Date(event.startsAt).toLocaleDateString(lang, {
-                    weekday: "long",
-                    ...eventDateTimeOptions,
-                  })}
-                </Text>
-                <Text style={[styles.planHeroTime, { color: colors.mutedForeground }]}>
-                  {new Date(event.startsAt).toLocaleTimeString(lang, {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    ...eventDateTimeOptions,
-                  })}
-                </Text>
-              </View>
-              {eventPhotos[0] ? (
-                <Image
-                  source={{ uri: eventPhotos[0] }}
-                  style={styles.planHeroImage}
-                  resizeMode="cover"
+              {eventPhotos.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  testID="event-detail-plan-gallery"
+                  contentContainerStyle={styles.planGallery}
                   accessibilityLabel={t("tabs.events.planPhotos")}
-                />
+                >
+                  {eventPhotos.map((photo, index) => (
+                    <Image
+                      key={`${photo}-${index}`}
+                      source={{ uri: photo }}
+                      style={styles.planGalleryImage}
+                      resizeMode="cover"
+                      accessibilityLabel={t("tabs.events.planPhotos")}
+                    />
+                  ))}
+                </ScrollView>
               ) : null}
-            </View>
+            </>
           ) : eventPhotos.length > 0 ? (
             <ScrollView
               horizontal
@@ -643,22 +698,15 @@ export default function EventDetailsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`${location}. ${t("tabs.events.openMap")}`}
                 onPress={() => void openDirections(event)}
-                style={[styles.locationRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={styles.locationRow}
               >
-                <View style={[styles.locationIcon, { backgroundColor: colors.primarySoft }]}>
-                  <Feather name="map-pin" size={17} color={colors.primary} />
-                </View>
-                <View style={styles.locationCopy}>
-                  <Text style={[styles.locationLabel, { color: colors.mutedForeground }]}>
-                    {t("tabs.events.location")}
-                  </Text>
-                  <Text style={[styles.locationText, { color: colors.text }]}>{location}</Text>
-                </View>
+                <Feather name="map-pin" size={16} color={colors.primary} />
+                <Text numberOfLines={1} style={[styles.locationText, { color: colors.text }]}>{location}</Text>
                 <Feather name="navigation" size={18} color={colors.primary} />
               </Pressable>
             ) : null}
             {eventType === "member" ? (
-              <View style={[styles.creatorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.creatorCard}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t("tabs.events.viewOrganizerProfile", {
@@ -684,20 +732,20 @@ export default function EventDetailsScreen() {
                     </View>
                   )}
                   <View style={styles.creatorDetails}>
-                  <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
-                    {t("tabs.events.createdBy")}
-                  </Text>
-                  <Text testID="hangout-creator-name" style={[styles.creatorName, { color: colors.text }]}>
-                    {event.creatorName ?? t("tabs.events.quickPlan")}
-                  </Text>
-                  {creatorStandingQuery.data?.trustScore != null ? (
-                    <View style={styles.creatorScoreRow}>
-                      <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
-                        {t("trustScore.label")}
-                      </Text>
-                      <TrustScoreBadge score={creatorStandingQuery.data.trustScore} showScore />
-                    </View>
-                  ) : null}
+                    <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
+                      {t("tabs.events.createdBy")}
+                    </Text>
+                    <Text testID="hangout-creator-name" style={[styles.creatorName, { color: colors.text }]}>
+                      {event.creatorName ?? t("tabs.events.quickPlan")}
+                    </Text>
+                    {creatorStandingQuery.data?.trustScore != null ? (
+                      <View style={styles.creatorScoreRow}>
+                        <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
+                          {t("trustScore.label")}
+                        </Text>
+                        <TrustScoreBadge score={creatorStandingQuery.data.trustScore} showScore />
+                      </View>
+                    ) : null}
                   </View>
                 </Pressable>
                   {hostRating && hostRating.reviewCount > 0 &&
@@ -748,13 +796,13 @@ export default function EventDetailsScreen() {
                         : t("tabs.events.attendanceOwnerHeading")
                       : t("tabs.events.attendanceGuestHeading")}
                   </Text>
-                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
-                    {isHangout
-                      ? t("tabs.events.joinApprovalHint")
-                      : isOwner
-                      ? t("tabs.events.attendanceOwnerHint")
-                      : t("tabs.events.attendanceGuestHint")}
-                  </Text>
+                  {!isHangout ? (
+                    <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
+                      {isOwner
+                        ? t("tabs.events.attendanceOwnerHint")
+                        : t("tabs.events.attendanceGuestHint")}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
               {isOwner ? (
@@ -855,7 +903,62 @@ export default function EventDetailsScreen() {
               </View>
             ) : null}
 
-            {!isHangout && canRsvpDirectly ? (
+            {isFriendPlan && !isOwner ? (
+              <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
+                {event.myRsvp === "not_going" ? (
+                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.leftPlanNotice")}
+                  </Text>
+                ) : event.myRsvp === "going" || event.myRsvp === "maybe" ? (
+                  <>
+                    <Text style={[styles.rsvpHeading, { color: colors.text }]}>
+                      {t("tabs.events.planInvitationAccepted")}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t("tabs.events.leavePlan")}
+                      testID="button-leave-friend-plan"
+                      disabled={rsvpPending}
+                      onPress={leaveFriendPlan}
+                      style={[
+                        styles.attendanceButton,
+                        { backgroundColor: colors.primarySoft, opacity: rsvpPending ? 0.65 : 1 },
+                      ]}
+                    >
+                      {rsvpPending ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Feather name="log-out" size={16} color={colors.primary} />
+                      )}
+                      <Text style={[styles.attendanceButtonText, { color: colors.primary }]}>
+                        {t("tabs.events.leavePlan")}
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : event.isInvited ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.acceptPlanInvitation")}
+                    testID="button-accept-plan-invitation"
+                    disabled={rsvpPending}
+                    onPress={() => void updateFriendPlanInvitation("going")}
+                    style={[
+                      styles.attendanceButton,
+                      { backgroundColor: colors.primary, opacity: rsvpPending ? 0.65 : 1 },
+                    ]}
+                  >
+                    {rsvpPending ? (
+                      <ActivityIndicator size="small" color={colors.primaryForeground} />
+                    ) : (
+                      <Feather name="check" size={16} color={colors.primaryForeground} />
+                    )}
+                    <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
+                      {t("tabs.events.acceptPlanInvitation")}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : !isHangout && canRsvpDirectly ? (
             <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
               <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
                 {t("tabs.events.rsvpHeading")}
@@ -903,7 +1006,7 @@ export default function EventDetailsScreen() {
                 })}
               </View>
             </View>
-            ) : !isHangout ? (
+            ) : !isHangout && !isFriendPlan ? (
               <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
                 <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
                   {t("tabs.events.joinRequests")}
@@ -1154,6 +1257,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700" },
   state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   stateText: { fontSize: 15, fontWeight: "600" },
+  retryButton: { minHeight: 40, borderRadius: 20, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
+  retryButtonText: { fontSize: 13, fontWeight: "700" },
   content: { paddingBottom: 24 },
   cover: { width: "100%", height: 230 },
   coverPlaceholder: { width: "100%", height: 160, alignItems: "center", justifyContent: "center" },
@@ -1175,7 +1280,8 @@ const styles = StyleSheet.create({
   planHeroEyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase" },
   planHeroDate: { fontSize: 15, fontWeight: "700" },
   planHeroTime: { fontSize: 12, fontWeight: "600" },
-  planHeroImage: { width: 72, height: 82, borderTopRightRadius: 20, borderBottomLeftRadius: 18 },
+  planGallery: { gap: 9, paddingTop: 12, paddingRight: 18 },
+  planGalleryImage: { width: 210, height: 145, borderTopRightRadius: 24, borderBottomLeftRadius: 20 },
   body: { paddingHorizontal: 18, paddingTop: 18 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
   badge: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99 },
@@ -1187,28 +1293,15 @@ const styles = StyleSheet.create({
   recurrenceCopy: { flex: 1, gap: 2 },
   recurrenceCadence: { fontSize: 13, fontWeight: "700" },
   recurrenceDate: { fontSize: 12, lineHeight: 18 },
-  locationRow: {
-    borderWidth: 1,
-    borderTopLeftRadius: 26,
-    borderBottomRightRadius: 18,
-    minHeight: 70,
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    gap: 11,
-    marginTop: 6,
-  },
-  locationIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  locationCopy: { flex: 1 },
-  locationLabel: { fontSize: 11, fontWeight: "600" },
-  locationText: { fontSize: 14, fontWeight: "600", marginTop: 3 },
+  locationRow: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 9, marginTop: 8 },
+  locationText: { flex: 1, fontSize: 14, fontWeight: "600" },
   creator: { fontSize: 13, marginTop: 14 },
-  creatorCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 20, padding: 13, marginTop: 14, gap: 12 },
-  creatorProfileLink: { flexDirection: "row", alignItems: "center", gap: 12 },
-  creatorAvatar: { width: 54, height: 54, borderRadius: 27 },
+  creatorCard: { marginTop: 14, gap: 8 },
+  creatorProfileLink: { flexDirection: "row", alignItems: "center", gap: 10 },
+  creatorAvatar: { width: 38, height: 38, borderRadius: 19 },
   creatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
-  creatorDetails: { flex: 1, gap: 6 },
-  creatorName: { fontSize: 15, fontWeight: "700" },
+  creatorDetails: { flex: 1, gap: 2 },
+  creatorName: { fontSize: 14, fontWeight: "700" },
   creatorScoreRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 7 },
   creatorScoreLabel: { fontSize: 11, fontWeight: "600" },
   creatorRating: { fontSize: 12, fontWeight: "600" },

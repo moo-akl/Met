@@ -38,6 +38,7 @@ export function HomePlanDiscovery() {
         event.eventType === "member" &&
         event.visibility === "invite_only" &&
         !event.joinApprovalRequired &&
+        event.myRsvp !== "not_going" &&
         (event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
       )
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
@@ -172,13 +173,16 @@ export function HomePlanDiscovery() {
         ? t("tabs.events.joinRequestPending")
         : event.myJoinRequestStatus === "declined"
           ? t("tabs.events.requestAgain")
-          : event.myRsvp === "going"
-            ? t("tabs.events.going")
-            : event.myRsvp === "maybe"
-              ? t("tabs.events.interested")
-              : isHangout
-                ? t("tabs.events.requestToJoin")
-                : t("plans.hosting");
+          : isHangout
+            ? event.myJoinRequestStatus === "accepted"
+              ? t("tabs.events.planInvitationAccepted")
+              : t("tabs.events.requestToJoin")
+            : event.myRsvp === "going" || event.myRsvp === "maybe"
+              ? t("tabs.events.planInvitationAccepted")
+              : t("tabs.events.invited");
+    const planAccepted = event.ownerUid === authedUid ||
+      event.myRsvp === "going" ||
+      event.myRsvp === "maybe";
     return (
       <Pressable
         accessibilityRole="button"
@@ -189,7 +193,9 @@ export function HomePlanDiscovery() {
         onPress={() => router.push(
           isHangout
             ? getHangoutOpenPath(event.id, event.ownerUid, authedUid, event.myJoinRequestStatus) as never
-            : `/event-chat/${event.id}` as never,
+            : planAccepted
+              ? `/event-chat/${event.id}` as never
+              : `/event-details/member/${event.id}` as never,
         )}
         style={({ pressed }) => [
           styles.planRow,
@@ -204,13 +210,21 @@ export function HomePlanDiscovery() {
         <View style={styles.planCopy}>
           <Text numberOfLines={1} style={[styles.planTitle, { color: colors.text }]}>{event.title}</Text>
           <Text numberOfLines={1} style={[styles.planMeta, { color: colors.mutedForeground }]}>
-            {date.time}{event.location ? ` · ${event.location}` : ""}
+            {date.time}
           </Text>
-          {isHangout ? (
+          {event.location ? (
+            <View style={styles.locationLine}>
+              <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+              <Text numberOfLines={1} style={[styles.locationText, { color: colors.mutedForeground }]}>
+                {event.location}
+              </Text>
+            </View>
+          ) : null}
+          {event.eventType === "member" ? (
             <View style={styles.creatorByline}>
               {event.creatorPhotoUrl ? (
                 <Image
-                  testID={`home-hangout-creator-photo-${event.id}`}
+                  testID={`home-${isHangout ? "hangout" : "plan"}-creator-photo-${event.id}`}
                   accessibilityLabel={event.creatorName ?? t("tabs.events.createdBy")}
                   source={{ uri: event.creatorPhotoUrl }}
                   style={styles.creatorAvatar}
@@ -221,7 +235,7 @@ export function HomePlanDiscovery() {
                 </View>
               )}
               <Text
-                testID={`home-hangout-creator-${event.id}`}
+                testID={`home-${isHangout ? "hangout" : "plan"}-creator-${event.id}`}
                 numberOfLines={1}
                 style={[styles.creatorName, { color: colors.mutedForeground }]}
               >
@@ -263,6 +277,8 @@ const styles = StyleSheet.create({
   planCopy: { flex: 1, gap: 4 },
   planTitle: { fontSize: 14, fontWeight: "700" },
   planMeta: { fontSize: 11 },
+  locationLine: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 },
+  locationText: { flex: 1, fontSize: 11 },
   creatorByline: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3, minWidth: 0 },
   creatorName: { fontSize: 10, fontWeight: "600" },
   status: { flexDirection: "row", alignItems: "center", gap: 7, paddingRight: 5 },

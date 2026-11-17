@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/contexts/AppContext";
@@ -50,11 +50,19 @@ export default function PlansScreen() {
       isPlanEvent(event) &&
       event.visibility === "invite_only" &&
       !event.joinApprovalRequired &&
+      event.myRsvp !== "not_going" &&
       (event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
     )
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()), [feed.data?.events, authedUid]);
 
-  const openPlan = (event: EventFeedItem) => router.push(`/event-chat/${event.id}` as never);
+  const openPlan = (event: EventFeedItem) => {
+    const accepted = event.myRsvp === "going" || event.myRsvp === "maybe";
+    router.push(
+      event.ownerUid === authedUid || accepted
+        ? `/event-chat/${event.id}` as never
+        : `/event-details/member/${event.id}` as never,
+    );
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -131,21 +139,34 @@ export default function PlansScreen() {
                   <View style={styles.planCopy}>
                     <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
                     <Text style={[styles.planTitle, { color: colors.text }]} numberOfLines={2}>{event.title}</Text>
-                    {event.location ? <Text style={[styles.meta, { color: colors.mutedForeground }]}>{event.location}</Text> : null}
+                    {event.location ? (
+                      <View style={styles.locationRow}>
+                        <Feather name="map-pin" size={13} color={colors.mutedForeground} />
+                        <Text numberOfLines={1} style={[styles.locationText, { color: colors.mutedForeground }]}>{event.location}</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.creatorRow}>
+                      {event.creatorPhotoUrl ? (
+                        <Image
+                          source={{ uri: event.creatorPhotoUrl }}
+                          accessibilityLabel={event.creatorName ?? t("tabs.events.planHost")}
+                          style={styles.creatorAvatar}
+                        />
+                      ) : (
+                        <View style={[styles.creatorAvatar, { backgroundColor: colors.primarySoft }]}>
+                          <Feather name="user" size={13} color={colors.primary} />
+                        </View>
+                      )}
+                      <Text numberOfLines={1} style={[styles.meta, { color: colors.mutedForeground }]}>
+                        {event.creatorName ?? t("tabs.events.planHost")}
+                      </Text>
+                    </View>
                     <Text style={[styles.host, { color: colors.primary }]}>
                       {owner
                         ? t("plans.hosting")
-                        : event.myJoinRequestStatus === "pending"
-                          ? t("tabs.events.joinRequestPending")
-                          : event.myJoinRequestStatus === "declined"
-                            ? t("tabs.events.requestAgain")
-                          : event.myRsvp === "going"
-                            ? t("tabs.events.going")
-                            : event.myRsvp === "maybe"
-                              ? t("tabs.events.interested")
-                              : event.myRsvp === "not_going"
-                                ? t("tabs.events.notGoing")
-                                : t("tabs.events.invited")}
+                        : event.myRsvp === "going" || event.myRsvp === "maybe"
+                          ? t("tabs.events.planInvitationAccepted")
+                          : t("tabs.events.invited")}
                     </Text>
                   </View>
                   <View style={styles.chatMark}><Feather name="message-circle" size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
@@ -249,6 +270,10 @@ const styles = StyleSheet.create({
   planCopy: { flex: 1, gap: 5, paddingTop: 2 },
   planTitle: { fontFamily: "serif", fontSize: 20, lineHeight: 25, fontWeight: "400", marginTop: 1 },
   meta: { fontSize: 11, lineHeight: 16 },
+  locationRow: { minHeight: 20, flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  locationText: { flex: 1, fontSize: 11, lineHeight: 16 },
+  creatorRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 3 },
+  creatorAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   host: { fontSize: 10, fontWeight: "700", marginTop: 3 },
   chatMark: { alignItems: "center", gap: 5, paddingHorizontal: 3, paddingTop: 7 },
   pastSection: { marginTop: 14, gap: 12 },

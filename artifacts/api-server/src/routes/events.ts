@@ -220,7 +220,7 @@ async function getCommunityEventPlanChatContext(eventId: number, uid: string) {
       if (currentRsvp) {
         return currentRsvp.status === "going" || currentRsvp.status === "maybe";
       }
-      return event.inviteeUids.includes(uid);
+      return event.joinApprovalRequired && event.inviteeUids.includes(uid);
     })()
   );
   return canAccess ? { event, rsvps } : null;
@@ -2375,7 +2375,7 @@ router.get(
         if (event.ownerUid === uid) return true;
         const rsvpStatus = rsvpByEventId.get(event.id);
         if (rsvpStatus) return rsvpStatus === "going" || rsvpStatus === "maybe";
-        return event.inviteeUids.includes(uid);
+        return event.joinApprovalRequired && event.inviteeUids.includes(uid);
       })
       .map((event) => event.id);
 
@@ -3579,6 +3579,30 @@ router.post(
       event.inviteeUids.includes(uid);
     if (!canAttend) {
       res.status(403).json({ message: "This event is invitation-only." });
+      return;
+    }
+    if (
+      parsed.data.status === "not_going" &&
+      event.visibility === "invite_only" &&
+      !event.joinApprovalRequired &&
+      event.ownerUid !== uid
+    ) {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(communityEventsTable)
+          .set({
+            inviteeUids: event.inviteeUids.filter((inviteeUid) => inviteeUid !== uid),
+            updatedAt: new Date(),
+          })
+          .where(eq(communityEventsTable.id, eventId));
+        await tx
+          .delete(communityEventRsvpsTable)
+          .where(and(
+            eq(communityEventRsvpsTable.eventId, eventId),
+            eq(communityEventRsvpsTable.userUid, uid),
+          ));
+      });
+      res.json({ success: true, status: parsed.data.status });
       return;
     }
     await db

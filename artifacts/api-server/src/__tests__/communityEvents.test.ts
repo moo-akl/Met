@@ -1637,6 +1637,11 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       expect.objectContaining({ uid: OWNER_UID, status: "host" }),
     ]);
 
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(404);
+
     const inviteeFeed = await request(app)
       .get("/api/events/feed")
       .set(uidHeader(INVITEE_UID))
@@ -1660,12 +1665,6 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       isInvited: true,
       myRsvp: null,
     });
-    const invitedChat = await request(app)
-      .get(`/api/community-events/${eventId}/plan-chat`)
-      .set(uidHeader(INVITEE_UID))
-      .expect(200);
-    expect(invitedChat.body.event.id).toBe(eventId);
-
     await request(app)
       .get(`/api/community-events/${eventId}/plan-chat`)
       .set(uidHeader(OTHER_UID))
@@ -1877,5 +1876,74 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .set(uidHeader(OWNER_UID))
       .send({ text: "x".repeat(501) })
       .expect(400);
+  });
+
+  it("requires a fresh invitation after a guest leaves a friends Plan", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Dinner with friends",
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ status: "going" })
+      .expect(200);
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ status: "not_going" })
+      .expect(200, { success: true, status: "not_going" });
+
+    const [event] = await db
+      .select()
+      .from(communityEventsTable)
+      .where(eq(communityEventsTable.id, eventId))
+      .limit(1);
+    const [rsvp] = await db
+      .select()
+      .from(communityEventRsvpsTable)
+      .where(and(
+        eq(communityEventRsvpsTable.eventId, eventId),
+        eq(communityEventRsvpsTable.userUid, INVITEE_UID),
+      ))
+      .limit(1);
+    expect(event?.inviteeUids).not.toContain(INVITEE_UID);
+    expect(rsvp).toBeUndefined();
+    await request(app)
+      .get(`/api/events/member/${eventId}`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(404);
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(404);
+
+    await request(app)
+      .put(`/api/community-events/${eventId}`)
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Dinner with friends",
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+      })
+      .expect(200);
+    await request(app)
+      .get(`/api/events/member/${eventId}`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
   });
 });

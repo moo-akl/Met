@@ -10,7 +10,7 @@
  *   "Done" (opened from Settings).
  * - X close button calls router.back() immediately.
  * - Done button calls router.back() when permissionsCompleted=true.
- * - AppState foreground-resume triggers recheckDenied on denied entries.
+ * - AppState foreground-resume refreshes granted and denied entries.
  */
 
 import React from "react";
@@ -328,9 +328,9 @@ describe("PermissionsScreen", () => {
     expect(mockRouterReplace).not.toHaveBeenCalled();
   });
 
-  // ── 4. AppState foreground-resume re-checks denied entries ─────────────────
+  // ── 4. AppState foreground-resume refreshes permission states ──────────────
 
-  it("re-checks denied permissions when app returns to foreground", async () => {
+  it("refreshes granted and denied permissions when app returns to foreground", async () => {
     // Location is denied initially.
     mockGetForegroundPermissions.mockResolvedValue({
       granted: false,
@@ -364,6 +364,14 @@ describe("PermissionsScreen", () => {
       granted: true,
       status: "granted",
     });
+    mockGetCameraPermissions.mockResolvedValue({
+      granted: true,
+      status: "granted",
+    });
+    mockGetNotificationsPermissions.mockResolvedValue({
+      granted: true,
+      status: "granted",
+    });
 
     // Simulate the device going to background first (so the ref tracks it),
     // then returning to active — which is the Settings round-trip pattern.
@@ -375,8 +383,37 @@ describe("PermissionsScreen", () => {
       await new Promise<void>((r) => setTimeout(r, 0));
     });
 
-    // recheckDenied should have called getForegroundPermissionsAsync again.
+    // All non-prompting OS checks refresh both grants and denials.
     expect(mockGetForegroundPermissions).toHaveBeenCalledTimes(2);
+    expect(mockGetCameraPermissions).toHaveBeenCalledTimes(2);
+    expect(mockGetNotificationsPermissions).toHaveBeenCalledTimes(2);
+
+    // A later Settings change can revoke a grant; returning again must update
+    // the status rather than leaving the screen stuck at "granted".
+    mockGetForegroundPermissions.mockResolvedValue({
+      granted: false,
+      status: "denied",
+    });
+    mockGetCameraPermissions.mockResolvedValue({
+      granted: false,
+      status: "denied",
+    });
+    mockGetNotificationsPermissions.mockResolvedValue({
+      granted: false,
+      status: "denied",
+    });
+
+    await act(async () => {
+      capturedListener?.("background");
+    });
+    await act(async () => {
+      capturedListener?.("active");
+      await new Promise<void>((r) => setTimeout(r, 0));
+    });
+
+    expect(mockGetForegroundPermissions).toHaveBeenCalledTimes(3);
+    expect(mockGetCameraPermissions).toHaveBeenCalledTimes(3);
+    expect(mockGetNotificationsPermissions).toHaveBeenCalledTimes(3);
 
     addEventListenerSpy.mockRestore();
   });

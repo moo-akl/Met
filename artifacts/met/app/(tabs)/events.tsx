@@ -24,7 +24,7 @@ import { useColors } from "@/hooks/useColors";
 import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
 import { useT } from "@/lib/i18n";
 import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
-import { api, ApiError } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import { HangoutsNearbyPanel } from "@/components/HangoutsNearbyPanel";
 import { getHangoutOpenPath } from "@/lib/hangoutNavigation";
 import { groupEventsByDate } from "@/lib/eventDateGroups";
@@ -123,7 +123,7 @@ function EventsScreen() {
         await memberRsvp.mutateAsync({ eventId: event.id, data: { status } });
       }
     } catch (error) {
-      setActionError(error instanceof ApiError ? error.message : "Could not update your RSVP.");
+      setActionError(t("tabs.events.eventActionError"));
     } finally {
       setPendingKey(null);
       setPendingStatus(null);
@@ -247,6 +247,7 @@ function EventsScreen() {
       event.eventType === "member" &&
       event.visibility === "invite_only" &&
       !event.joinApprovalRequired &&
+      event.myRsvp !== "not_going" &&
       (
         event.ownerUid === authedUid ||
         event.isInvited ||
@@ -500,6 +501,17 @@ function EventsScreen() {
           <View style={[styles.emptyCard, { backgroundColor: "transparent", borderColor: colors.border }]}>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("tabs.events.loadError")}</Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{t("tabs.events.refreshHint")}</Text>
+            <Pressable
+              accessibilityRole="button"
+              testID="events-feed-retry"
+              onPress={() => void feed.refetch()}
+              style={[styles.emptyAction, { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.emptyActionText, { color: colors.primaryForeground }]}>
+                {t("common.retry")}
+              </Text>
+              <Feather name="refresh-cw" size={15} color={colors.primaryForeground} />
+            </Pressable>
           </View>
         ) : activeView === "hangouts" ? (
           <HangoutsNearbyPanel
@@ -554,6 +566,33 @@ function EventsScreen() {
                 </Text>
                 <Feather name="arrow-up-right" size={15} color={colors.primaryForeground} />
               </Pressable>
+            ) : activeView === "events" ? (
+              <View style={styles.emptyActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="events-empty-explore-venues"
+                  accessibilityLabel={t("tabs.events.exploreVenues")}
+                  onPress={() => router.push("/(tabs)" as never)}
+                  style={[styles.emptyAction, { backgroundColor: colors.primary }]}
+                >
+                  <Text style={[styles.emptyActionText, { color: colors.primaryForeground }]}>
+                    {t("tabs.events.exploreVenues")}
+                  </Text>
+                  <Feather name="map" size={15} color={colors.primaryForeground} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="events-empty-browse-hangouts"
+                  accessibilityLabel={t("tabs.events.allHangouts")}
+                  onPress={() => selectView("hangouts")}
+                  style={[styles.emptyAction, { backgroundColor: colors.primarySoft }]}
+                >
+                  <Text style={[styles.emptyActionText, { color: colors.primary }]}>
+                    {t("tabs.events.allHangouts")}
+                  </Text>
+                  <Feather name="arrow-up-right" size={15} color={colors.primary} />
+                </Pressable>
+              </View>
             ) : null}
           </View>
         ) : (
@@ -604,7 +643,7 @@ function EventsScreen() {
                     ? t("tabs.events.nextOccurrence", { date: recurrenceDate })
                     : new Date(event.startsAt).toLocaleString(lang);
                   const eventPlaceLabel =
-                    event.location ?? event.venueName ?? event.creatorName;
+                    event.location ?? event.venueName;
                   const eventAccessibilityLabel = [
                     event.title,
                     eventTypeLabel,
@@ -619,6 +658,9 @@ function EventsScreen() {
                         : undefined,
                     eventTimeLabel,
                     eventPlaceLabel,
+                    event.creatorName
+                      ? `${t("tabs.events.createdBy")} ${event.creatorName}`
+                      : undefined,
                   ]
                     .filter(Boolean)
                     .join(". ");
@@ -677,10 +719,31 @@ function EventsScreen() {
                           <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>
                             {eventTimeLabel}
                           </Text>
-                          {(event.location || event.venueName || event.creatorName) ? (
-                            <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>
-                              {event.location ?? event.venueName ?? event.creatorName}
-                            </Text>
+                          {(event.location || event.venueName) ? (
+                            <View style={styles.locationMeta}>
+                              <Feather name="map-pin" size={13} color={colors.mutedForeground} />
+                              <Text numberOfLines={1} style={[styles.eventMeta, styles.locationMetaText, { color: colors.mutedForeground }]}>
+                                {event.location ?? event.venueName}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {event.eventType === "member" ? (
+                            <View style={styles.creatorMeta}>
+                              {event.creatorPhotoUrl ? (
+                                <Image
+                                  source={{ uri: event.creatorPhotoUrl }}
+                                  accessibilityLabel={event.creatorName ?? t("tabs.events.createdBy")}
+                                  style={styles.creatorAvatar}
+                                />
+                              ) : (
+                                <View style={[styles.creatorAvatar, { backgroundColor: colors.primarySoft }]}>
+                                  <Feather name="user" size={12} color={colors.primary} />
+                                </View>
+                              )}
+                              <Text numberOfLines={1} style={[styles.creatorName, { color: colors.mutedForeground }]}>
+                                {t("tabs.events.createdBy")} {event.creatorName ?? t("tabs.events.planHost")}
+                              </Text>
+                            </View>
                           ) : null}
                           {event.description ? <Text style={[styles.description, { color: colors.text }]} numberOfLines={3}>{event.description}</Text> : null}
                           <View style={styles.detailsLink}>
@@ -691,6 +754,7 @@ function EventsScreen() {
                           </View>
                         </View>
                       </Pressable>
+                      {activeView !== "plans" ? (
                       <View style={[styles.rsvpFooter, { borderTopColor: colors.border }]}>
                         <View style={styles.rsvpRow}>
                           <Text style={[styles.rsvpCount, { color: colors.mutedForeground }]}>{event.rsvpCount} · {t("tabs.events.going")}</Text>
@@ -736,6 +800,7 @@ function EventsScreen() {
                           })}
                         </View>
                       </View>
+                      ) : null}
                     </View>
                   );
                 })}
@@ -769,6 +834,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", marginTop: 4 },
   emptyAction: { minHeight: 42, borderTopLeftRadius: 20, borderBottomRightRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
   emptyActionText: { fontSize: 13, fontWeight: "700" },
+  emptyActions: { width: "100%", gap: 7, marginTop: 4 },
   eventList: { gap: 0, paddingTop: 3 },
   eventDateGroup: { gap: 0, borderLeftWidth: 1, paddingLeft: 14, marginLeft: 6 },
   eventDateGroupLtr: { borderLeftWidth: 1, borderRightWidth: 0, paddingLeft: 14, paddingRight: 0, marginLeft: 6, marginRight: 0 },
@@ -782,6 +848,11 @@ const styles = StyleSheet.create({
   privateBadge: { fontSize: 11, fontWeight: "600" },
   eventTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", lineHeight: 27 },
   eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 5 },
+  locationMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  locationMetaText: { flex: 1, marginTop: 0 },
+  creatorMeta: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 7 },
+  creatorAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  creatorName: { flex: 1, fontSize: 11, fontWeight: "600" },
   recurrenceMetaRow: { alignItems: "center", gap: 6, marginTop: 5 },
   recurrenceMetaText: { fontSize: 12, lineHeight: 17, fontWeight: "600" },
   description: { fontSize: 14, lineHeight: 20, marginTop: 9 },

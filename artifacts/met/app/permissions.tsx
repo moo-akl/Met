@@ -70,68 +70,64 @@ export default function PermissionsScreen() {
   const statusesRef = useRef(statuses);
   useEffect(() => { statusesRef.current = statuses; }, [statuses]);
 
-  // Re-check every previously-denied permission when the user comes back
-  // from the OS Settings app. Uses non-prompting "get" APIs so we never
-  // fire the system dialog here — only check what the OS already decided.
+  // Refresh every permission when the user returns from OS Settings. These
+  // are non-prompting checks, so grants and revocations stay truthful without
+  // unexpectedly showing a system permission dialog.
   const recheckDenied = useCallback(async () => {
     const cur = statusesRef.current;
     const updates: Partial<Record<PermKey, Status>> = {};
 
-    if (cur.location === "denied") {
-      try {
-        const res = await Location.getForegroundPermissionsAsync();
-        if (res.granted) updates.location = "granted";
-      } catch { /* noop */ }
-    }
+    try {
+      const res = await Location.getForegroundPermissionsAsync();
+      updates.location = res.granted ? "granted" : res.status === "denied" ? "denied" : "idle";
+    } catch { /* keep the last known state if the OS query fails */ }
 
-    if (cur.camera === "denied") {
-      try {
-        const res = await Camera.getCameraPermissionsAsync();
-        if (res.granted) updates.camera = "granted";
-      } catch { /* noop */ }
-    }
+    try {
+      const res = await Camera.getCameraPermissionsAsync();
+      updates.camera = res.granted ? "granted" : res.status === "denied" ? "denied" : "idle";
+    } catch { /* keep the last known state if the OS query fails */ }
 
-    if (cur.notifications === "denied") {
-      try {
-        const res = await Notifications.getPermissionsAsync();
-        if (res.granted) updates.notifications = "granted";
-      } catch { /* noop */ }
-    }
+    try {
+      const res = await Notifications.getPermissionsAsync();
+      updates.notifications = res.granted ? "granted" : res.status === "denied" ? "denied" : "idle";
+    } catch { /* keep the last known state if the OS query fails */ }
 
-    if (cur.bluetooth === "denied") {
-      if (Platform.OS === "android" && (Platform.Version as number) >= 31) {
+    if (Platform.OS === "android" && (Platform.Version as number) >= 31) {
+      try {
+        const granted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        );
+        if (granted) updates.bluetooth = "granted";
+        else if (cur.bluetooth === "granted") updates.bluetooth = "denied";
+      } catch { /* keep the last known state if the OS query fails */ }
+    } else if (Platform.OS !== "web") {
+      const plx = loadPlx();
+      if (plx) {
         try {
-          const granted = await PermissionsAndroid.check(
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          );
-          if (granted) updates.bluetooth = "granted";
-        } catch { /* noop */ }
-      } else {
-        // iOS: instantiate BleManager and read current state (no prompt).
-        const plx = loadPlx();
-        if (plx) {
-          try {
-            const manager = new plx.BleManager();
-            const granted = await new Promise<boolean>((resolve) => {
-              const timer = setTimeout(() => {
-                try { sub.remove(); } catch { /* noop */ }
-                resolve(false);
-              }, 1500);
-              const sub = manager.onStateChange((s) => {
-                if (s === plx.State.PoweredOn || s === plx.State.PoweredOff) {
-                  clearTimeout(timer); sub.remove(); resolve(true);
-                } else if (
-                  s === plx.State.Unauthorized ||
-                  s === plx.State.Unsupported
-                ) {
-                  clearTimeout(timer); sub.remove(); resolve(false);
-                }
-              }, true);
-            });
-            try { manager.destroy(); } catch { /* noop */ }
-            if (granted) updates.bluetooth = "granted";
-          } catch { /* noop */ }
-        }
+          const manager = new plx.BleManager();
+          const result = await new Promise<Status>((resolve) => {
+            const timer = setTimeout(() => {
+              try { sub.remove(); } catch { /* noop */ }
+              resolve("idle");
+            }, 1500);
+            const sub = manager.onStateChange((state) => {
+              if (state === plx.State.PoweredOn || state === plx.State.PoweredOff) {
+                clearTimeout(timer);
+                sub.remove();
+                resolve("granted");
+              } else if (
+                state === plx.State.Unauthorized ||
+                state === plx.State.Unsupported
+              ) {
+                clearTimeout(timer);
+                sub.remove();
+                resolve("denied");
+              }
+            }, true);
+          });
+          try { manager.destroy(); } catch { /* noop */ }
+          if (result !== "idle") updates.bluetooth = result;
+        } catch { /* keep the last known state if the OS query fails */ }
       }
     }
 
@@ -406,6 +402,18 @@ export default function PermissionsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          {permissionsCompleted ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("common.back")}
+              testID="close-btn"
+              onPress={() => router.back()}
+              style={styles.closeButton}
+              hitSlop={10}
+            >
+              <Feather name="x" size={21} color={colors.foreground} />
+            </Pressable>
+          ) : null}
           <View
             style={[
               styles.iconHero,
@@ -600,7 +608,8 @@ function PermRow({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { alignItems: "center", gap: 10, paddingTop: 4 },
+  header: { alignItems: "center", gap: 10, paddingTop: 4, position: "relative" },
+  closeButton: { position: "absolute", top: 0, right: 0, width: 40, height: 40, alignItems: "center", justifyContent: "center", zIndex: 1 },
   iconHero: {
     width: 92,
     height: 92,

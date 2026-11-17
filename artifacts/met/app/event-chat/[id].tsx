@@ -474,13 +474,19 @@ export default function EventChatScreen() {
 
   const leaveHangoutChat = () => {
     if (!isValidRoute || leavePending) return;
+    const isFriendPlan = !planChat.data?.event.joinApprovalRequired;
+    const title = isFriendPlan
+      ? t("tabs.events.leavePlan")
+      : t("tabs.events.leavePlanChat");
     Alert.alert(
-      t("tabs.events.leavePlanChat"),
-      t("tabs.events.leavePlanChatConfirm"),
+      title,
+      isFriendPlan
+        ? t("tabs.events.leavePlanConfirm")
+        : t("tabs.events.leavePlanChatConfirm"),
       [
         { text: t("common.cancel"), style: "cancel" },
         {
-          text: t("tabs.events.leavePlanChat"),
+          text: title,
           style: "destructive",
           onPress: () => {
             setLeavePending(true);
@@ -501,8 +507,10 @@ export default function EventChatScreen() {
                 router.replace("/plans" as never);
               } catch {
                 Alert.alert(
-                  t("tabs.events.leavePlanChat"),
-                  t("tabs.events.leavePlanChatError"),
+                  title,
+                  isFriendPlan
+                    ? t("tabs.events.planInvitationActionError")
+                    : t("tabs.events.leavePlanChatError"),
                 );
               } finally {
                 setLeavePending(false);
@@ -587,7 +595,11 @@ export default function EventChatScreen() {
           ) ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t("tabs.events.leavePlanChat")}
+            accessibilityLabel={
+              planChat.data?.event.joinApprovalRequired
+                ? t("tabs.events.leavePlanChat")
+                : t("tabs.events.leavePlan")
+            }
               testID="button-leave-plan-chat"
               disabled={leavePending}
               onPress={leaveHangoutChat}
@@ -658,9 +670,7 @@ export default function EventChatScreen() {
                   const statusLabel =
                     participant.status === "host"
                       ? t("tabs.events.planHost")
-                      : participant.status === "maybe"
-                        ? t("tabs.events.maybe")
-                        : t("tabs.events.going");
+                      : null;
                   return (
                     <View key={participant.uid} style={styles.participant}>
                       <Avatar
@@ -674,9 +684,11 @@ export default function EventChatScreen() {
                       >
                         {participant.displayName}
                       </Text>
-                      <Text style={[styles.participantStatus, { color: colors.mutedForeground }]}>
-                        {statusLabel}
-                      </Text>
+                      {statusLabel ? (
+                        <Text style={[styles.participantStatus, { color: colors.mutedForeground }]}>
+                          {statusLabel}
+                        </Text>
+                      ) : null}
                     </View>
                   );
                 })}
