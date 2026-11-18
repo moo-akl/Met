@@ -6,10 +6,11 @@
  * PUT    /venue-owner/me                            — update own profile
  * GET    /venue-owner/:placeId                      — public (approved only)
  *
- * POST   /venue-owner/me/events                    — retired (use Venue Manager)
+ * GET    /venue-owner/me/events                    — list events for selected venue
+ * POST   /venue-owner/me/events                    — create venue event
  * GET    /venue-owner/:placeId/events              — list events for venue
- * PUT    /venue-owner/me/events/:id                — retired (use Venue Manager)
- * DELETE /venue-owner/me/events/:id               — retired (use Venue Manager)
+ * PUT    /venue-owner/me/events/:id                — update venue event
+ * DELETE /venue-owner/me/events/:id               — delete venue event
  * POST   /venue-events/:id/rsvp                    — RSVP to an event
  * GET    /venue-events/:id/rsvp                    — caller's current RSVP
  *
@@ -90,6 +91,7 @@ import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
+import { notifyVenueEventRsvps } from "../lib/eventNotifications";
 import { getRegistrationDeadline, recordVenueInvitation } from "../lib/venueActivation";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { adminAuth, adminStorage } from "../lib/firebaseAdmin";
@@ -98,6 +100,7 @@ import {
   EVENT_PHOTO_MAX_COUNT,
   getEventPhotosExpireAt,
 } from "../lib/eventPhotoRetention";
+import { validateOwnedEventGalleryPhotos } from "../lib/eventPhotoValidation";
 import {
   buildEventInviteUrl,
   createEventInviteLinkFields,
@@ -178,6 +181,13 @@ import { venueGuestbookTable } from "@workspace/db";
 import crypto from "node:crypto";
 import { createVenueEmailTemplatesRouter } from "./venueEmailTemplates.js";
 import { createVenueIntroProfilesRouter } from "./venueIntroProfiles.js";
+import {
+  ACTIVE_VENUE_APPLICATION_STATUS,
+  loadVenueAccess,
+  parseSelectedVenueBusinessId,
+  type VenueAccess,
+  type VenueAccessRole,
+} from "../lib/venueOwnerAccess";
 import { gmailFailureStatus } from "../lib/gmailDeliveryStatus.js";
 import { createGmailHtmlDraft } from "../lib/gmail.js";
 import {
@@ -728,116 +738,18 @@ type HistoryEventType = typeof venueApplicationHistoryTable.$inferInsert["eventT
 /** Minimal surface shared by `db` and a Drizzle transaction handle. */
 type DbExecutor = Pick<typeof db, "insert">;
 
-type VenueAccess = {
-  businessId: number;
-  profileId: number;
-  placeId: string;
-  ownerUid: string;
-  role: "owner" | "manager" | "editor";
-  legacy: boolean;
-};
-
-const ACTIVE_VENUE_APPLICATION_STATUS = "approved";
-
-/**
- * Resolve venue authority from the canonical membership tables. The temporary
- * legacy branch is deliberately narrow: only the original uid on an approved
- * profile qualifies, and identifiers still come from the profile in Postgres.
- * This keeps approved mobile users working while the backfill is rolled out.
- */
-async function loadVenueAccess(
-  uid: string,
-  allowedRoles: readonly VenueAccess["role"][],
-  selectedBusinessId?: number,
-): Promise<VenueAccess | null> {
-  const memberships = await db
-    .select()
-    .from(venueMembershipsTable)
-    .where(
-      and(
-        eq(venueMembershipsTable.uid, uid),
-        eq(venueMembershipsTable.status, "active"),
-      ),
-    );
-
-  for (const membership of memberships) {
-    if (selectedBusinessId === 0 || (
-      selectedBusinessId !== undefined &&
-      membership.businessId !== selectedBusinessId
-    )) continue;
-    if (!allowedRoles.includes(membership.role)) continue;
-    const [business] = await db
-      .select()
-      .from(venueBusinessesTable)
-      .where(eq(venueBusinessesTable.id, membership.businessId))
-      .limit(1);
-    if (!business?.isActive) continue;
-    const [profile] = await db
-      .select()
-      .from(venueOwnerProfilesTable)
-      .where(
-        and(
-          eq(venueOwnerProfilesTable.id, business.venueOwnerProfileId),
-          eq(venueOwnerProfilesTable.isApproved, true),
-          eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
-        ),
-      )
-      .limit(1);
-    if (!profile || profile.placeId !== business.placeId) continue;
-    return {
-      businessId: business.id,
-      profileId: profile.id,
-      placeId: business.placeId,
-      ownerUid: profile.ownerUid,
-      role: membership.role,
-      legacy: false,
-    };
-  }
-
-  // Compatibility only. This must be removed once backfill reconciliation
-  // reports no missing approved owner memberships.
-  if (selectedBusinessId !== undefined && selectedBusinessId !== 0) return null;
-  if (!allowedRoles.includes("owner")) return null;
-  const [profile] = await db
-    .select()
-    .from(venueOwnerProfilesTable)
-    .where(
-      and(
-        eq(venueOwnerProfilesTable.ownerUid, uid),
-        eq(venueOwnerProfilesTable.isApproved, true),
-        eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
-      ),
-    )
-    .limit(1);
-  if (!profile) return null;
-  return {
-    businessId: 0,
-    profileId: profile.id,
-    placeId: profile.placeId,
-    ownerUid: profile.ownerUid,
-    role: "owner",
-    legacy: true,
-  };
-}
-
 async function requireVenueAccess(
   req: Request,
   res: Response,
-  allowedRoles: readonly VenueAccess["role"][],
+  allowedRoles: readonly VenueAccessRole[],
   message = "An active venue membership is required",
 ): Promise<VenueAccess | null> {
-  const rawBusinessId = req.header("x-met-venue-business-id");
-  let selectedBusinessId: number | undefined;
-  if (rawBusinessId !== undefined) {
-    if (!/^(0|[1-9]\d{0,9})$/.test(rawBusinessId)) {
-      res.status(400).json({ message: "Invalid selected venue" });
-      return null;
-    }
-    selectedBusinessId = Number(rawBusinessId);
-    if (!Number.isSafeInteger(selectedBusinessId)) {
-      res.status(400).json({ message: "Invalid selected venue" });
-      return null;
-    }
+  const selectedBusinessId = parseSelectedVenueBusinessId(
+    req.header("x-met-venue-business-id"),
+  );
+  if (selectedBusinessId === null) {
+    res.status(400).json({ message: "Invalid selected venue" });
+    return null;
   }
   const access = await loadVenueAccess(req.uid!, allowedRoles, selectedBusinessId);
   if (!access) {
@@ -2404,10 +2316,63 @@ router.get(
 // Phase 1 — Events
 // ---------------------------------------------------------------------------
 
-function rejectLegacyVenueEventMutation(res: Response): boolean {
-  res.status(410).json({ message: "Venue events are managed in Venue Manager." });
-  return true;
-}
+router.get(
+  "/venue-owner/me/events",
+  requireUid,
+  venueOwnerReadLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
+    const events = await db
+      .select()
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .orderBy(desc(venueEventsTable.startsAt));
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      events: events.map((event) => serializePublicVenueEvent(event, baseUrl)),
+    });
+  },
+);
+
+router.get(
+  "/venue-owner/me/events/:eventId",
+  requireUid,
+  venueOwnerReadLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const eventId = Number(req.params["eventId"]);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
+    const [event] = await db
+      .select()
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found for the selected venue." });
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      event: serializePublicVenueEvent(
+        event,
+        `${req.protocol}://${req.get("host")}`,
+      ),
+    });
+  },
+);
 
 /**
  * POST /venue-owner/me/events
@@ -2417,8 +2382,6 @@ router.post(
   requireUid,
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
-    // Event creation is handled in Venue Manager; retain a clear response for old app versions.
-    if (rejectLegacyVenueEventMutation(res)) return;
     const uid = req.uid!;
     const schema = z.object({
       title: z.string().min(1).max(120),
@@ -2431,6 +2394,10 @@ router.post(
       startsAt: z.string().datetime(),
       endsAt: z.string().datetime().optional().nullable(),
       capacityLimit: z.number().int().positive().optional().nullable(),
+      reminderOffsetsHours: z.array(z.union([z.literal(24), z.literal(2)]))
+        .max(2)
+        .refine((values) => new Set(values).size === values.length)
+        .optional(),
       isPublished: z.boolean().optional(),
       visibility: z.enum(["public", "invite_only"]).optional(),
       inviteeUids: z.array(z.string().min(1).max(128)).max(200).optional(),
@@ -2444,6 +2411,14 @@ router.post(
 
     const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"], "Your venue must be approved and your membership active before creating events");
     if (!access) return;
+    const galleryPhotos = validateOwnedEventGalleryPhotos(
+      parsed.data.galleryPhotos ?? (parsed.data.imageUrl ? [parsed.data.imageUrl] : []),
+      uid,
+    );
+    if (!galleryPhotos) {
+      res.status(400).json({ message: "Choose up to 10 event photos uploaded to your venue." });
+      return;
+    }
     if (new Date(parsed.data.startsAt) <= new Date()) {
       res.status(400).json({ message: "Event start time must be in the future." });
       return;
@@ -2497,11 +2472,8 @@ router.post(
         placeId: access.placeId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
-        imageUrl: parsed.data.galleryPhotos
-          ? parsed.data.galleryPhotos[0] ?? null
-          : parsed.data.imageUrl ?? null,
-        galleryPhotos: parsed.data.galleryPhotos ??
-          (parsed.data.imageUrl ? [parsed.data.imageUrl] : []),
+        imageUrl: galleryPhotos[0] ?? null,
+        galleryPhotos,
         photosExpireAt: getEventPhotosExpireAt(
           new Date(parsed.data.startsAt),
           parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
@@ -2513,6 +2485,7 @@ router.post(
         startsAt: new Date(parsed.data.startsAt),
         endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
         capacityLimit: parsed.data.capacityLimit ?? null,
+        reminderOffsetsHours: parsed.data.reminderOffsetsHours ?? [24, 2],
         isPublished: parsed.data.isPublished ?? true,
         visibility,
         inviteeUids,
@@ -2600,12 +2573,10 @@ router.put(
   requireUid,
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
-    // Event editing is handled in Venue Manager; retain a clear response for old app versions.
-    if (rejectLegacyVenueEventMutation(res)) return;
     const uid = req.uid!;
-    const eventId = parseInt(String(req.params["id"] ?? ""), 10);
-    if (isNaN(eventId)) {
-      res.status(400).json({ message: "Invalid event id" });
+    const eventId = Number(req.params["id"]);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+      res.status(400).json({ message: "Invalid event id." });
       return;
     }
 
@@ -2632,6 +2603,10 @@ router.put(
       startsAt: z.string().datetime().optional(),
       endsAt: z.string().datetime().optional().nullable(),
       capacityLimit: z.number().int().positive().optional().nullable(),
+      reminderOffsetsHours: z.array(z.union([z.literal(24), z.literal(2)]))
+        .max(2)
+        .refine((values) => new Set(values).size === values.length)
+        .optional(),
       isPublished: z.boolean().optional(),
       visibility: z.enum(["public", "invite_only"]).optional(),
       inviteeUids: z.array(z.string().min(1).max(128)).max(200).optional(),
@@ -2659,8 +2634,17 @@ router.put(
       (parsed.data.imageUrl !== undefined
         ? parsed.data.imageUrl ? [parsed.data.imageUrl] : []
         : existing.galleryPhotos ?? []);
+    const validatedGalleryPhotos = validateOwnedEventGalleryPhotos(
+      nextGalleryPhotos,
+      uid,
+      [...(existing.galleryPhotos ?? []), ...(existing.imageUrl ? [existing.imageUrl] : [])],
+    );
+    if (!validatedGalleryPhotos) {
+      res.status(400).json({ message: "Choose up to 10 event photos uploaded to your venue." });
+      return;
+    }
     const nextImageUrl = parsed.data.galleryPhotos !== undefined
-      ? nextGalleryPhotos[0] ?? null
+      ? validatedGalleryPhotos[0] ?? null
       : parsed.data.imageUrl !== undefined
         ? parsed.data.imageUrl
         : existing.imageUrl;
@@ -2691,11 +2675,11 @@ router.put(
     const updatePayload: Record<string, unknown> = {
       updatedAt: new Date(),
       imageUrl: nextImageUrl,
-      galleryPhotos: nextGalleryPhotos,
+      galleryPhotos: validatedGalleryPhotos,
       photosExpireAt: getEventPhotosExpireAt(
         nextStartsAt,
         nextEndsAt,
-        Boolean(nextImageUrl || nextGalleryPhotos.length),
+        Boolean(nextImageUrl || validatedGalleryPhotos.length),
       ),
     };
     if (nextVisibility !== "invite_only") {
@@ -2742,6 +2726,9 @@ router.put(
     if (parsed.data.startsAt !== undefined) updatePayload["startsAt"] = new Date(parsed.data.startsAt);
     if (parsed.data.endsAt !== undefined) updatePayload["endsAt"] = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null;
     if (parsed.data.capacityLimit !== undefined) updatePayload["capacityLimit"] = parsed.data.capacityLimit;
+    if (parsed.data.reminderOffsetsHours !== undefined) {
+      updatePayload["reminderOffsetsHours"] = parsed.data.reminderOffsetsHours;
+    }
     if (parsed.data.isPublished !== undefined) updatePayload["isPublished"] = parsed.data.isPublished;
     if (parsed.data.visibility !== undefined) updatePayload["visibility"] = nextVisibility;
     if (parsed.data.inviteeUids !== undefined || parsed.data.visibility !== undefined) {
@@ -2751,12 +2738,36 @@ router.put(
     const [updated] = await db
       .update(venueEventsTable)
       .set(updatePayload)
-      .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)))
+      .where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.isHidden, false),
+      ))
       .returning();
 
+    if (!updated) {
+      res.status(404).json({ message: "Event not found for the selected venue." });
+      return;
+    }
+    if (
+      existing.title !== updated.title ||
+      existing.description !== updated.description ||
+      existing.startsAt.getTime() !== updated.startsAt.getTime() ||
+      (existing.endsAt?.getTime() ?? null) !== (updated.endsAt?.getTime() ?? null) ||
+      existing.capacityLimit !== updated.capacityLimit ||
+      existing.visibility !== updated.visibility ||
+      existing.isPublished !== updated.isPublished
+    ) {
+      void notifyVenueEventRsvps({
+        eventId,
+        kind: "event_update",
+        scheduledFor: updated.updatedAt,
+        isCancelled: existing.isPublished && !updated.isPublished,
+      });
+    }
     res.json({
       event: serializePublicVenueEvent(
-        updated!,
+        updated,
         `${req.protocol}://${req.get("host")}`,
       ),
     });
@@ -2957,12 +2968,9 @@ router.delete(
   requireUid,
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
-    // Event deletion is handled in Venue Manager; retain a clear response for old app versions.
-    if (rejectLegacyVenueEventMutation(res)) return;
-    const uid = req.uid!;
-    const eventId = parseInt(String(req.params["id"] ?? ""), 10);
-    if (isNaN(eventId)) {
-      res.status(400).json({ message: "Invalid event id" });
+    const eventId = Number(req.params["id"]);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+      res.status(400).json({ message: "Invalid event id." });
       return;
     }
 
@@ -2971,10 +2979,14 @@ router.delete(
     const [existing] = await db
       .select({ id: venueEventsTable.id })
       .from(venueEventsTable)
-      .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)))
+      .where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.isHidden, false),
+      ))
       .limit(1);
     if (!existing) {
-      res.status(404).json({ message: "Event not found or not owned by you" });
+      res.status(404).json({ message: "Event not found for the selected venue." });
       return;
     }
 
@@ -2985,10 +2997,13 @@ router.delete(
       eq(eventAttendanceTable.eventId, eventId),
     ));
     await db.delete(venueEventsTable).where(
-      and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)),
+      and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, access.placeId),
+      ),
     );
 
-    res.json({ success: true });
+    res.sendStatus(204);
   },
 );
 

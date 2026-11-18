@@ -2560,16 +2560,112 @@ paths:
               schema:
                 $ref: "#/components/schemas/VenueGuestListResponse"
 
+  /venue-owner/me/events:
+    get:
+      operationId: getVenueOwnerMeEvents
+      tags: [venue-owner]
+      summary: List events for the selected approved venue
+      security:
+        - MetUid: []
+      parameters:
+        - $ref: "#/components/parameters/SelectedVenueBusinessId"
+      responses:
+        "200":
+          description: Events managed by the selected venue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventList"
+        "403": { description: Active venue membership required }
+    post:
+      operationId: createVenueOwnerMeEvent
+      tags: [venue-owner]
+      summary: Create an event for the selected approved venue
+      security:
+        - MetUid: []
+      parameters:
+        - $ref: "#/components/parameters/SelectedVenueBusinessId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerEventInput"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventResponse"
+        "400": { description: Invalid event details }
+        "403": { description: Active venue membership required }
+
+  /venue-owner/me/events/{eventId}:
+    parameters:
+      - $ref: "#/components/parameters/VenueEventId"
+      - $ref: "#/components/parameters/SelectedVenueBusinessId"
+    get:
+      operationId: getVenueOwnerMeEvent
+      tags: [venue-owner]
+      summary: Get an event for the selected approved venue
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Event details for editing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventResponse"
+        "403": { description: Active venue membership required }
+        "404": { description: Event not found for selected venue }
+    put:
+      operationId: updateVenueOwnerMeEvent
+      tags: [venue-owner]
+      summary: Update a venue event
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerEventUpdate"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventResponse"
+        "400": { description: Invalid event details }
+        "403": { description: Active venue membership required }
+        "404": { description: Event not found for selected venue }
+    delete:
+      operationId: deleteVenueOwnerMeEvent
+      tags: [venue-owner]
+      summary: Delete a venue event
+      security:
+        - MetUid: []
+      responses:
+        "204": { description: Event deleted }
+        "403": { description: Active venue membership required }
+        "404": { description: Event not found for selected venue }
+
   /venue-owner/me/events/{eventId}/invite-link:
     post:
       operationId: createVenueOwnerEventInviteLink
       tags: [venue-owner]
       summary: Get a shareable invitation link for a venue event
+      security:
+        - MetUid: []
       parameters:
         - name: eventId
           in: path
           required: true
           schema: { type: integer, minimum: 1 }
+        - $ref: "#/components/parameters/SelectedVenueBusinessId"
       responses:
         "200":
           description: Shareable invitation link
@@ -2585,11 +2681,14 @@ paths:
       operationId: revokeVenueOwnerEventInviteLink
       tags: [venue-owner]
       summary: Disable a venue event invitation link
+      security:
+        - MetUid: []
       parameters:
         - name: eventId
           in: path
           required: true
           schema: { type: integer, minimum: 1 }
+        - $ref: "#/components/parameters/SelectedVenueBusinessId"
       responses:
         "204": { description: Invitation link disabled }
         "404": { description: Event not found }
@@ -2600,11 +2699,14 @@ paths:
       operationId: rotateVenueOwnerEventInviteLink
       tags: [venue-owner]
       summary: Replace a venue event invitation link
+      security:
+        - MetUid: []
       parameters:
         - name: eventId
           in: path
           required: true
           schema: { type: integer, minimum: 1 }
+        - $ref: "#/components/parameters/SelectedVenueBusinessId"
       responses:
         "200":
           description: Replacement invitation link
@@ -2900,6 +3002,7 @@ paths:
           in: path
           required: true
           schema: { type: integer }
+        - $ref: "#/components/parameters/SelectedVenueBusinessId"
       requestBody:
         required: true
         content:
@@ -2932,6 +3035,7 @@ paths:
           in: path
           required: true
           schema: { type: integer }
+        - $ref: "#/components/parameters/SelectedVenueBusinessId"
       responses:
         "200":
           description: Verified attendee list
@@ -5830,6 +5934,14 @@ components:
       in: path
       required: true
       schema: { type: integer, minimum: 1 }
+    SelectedVenueBusinessId:
+      name: X-Met-Venue-Business-Id
+      in: header
+      required: false
+      description: Selects the venue branch for owner-managed mobile requests.
+      schema:
+        type: string
+        pattern: '^(0|[1-9]\d{0,9})$'
     VenueManagerId:
       name: managerId
       in: path

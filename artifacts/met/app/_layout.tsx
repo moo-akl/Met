@@ -604,18 +604,6 @@ function RootLayoutNav() {
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
       <Stack.Screen
-        name="venue-owner/events/index"
-        options={{ presentation: "card", animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="venue-owner/events/new"
-        options={{ presentation: "modal", animation: "slide_from_bottom" }}
-      />
-      <Stack.Screen
-        name="venue-owner/events/[id]"
-        options={{ presentation: "modal", animation: "slide_from_bottom" }}
-      />
-      <Stack.Screen
         name="venue-owner/rewards/index"
         options={{ presentation: "card", animation: "slide_from_right" }}
       />

@@ -45,6 +45,13 @@ export function getActiveVenueBusinessId(): number | null {
   return activeVenueBusinessId;
 }
 
+/** Request headers for generated API calls that need the current venue branch. */
+export function getActiveVenueBusinessHeaders(): Record<string, string> {
+  return activeVenueBusinessId === null
+    ? {}
+    : { "X-Met-Venue-Business-Id": String(activeVenueBusinessId) };
+}
+
 // Cache the auth-module dynamic import. We never import it statically
 // because on web / Expo Go the native bridge isn't linked and the
 // import would crash the bundle.

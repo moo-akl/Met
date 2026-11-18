@@ -58,8 +58,14 @@ vi.mock("@workspace/db", () => ({
     consumedAt: "consumedAt",
     applicationId: "applicationId",
   },
-  venueEventsTable: {},
-  venueEventRsvpsTable: {},
+  venueEventsTable: {
+    id: "id",
+    placeId: "placeId",
+    ownerUid: "ownerUid",
+    isHidden: "isHidden",
+    startsAt: "startsAt",
+  },
+  venueEventRsvpsTable: { eventId: "eventId" },
   eventAttendanceTable: { eventType: "eventType", eventId: "eventId" },
   venueRewardsTable: {},
   venueAnnouncementsTable: {},
@@ -94,6 +100,9 @@ vi.mock("../middlewares/rateLimit", () => ({
 }));
 
 vi.mock("../lib/push", () => ({ sendPush: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../lib/eventNotifications", () => ({
+  notifyVenueEventRsvps: vi.fn().mockResolvedValue(undefined),
+}));
 
 import express from "express";
 import request from "supertest";
@@ -775,25 +784,105 @@ describe("membership revocation gates — event, reward, and announcement writes
     // legacy fallback: where() → chain (default), limit() → [] (default)
   }
 
-  // ── legacy mobile event mutation endpoints ────────────────────────────────
+  // ── selected-branch mobile event management ───────────────────────────────
 
-  it("directs event creation, editing, and deletion to Venue Manager", async () => {
-    const create = await request(app)
+  it("lists only events for the caller's active venue membership", async () => {
+    mockActiveAccess();
+    dbMocks.chain.orderBy.mockResolvedValueOnce([]);
+
+    const response = await request(app).get("/api/venue-owner/me/events");
+
+    expect(response.status).toBe(200);
+    expect(response.body.events).toEqual([]);
+  });
+
+  it("creates a venue event for the selected approved venue", async () => {
+    mockActiveAccess();
+
+    const response = await request(app)
       .post("/api/venue-owner/me/events")
       .send(validEvent);
+
+    expect(response.status).toBe(201);
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
+      ownerUid: "venue-owner-uid",
+      placeId: "place-1",
+      title: validEvent.title,
+      reminderOffsetsHours: [24, 2],
+      isPublished: true,
+    }));
+  });
+
+  it("updates and deletes events through the selected venue membership", async () => {
+    const startsAt = new Date(futureIso);
+    const event = {
+      id: 42,
+      ownerUid: "venue-owner-uid",
+      placeId: "place-1",
+      title: validEvent.title,
+      description: null,
+      imageUrl: null,
+      galleryPhotos: [],
+      photosExpireAt: null,
+      contactPhone: null,
+      websiteUrl: null,
+      publicEmail: null,
+      startsAt,
+      endsAt: null,
+      capacityLimit: null,
+      reminderOffsetsHours: [24, 2],
+      visibility: "public",
+      inviteeUids: [],
+      inviteTokenHash: null,
+      inviteTokenEncrypted: null,
+      invitePasscodeSalt: null,
+      invitePasscodeHash: null,
+      checkinTokenHash: null,
+      checkinTokenEncrypted: null,
+      rsvpCount: 0,
+      isPublished: true,
+      isHidden: false,
+      createdAt: startsAt,
+      updatedAt: startsAt,
+    };
+    mockActiveAccessForEdit(event);
+
     const update = await request(app)
       .put("/api/venue-owner/me/events/42")
-      .send({ title: "Updated Title" });
-    const remove = await request(app)
-      .delete("/api/venue-owner/me/events/42");
+      .send({ title: validEvent.title });
+    expect(update.status).toBe(200);
 
-    for (const response of [create, update, remove]) {
-      expect(response.status).toBe(410);
-      expect(response.body.message).toBe("Venue events are managed in Venue Manager.");
-    }
+    vi.clearAllMocks();
+    dbMocks.chain.select.mockReturnThis();
+    dbMocks.chain.from.mockReturnThis();
+    dbMocks.chain.where
+      .mockReturnThis()
+      .mockResolvedValueOnce([
+        { uid: "venue-owner-uid", status: "active", role: "owner", businessId: 1 },
+      ]);
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([
+        { id: 1, placeId: "place-1", isActive: true, venueOwnerProfileId: 99 },
+      ])
+      .mockResolvedValueOnce([
+        { id: 99, placeId: "place-1", ownerUid: "venue-owner-uid", isApproved: true, applicationStatus: "approved" },
+      ])
+      .mockResolvedValueOnce([event]);
+    dbMocks.chain.delete.mockReturnThis();
+
+    const remove = await request(app).delete("/api/venue-owner/me/events/42");
+    expect(remove.status).toBe(204);
+  });
+
+  it("blocks event creation when the caller has no active venue membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/events")
+      .send(validEvent);
+
+    expect(response.status).toBe(403);
     expect(dbMocks.chain.insert).not.toHaveBeenCalled();
-    expect(dbMocks.chain.update).not.toHaveBeenCalled();
-    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
   });
 
   // ── reward creation ───────────────────────────────────────────────────────

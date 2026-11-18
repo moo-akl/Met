@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  Platform,
   Pressable,
   Share,
   ScrollView,
@@ -28,11 +29,16 @@ import { EventReviewSection } from "@/components/EventReviewSection";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
 import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
-import { openVenueManager as openVenueManagerLink } from "@/lib/venueManagerLink";
+import {
+  getActiveVenueBusinessHeaders,
+  getActiveVenueBusinessId,
+} from "@/lib/api/client";
 import {
   getGetEventDetailsQueryKey,
   getGetEventDetailsQueryOptions,
   getGetCommunityEventForEditQueryOptions,
+  getGetVenueOwnerMeEventQueryKey,
+  getGetVenueOwnerMeEventQueryOptions,
   getGetEventsFeedQueryKey,
   checkInEventByLocation,
   useDeleteCommunityEvent,
@@ -83,6 +89,22 @@ export default function EventDetailsScreen() {
       ...getGetEventDetailsQueryKey(eventType, isValidRoute ? eventId : 0),
       authedUid ?? "signed-out",
     ],
+  });
+  const venueBusinessId = getActiveVenueBusinessId();
+  const venueBusinessHeaders = getActiveVenueBusinessHeaders();
+  const venueOwnerEventOptions = getGetVenueOwnerMeEventQueryOptions(
+    isValidRoute ? eventId : 0,
+    { request: { headers: venueBusinessHeaders } },
+  );
+  const venueOwnerEventQuery = useQuery({
+    ...venueOwnerEventOptions,
+    enabled: eventType === "venue" && isValidRoute && !!authedUid,
+    queryKey: [
+      ...getGetVenueOwnerMeEventQueryKey(isValidRoute ? eventId : 0),
+      authedUid ?? "signed-out",
+      venueBusinessId ?? "no-branch",
+    ],
+    staleTime: 30_000,
   });
   useEffect(() => {
     if (
@@ -141,7 +163,12 @@ export default function EventDetailsScreen() {
       if (timer) clearTimeout(timer);
     };
   }, [event, eventStartKey]);
-  const isOwner = Boolean(event && event.ownerUid === authedUid);
+  const isOwner = Boolean(
+    event &&
+      (event.eventType === "venue"
+        ? venueOwnerEventQuery.isSuccess
+        : event.ownerUid === authedUid),
+  );
   const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
   const isFriendPlan = Boolean(
     eventType === "member" &&
@@ -214,7 +241,9 @@ export default function EventDetailsScreen() {
     enabled: isOwner && event?.eventType === "member",
   });
   const shareInviteMutation = useCreateCommunityEventInviteLink();
-  const shareVenueInviteMutation = useCreateVenueOwnerEventInviteLink();
+  const shareVenueInviteMutation = useCreateVenueOwnerEventInviteLink({
+    request: { headers: venueBusinessHeaders },
+  });
   const reportCommunityEvent = useReportCommunityEvent();
 
   const saveRsvp = async (status: RsvpStatus) => {
@@ -478,17 +507,6 @@ export default function EventDetailsScreen() {
     }
   };
 
-  const openVenueManager = async () => {
-    try {
-      await openVenueManagerLink();
-    } catch (error) {
-      Alert.alert(
-        "Venue Manager unavailable",
-        error instanceof Error ? error.message : "Please open Venue Manager in your browser.",
-      );
-    }
-  };
-
   const doDelete = () => {
     if (event?.eventType !== "member" || !isOwner) return;
     deleteEvent.mutate({ eventId: event.id });
@@ -496,7 +514,7 @@ export default function EventDetailsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 8, borderBottomColor: colors.border }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("common.back")}
@@ -519,26 +537,18 @@ export default function EventDetailsScreen() {
         {isOwner && event && !isConcludedHangout ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={
-              event.eventType === "venue"
-                ? "Open Venue Manager"
-                : t("tabs.events.editEvent")
-            }
+            accessibilityLabel={t("tabs.events.editEvent")}
             testID="event-details-edit-button"
             onPress={() => {
               if (event.eventType === "venue") {
-                void openVenueManager();
+                router.push(`/venue-owner/events/${event.id}` as never);
               } else {
                 router.push(`/event-edit/${event.id}` as never);
               }
             }}
             style={styles.headerButton}
           >
-            <Feather
-              name={event.eventType === "venue" ? "external-link" : "edit-2"}
-              size={19}
-              color={colors.text}
-            />
+            <Feather name="edit-2" size={19} color={colors.text} />
           </Pressable>
         ) : (
           <View style={styles.headerButton} />
@@ -572,7 +582,7 @@ export default function EventDetailsScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.content,
-            { paddingBottom: insets.bottom + 28 },
+            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 28 },
           ]}
         >
           {isHangout ? (

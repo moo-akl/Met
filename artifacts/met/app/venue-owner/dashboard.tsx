@@ -37,7 +37,7 @@ import { useT } from "@/lib/i18n";
 // ─── Nav sections ─────────────────────────────────────────────────────────────
 const SECTIONS = [
   { icon: "users", label: "Guests",        sub: "See who's coming back — connect personally", route: "/venue-owner/guests",           glowColor: "rgba(96,165,250,0.5)"  },
-  { icon: "calendar", label: "Events",        sub: "Review RSVPs; manage events online",          route: "/venue-owner/events",            glowColor: "rgba(167,139,250,0.5)" },
+  { icon: "calendar", label: "Events",        sub: "Create events and review RSVPs in Met",       route: "/venue-owner/events",            glowColor: "rgba(167,139,250,0.5)" },
   { icon: "gift", label: "Rewards",       sub: "Run reward campaigns",                       route: "/venue-owner/rewards",           glowColor: "rgba(52,211,153,0.5)"  },
   { icon: "volume-2", label: "Announcements", sub: "Post updates to guests",                     route: "/venue-owner/announcements",     glowColor: "rgba(251,191,36,0.5)"  },
   { icon: "edit-3", label: "Edit Profile",  sub: "Name, photos, description",                  route: "/venue-owner/profile/edit",      glowColor: "rgba(244,114,182,0.5)" },

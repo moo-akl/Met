@@ -128,7 +128,12 @@ import {
   EVENT_PHOTO_MAX_COUNT,
   getEventPhotosExpireAt,
 } from "../lib/eventPhotoRetention";
+import { validateOwnedEventGalleryPhotos } from "../lib/eventPhotoValidation";
 import { getVerifiedExplorerStatuses } from "../lib/verifiedExplorer";
+import {
+  loadVenueAccess,
+  parseSelectedVenueBusinessId,
+} from "../lib/venueOwnerAccess";
 import { z } from "zod";
 
 const router = Router();
@@ -304,44 +309,6 @@ function validateEventTimes(
 
 function normalizeInvitees(inviteeUids: string[] | undefined, uid: string) {
   return [...new Set(inviteeUids ?? [])].filter((inviteeUid) => inviteeUid !== uid);
-}
-
-function getOwnedEventPhotoPath(rawUrl: string, uid: string): string | null {
-  try {
-    const url = new URL(rawUrl);
-    let objectPath: string | null = null;
-    if (url.hostname === "storage.googleapis.com") {
-      const segments = url.pathname.split("/").filter(Boolean);
-      objectPath = segments.slice(1).map(decodeURIComponent).join("/");
-    } else if (url.hostname === "firebasestorage.googleapis.com") {
-      const match = url.pathname.match(/^\/v0\/b\/[^/]+\/o\/(.+)$/);
-      if (match) objectPath = decodeURIComponent(match[1]!);
-    }
-    if (
-      !objectPath ||
-      !objectPath.startsWith(`venue-event-images/${uid}/`) ||
-      objectPath.split("/").some((part) => part === "..")
-    ) {
-      return null;
-    }
-    return objectPath;
-  } catch {
-    return null;
-  }
-}
-
-function validateGalleryPhotos(
-  photos: string[] | undefined,
-  uid: string,
-  existingPhotos: string[] = [],
-): string[] | null {
-  const uniquePhotos = [...new Set(photos ?? [])];
-  if (uniquePhotos.length > EVENT_PHOTO_MAX_COUNT) return null;
-  return uniquePhotos.every((photo) =>
-    existingPhotos.includes(photo) || getOwnedEventPhotoPath(photo, uid) !== null,
-  )
-    ? uniquePhotos
-    : null;
 }
 
 function isValidTimeZone(value: string): boolean {
@@ -873,7 +840,7 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     res.status(400).json({ message: "Choose a place from the location search results." });
     return;
   }
-  const galleryPhotos = validateGalleryPhotos(parsed.data.galleryPhotos, uid);
+  const galleryPhotos = validateOwnedEventGalleryPhotos(parsed.data.galleryPhotos, uid);
   if (!galleryPhotos) {
     res.status(400).json({ message: "Choose up to 10 photos uploaded to this account." });
     return;
@@ -3088,7 +3055,7 @@ router.put(
       res.status(400).json({ message: "Choose a place from the location search results." });
       return;
     }
-    const nextGalleryPhotos = validateGalleryPhotos(
+    const nextGalleryPhotos = validateOwnedEventGalleryPhotos(
       parsed.data.galleryPhotos,
       uid,
       existing.galleryPhotos ?? [],
@@ -4214,11 +4181,31 @@ router.post(
     const { eventType, eventId } = params.data;
     const rotate = body.data.rotate;
     if (eventType === "venue") {
-      const [event] = await db.select().from(venueEventsTable).where(and(
-        eq(venueEventsTable.id, eventId),
-        eq(venueEventsTable.ownerUid, req.uid!),
-        eq(venueEventsTable.isHidden, false),
-      )).limit(1);
+      const selectedBusinessId = parseSelectedVenueBusinessId(
+        req.header("x-met-venue-business-id"),
+      );
+      if (selectedBusinessId === null) {
+        res.status(400).json({ message: "Invalid selected venue." });
+        return;
+      }
+      const access = await loadVenueAccess(
+        req.uid!,
+        ["owner", "manager", "editor"],
+        selectedBusinessId,
+      );
+      if (!access) {
+        res.status(403).json({ message: "An active venue membership is required." });
+        return;
+      }
+      const [event] = await db
+        .select()
+        .from(venueEventsTable)
+        .where(and(
+          eq(venueEventsTable.id, eventId),
+          eq(venueEventsTable.placeId, access.placeId),
+          eq(venueEventsTable.isHidden, false),
+        ))
+        .limit(1);
       if (!event) {
         res.status(404).json({ message: "Event not found." });
         return;
@@ -4235,7 +4222,11 @@ router.post(
               checkinTokenEncrypted: fields.checkinTokenEncrypted,
               updatedAt: new Date(),
             })
-            .where(eq(venueEventsTable.id, eventId))
+            .where(and(
+              eq(venueEventsTable.id, eventId),
+              eq(venueEventsTable.placeId, access.placeId),
+              eq(venueEventsTable.isHidden, false),
+            ))
             .returning({ checkinTokenEncrypted: venueEventsTable.checkinTokenEncrypted });
           if (!updated) {
             res.status(409).json({ message: "The event check-in code could not be saved." });
@@ -4303,12 +4294,44 @@ router.get(
       return;
     }
     const { eventType, eventId } = params.data;
-    const eventTable = eventType === "venue" ? venueEventsTable : communityEventsTable;
-    const [event] = await db.select({ id: eventTable.id }).from(eventTable).where(and(
-      eq(eventTable.id, eventId),
-      eq(eventTable.ownerUid, req.uid!),
-      eq(eventTable.isHidden, false),
-    )).limit(1);
+    let event: { id: number } | undefined;
+    if (eventType === "venue") {
+      const selectedBusinessId = parseSelectedVenueBusinessId(
+        req.header("x-met-venue-business-id"),
+      );
+      if (selectedBusinessId === null) {
+        res.status(400).json({ message: "Invalid selected venue." });
+        return;
+      }
+      const access = await loadVenueAccess(
+        req.uid!,
+        ["owner", "manager", "editor"],
+        selectedBusinessId,
+      );
+      if (!access) {
+        res.status(403).json({ message: "An active venue membership is required." });
+        return;
+      }
+      [event] = await db
+        .select({ id: venueEventsTable.id })
+        .from(venueEventsTable)
+        .where(and(
+          eq(venueEventsTable.id, eventId),
+          eq(venueEventsTable.placeId, access.placeId),
+          eq(venueEventsTable.isHidden, false),
+        ))
+        .limit(1);
+    } else {
+      [event] = await db
+        .select({ id: communityEventsTable.id })
+        .from(communityEventsTable)
+        .where(and(
+          eq(communityEventsTable.id, eventId),
+          eq(communityEventsTable.ownerUid, req.uid!),
+          eq(communityEventsTable.isHidden, false),
+        ))
+        .limit(1);
+    }
     if (!event) {
       res.status(404).json({ message: "Event not found." });
       return;

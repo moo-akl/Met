@@ -4695,6 +4695,11 @@ export interface SubmitAnswersRequest {
   answers: SubmitAnswersRequestAnswersItem[];
 }
 
+/**
+ * Selects the venue branch for owner-managed mobile requests.
+ */
+export type SelectedVenueBusinessIdParameter = string;
+
 export type VenueManagerCsrfParameter = string;
 
 export type CronSecretParameter = string;

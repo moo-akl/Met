@@ -243,6 +243,7 @@ export * from './saveLocalEventReminderPayload';
 export * from './searchAdminVenuePlaces200';
 export * from './searchAdminVenuePlacesParams';
 export * from './searchEventLocationsParams';
+export * from './selectedVenueBusinessIdParameter';
 export * from './submitAnswersRequest';
 export * from './submitAnswersRequestAnswersItem';
 export * from './syncGmailVenueOutreachRepliesResult';

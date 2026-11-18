@@ -1,15 +1,10 @@
-/**
- * Venue Owner Events List
- *
- * Aurora (dark):  deep #0A0518 bg, translucent glass cards, white typography.
- * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
- */
-import React, { useCallback, useState } from "react";
+import React, { useCallback } from "react";
 import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -18,75 +13,96 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useApp } from "@/contexts/AppContext";
-import { api, type VenueEvent } from "@/lib/api/client";
-import { useColors } from "@/hooks/useColors";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useVenueOwner } from "@/hooks/useVenueOwner";
-import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
-import { useCreateVenueOwnerEventInviteLink } from "@workspace/api-client-react";
-import { openVenueManager as openVenueManagerLink } from "@/lib/venueManagerLink";
+import { useQueryClient } from "@tanstack/react-query";
 
-const GREEN = "#00E87A";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { useApp } from "@/contexts/AppContext";
+import { useColors } from "@/hooks/useColors";
+import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { getActiveVenueBusinessHeaders } from "@/lib/api/client";
+import {
+  getGetVenueOwnerMeEventsQueryKey,
+  useCreateVenueOwnerEventInviteLink,
+  useDeleteVenueOwnerMeEvent,
+  useGetVenueOwnerMeEvents,
+  useUpdateVenueOwnerMeEvent,
+  type VenueManagerEvent,
+} from "@workspace/api-client-react";
 
 export default function VenueOwnerEventsScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
-  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { profile, isLoading: ownerLoading, error: ownerError } = useVenueOwner();
-  const [events, setEvents] = useState<VenueEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const createInviteLink = useCreateVenueOwnerEventInviteLink();
+  const queryClient = useQueryClient();
+  const {
+    profile,
+    isLoading: ownerLoading,
+    error: ownerError,
+    branchError,
+    activeBusinessId,
+  } = useVenueOwner();
+  const requestHeaders = getActiveVenueBusinessHeaders();
+  const eventsQuery = useGetVenueOwnerMeEvents({
+    query: {
+      enabled: !!authedUid && !ownerLoading && profile?.isApproved === true,
+      queryKey: [
+        ...getGetVenueOwnerMeEventsQueryKey(),
+        authedUid ?? "signed-out",
+        activeBusinessId ?? "no-branch",
+      ],
+    },
+    request: { headers: requestHeaders },
+  });
+  const createInviteLink = useCreateVenueOwnerEventInviteLink({
+    request: { headers: requestHeaders },
+  });
+  const updateEvent = useUpdateVenueOwnerMeEvent({
+    request: { headers: requestHeaders },
+  });
+  const deleteEvent = useDeleteVenueOwnerMeEvent({
+    request: { headers: requestHeaders },
+  });
+  const events = eventsQuery.data?.events ?? [];
+  const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
-  // ── Venue theme tokens ──────────────────────────────────────────────────────
-  const vBg         = isDark ? "#0A0518"                    : "#FAFAF8";
-  const vCard       = isDark ? "rgba(255,255,255,0.06)"     : "#fff";
-  const vCardBorder = isDark ? "rgba(255,255,255,0.1)"      : "rgba(0,0,0,0.08)";
-  const vText       = isDark ? "#fff"                       : "#0D0D0D";
-  const vMuted      = isDark ? "rgba(255,255,255,0.4)"      : "rgba(0,0,0,0.38)";
-  const vSeparator  = isDark ? "rgba(255,255,255,0.07)"     : "rgba(0,0,0,0.06)";
-  const vEmpty      = isDark ? "rgba(255,255,255,0.4)"      : "rgba(0,0,0,0.38)";
-  const accent      = isDark ? colors.primary               : GREEN;
-
-  const fetchEvents = useCallback(async () => {
-    if (!authedUid || !profile?.placeId) return;
-    setLoading(true);
-    try {
-      const data = await api.getVenueEvents({ uid: authedUid }, profile.placeId);
-      setEvents(data.events);
-    } finally {
-      setLoading(false);
-    }
-  }, [authedUid, profile?.placeId]);
+  const refreshEvents = useCallback(async () => {
+    await eventsQuery.refetch();
+  }, [eventsQuery.refetch]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!ownerLoading) void fetchEvents();
-    }, [ownerLoading, fetchEvents]),
+      if (!ownerLoading && profile?.isApproved) void refreshEvents();
+    }, [ownerLoading, profile?.isApproved, activeBusinessId, refreshEvents]),
   );
 
-  const openVenueManager = async () => {
-    try {
-      await openVenueManagerLink();
-    } catch (error) {
-      Alert.alert(
-        "Venue Manager unavailable",
-        error instanceof Error
-          ? error.message
-          : "Open Venue Manager in your browser to manage venue events.",
-      );
-    }
+  const invalidateEvents = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: getGetVenueOwnerMeEventsQueryKey(),
+    });
   };
 
-  const handleShare = async (event: VenueEvent) => {
-    if (!authedUid || event.visibility !== "invite_only") return;
+  const openEvent = (event: VenueManagerEvent) =>
+    router.push({
+      pathname: "/event-details/[eventType]/[id]",
+      params: { eventType: "venue", id: String(event.id) },
+    } as never);
+
+  const openAttendees = (event: VenueManagerEvent) =>
+    router.push({
+      pathname: "/event-attendees/[eventType]/[id]",
+      params: {
+        eventType: "venue",
+        id: String(event.id),
+        title: event.title,
+      },
+    } as never);
+
+  const handleShare = async (event: VenueManagerEvent) => {
+    if (event.visibility !== "invite_only") return;
     try {
       const link = await createInviteLink.mutateAsync({ eventId: event.id });
-      setEvents((current) => current.map((item) =>
-        item.id === event.id ? { ...item, inviteLinkEnabled: true } : item,
-      ));
+      await invalidateEvents();
       await Share.share({
         message: `${event.title}\n${link.url}`,
         url: link.url,
@@ -106,30 +122,110 @@ export default function VenueOwnerEventsScreen() {
     }
   };
 
-  if (ownerLoading || loading) {
+  const togglePublished = (event: VenueManagerEvent) => {
+    const action = event.isPublished ? "Unpublish" : "Publish";
+    Alert.alert(
+      `${action} this event?`,
+      event.isPublished
+        ? "Guests will no longer see or RSVP to this event."
+        : "Guests will be able to find this event and RSVP.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: action,
+          onPress: () => {
+            void updateEvent.mutateAsync({
+              eventId: event.id,
+              data: { isPublished: !event.isPublished },
+            }).then(invalidateEvents).catch((error: unknown) => {
+              Alert.alert(
+                `Could not ${action.toLowerCase()} event`,
+                error instanceof Error ? error.message : "Please try again.",
+              );
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const confirmDelete = (event: VenueManagerEvent) => {
+    Alert.alert(
+      "Delete this event?",
+      "This permanently removes the event and its RSVPs.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void deleteEvent.mutateAsync({ eventId: event.id })
+              .then(invalidateEvents)
+              .catch((error: unknown) => {
+                Alert.alert(
+                  "Could not delete event",
+                  error instanceof Error ? error.message : "Please try again.",
+                );
+              });
+          },
+        },
+      ],
+    );
+  };
+
+  const openCreate = () => router.push("/venue-owner/events/new" as never);
+  const isLoading = ownerLoading || eventsQuery.isLoading;
+  const accessError = ownerError || branchError || !profile?.isApproved;
+
+  if (isLoading) {
     return (
-      <View style={[styles.root, { backgroundColor: vBg }]}>
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
         <VenueOwnerHeader title="Events" />
         <View style={styles.center}>
-          <ActivityIndicator color={accent} />
+          <ActivityIndicator color={colors.primary} />
         </View>
       </View>
     );
   }
 
-  if (ownerError || !profile) {
+  if (accessError) {
     return (
-      <View style={[styles.root, { backgroundColor: vBg }]}>
-        <VenueOwnerHeader title="Events" />
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <VenueOwnerHeader title="Events" onBack={() => router.back()} />
         <View style={styles.center}>
-          <Text style={[styles.emptyText, { color: vEmpty }]}>We couldn't refresh your venue access.</Text>
+          <Feather name="alert-circle" size={28} color={colors.destructive} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            We couldn't refresh your venue access.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (eventsQuery.isError) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <VenueOwnerHeader title="Events" onBack={() => router.back()} />
+        <View style={styles.center}>
+          <Feather name="alert-circle" size={28} color={colors.destructive} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            Events couldn't be loaded.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            testID="venue-owner-events-retry"
+            onPress={() => void eventsQuery.refetch()}
+            style={[styles.emptyBtn, { borderColor: colors.primary }]}
+          >
+            <Text style={[styles.emptyBtnText, { color: colors.primary }]}>Try again</Text>
+          </Pressable>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: vBg }]}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <VenueOwnerHeader
         title="Events"
         onBack={() => router.back()}
@@ -137,39 +233,60 @@ export default function VenueOwnerEventsScreen() {
           <Pressable
             testID="venue-owner-new-event"
             accessibilityRole="button"
-            accessibilityLabel="Open Venue Manager"
-            onPress={() => void openVenueManager()}
-            style={[styles.addBtn, { backgroundColor: accent }]}
+            accessibilityLabel="Create a venue event"
+            onPress={openCreate}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
           >
-            <Text style={[styles.addBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>Manage online</Text>
+            <Feather name="plus" size={16} color={colors.primaryForeground} />
+            <Text style={[styles.addBtnText, { color: colors.primaryForeground }]}>
+              New event
+            </Text>
           </Pressable>
         }
       />
-
       <FlatList
         data={events}
+        scrollEnabled={events.length > 0}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[
+          styles.list,
+          { paddingBottom: insets.bottom + webBottomInset + 24 },
+        ]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Feather name="calendar" size={38} color={accent} style={styles.emptyEmoji} />
-            <Text style={[styles.emptyText, { color: vEmpty }]}>No events yet</Text>
+            <Feather name="calendar" size={34} color={colors.primary} style={styles.emptyIcon} />
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              No events yet
+            </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Open Venue Manager"
-              onPress={() => void openVenueManager()}
-              style={[styles.emptyBtn, { borderColor: accent }]}
+              accessibilityLabel="Create your first event"
+              onPress={openCreate}
+              style={[styles.emptyBtn, { borderColor: colors.primary }]}
             >
-              <Text style={[styles.emptyBtnText, { color: accent }]}>Open Venue Manager</Text>
+              <Text style={[styles.emptyBtnText, { color: colors.primary }]}>
+                Create your first event
+              </Text>
             </Pressable>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: vCard, borderColor: vCardBorder }]}>
-            <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={[styles.cardTitle, { color: vText }]}>{item.title}</Text>
-              <Text style={[styles.cardDate, { color: accent }]}>
-                {new Date(item.startsAt).toLocaleDateString("en-US", {
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View ${item.title}`}
+              testID={`venue-owner-event-open-${item.id}`}
+              onPress={() => openEvent(item)}
+              style={styles.eventSummary}
+            >
+              <View style={styles.titleLine}>
+                <Text numberOfLines={1} style={[styles.cardTitle, { color: colors.text }]}>
+                  {item.title}
+                </Text>
+                <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+              </View>
+              <Text style={[styles.cardDate, { color: colors.primary }]}>
+                {new Date(item.startsAt).toLocaleDateString(undefined, {
                   weekday: "short",
                   month: "short",
                   day: "numeric",
@@ -177,56 +294,51 @@ export default function VenueOwnerEventsScreen() {
                   minute: "2-digit",
                 })}
               </Text>
-              <Text style={[styles.cardRsvp, { color: vMuted }]}>{item.rsvpCount} RSVPs • {item.isPublished ? "Published" : "Draft"}</Text>
+              <Text style={[styles.cardRsvp, { color: colors.mutedForeground }]}>
+                {item.rsvpCount} RSVPs · {item.isPublished ? "Published" : "Draft"}
+                {item.visibility === "invite_only" ? " · Invitation only" : ""}
+              </Text>
+            </Pressable>
+            <View style={[styles.cardActions, { borderTopColor: colors.border }]}>
+              <IconAction
+                label={`View RSVPs and attendance for ${item.title}`}
+                testID={`venue-owner-event-rsvps-${item.id}`}
+                onPress={() => openAttendees(item)}
+                color={colors.primary}
+                icon="users"
+              />
+              <IconAction
+                label={`Edit ${item.title}`}
+                testID={`venue-owner-event-edit-${item.id}`}
+                onPress={() => router.push(`/venue-owner/events/${item.id}` as never)}
+                color={colors.text}
+                icon="edit-2"
+              />
+              <IconAction
+                label={`${item.isPublished ? "Unpublish" : "Publish"} ${item.title}`}
+                testID={`venue-owner-event-publish-${item.id}`}
+                onPress={() => togglePublished(item)}
+                color={colors.mutedForeground}
+                icon={item.isPublished ? "eye-off" : "eye"}
+              />
               {item.visibility === "invite_only" ? (
-                <Text
-                  accessibilityRole="text"
-                  testID={`venue-event-invite-link-state-${item.id}`}
-                  style={[styles.inviteLinkStatus, { color: item.inviteLinkEnabled ? accent : vMuted }]}
-                >
-                  Invitation link {item.inviteLinkEnabled ? "active" : "disabled"}
-                </Text>
-              ) : null}
-            </View>
-            <View style={styles.cardActions}>
-              {item.ownerUid === authedUid ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`View RSVPs and attendance for ${item.title}`}
-                  testID={`venue-owner-event-rsvps-${item.id}`}
-                  onPress={() => router.push({
-                    pathname: "/event-attendees/[eventType]/[id]",
-                    params: {
-                      eventType: "venue",
-                      id: String(item.id),
-                      title: item.title,
-                    },
-                  } as never)}
-                  style={styles.rsvpAction}
-                  hitSlop={8}
-                >
-                  <Feather name="users" size={17} color={accent} />
-                </Pressable>
-              ) : null}
-              {item.visibility === "invite_only" ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${item.inviteLinkEnabled ? "Share" : "Create"} invitation link for ${item.title}`}
+                <IconAction
+                  label={`${item.inviteLinkEnabled ? "Share" : "Create"} invitation link for ${item.title}`}
                   testID={`venue-event-share-link-${item.id}`}
-                  disabled={!item.isPublished || createInviteLink.isPending}
                   onPress={() => void handleShare(item)}
-                  style={styles.inviteListAction}
-                  hitSlop={8}
-                >
-                  <Feather name={item.inviteLinkEnabled ? "share-2" : "link"} size={18} color={accent} />
-                  <Text style={[styles.inviteListActionText, { color: accent }]}>
-                    {item.inviteLinkEnabled ? "Share" : "Create"}
-                  </Text>
-                </Pressable>
+                  color={colors.primary}
+                  icon={item.inviteLinkEnabled ? "share-2" : "link"}
+                  disabled={!item.isPublished || createInviteLink.isPending}
+                />
               ) : null}
+              <IconAction
+                label={`Delete ${item.title}`}
+                testID={`venue-owner-event-delete-${item.id}`}
+                onPress={() => confirmDelete(item)}
+                color={colors.destructive}
+                icon="trash-2"
+              />
             </View>
-            {/* Signal mode: thin bottom separator between rows */}
-            {!isDark && <View style={[StyleSheet.absoluteFill, { top: undefined, bottom: -8, height: 0.5, backgroundColor: vSeparator, marginHorizontal: 14 }]} pointerEvents="none" />}
           </View>
         )}
       />
@@ -234,37 +346,76 @@ export default function VenueOwnerEventsScreen() {
   );
 }
 
+function IconAction({
+  label,
+  testID,
+  onPress,
+  color,
+  icon,
+  disabled = false,
+}: {
+  label: string;
+  testID: string;
+  onPress: () => void;
+  color: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      testID={testID}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.iconAction, { opacity: disabled ? 0.45 : pressed ? 0.65 : 1 }]}
+      hitSlop={6}
+    >
+      <Feather name={icon} size={17} color={color} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  addBtn: { minHeight: 40, borderTopLeftRadius: 16, borderBottomRightRadius: 16, paddingHorizontal: 14, paddingVertical: 8, justifyContent: "center" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 24 },
+  addBtn: {
+    minHeight: 40,
+    borderTopLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   addBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   list: { paddingHorizontal: 18, paddingVertical: 12, gap: 10 },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderTopLeftRadius: 28,
+    borderTopLeftRadius: 24,
     borderBottomRightRadius: 20,
     borderWidth: 1,
-    padding: 14,
-    // Aurora glow
-    shadowColor: "rgba(139,92,246,0.15)",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 2,
+    overflow: "hidden",
   },
-  cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
-  cardDate: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 3 },
+  eventSummary: { padding: 14, gap: 5 },
+  titleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  cardTitle: { flex: 1, fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  cardDate: { fontSize: 12, fontFamily: "Inter_500Medium" },
   cardRsvp: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  inviteLinkStatus: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginTop: 4 },
-  cardActions: { flexDirection: "row", alignItems: "center", gap: 4 },
-  inviteListAction: { flexDirection: "row", alignItems: "center", gap: 3, padding: 4 },
-  inviteListActionText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  rsvpAction: { minWidth: 38, minHeight: 38, alignItems: "center", justifyContent: "center" },
+  cardActions: {
+    minHeight: 48,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+  },
+  iconAction: { minWidth: 42, minHeight: 42, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingTop: 60 },
-  emptyEmoji: { marginBottom: 12 },
-  emptyText: { fontSize: 16, fontFamily: "Inter_400Regular", marginBottom: 20 },
-  emptyBtn: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
+  emptyIcon: { marginBottom: 12 },
+  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", marginBottom: 16, textAlign: "center" },
+  emptyBtn: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 10, justifyContent: "center" },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

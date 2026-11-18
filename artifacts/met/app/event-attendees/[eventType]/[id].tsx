@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -22,7 +23,11 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
-import { api } from "@/lib/api/client";
+import {
+  api,
+  getActiveVenueBusinessHeaders,
+  getActiveVenueBusinessId,
+} from "@/lib/api/client";
 import {
   getGetEventDetailsQueryOptions,
   getGetEventDetailsQueryKey,
@@ -65,18 +70,30 @@ export default function EventAttendeesScreen() {
   const queryClient = useQueryClient();
   const { t, lang } = useT();
   const { authedUid } = useApp();
+  const venueBusinessId = getActiveVenueBusinessId();
+  const venueBusinessHeaders = getActiveVenueBusinessHeaders();
   const eventDetailsQuery = useQuery({
     ...getGetEventDetailsQueryOptions(eventType, validRoute ? eventId : 0),
     enabled: validRoute,
   });
-  const attendeeOptions = getGetEventAttendeesQueryOptions(eventType, validRoute ? eventId : 0);
+  const attendeeOptions = getGetEventAttendeesQueryOptions(
+    eventType,
+    validRoute ? eventId : 0,
+    { request: { headers: venueBusinessHeaders } },
+  );
   const attendeesQuery = useQuery({
     ...attendeeOptions,
-    queryKey: [...attendeeOptions.queryKey, authedUid ?? "signed-out"],
+    queryKey: [
+      ...attendeeOptions.queryKey,
+      authedUid ?? "signed-out",
+      venueBusinessId ?? "no-branch",
+    ],
     enabled: validRoute && !!authedUid,
     staleTime: 30_000,
   });
-  const qrMutation = useGetEventCheckinQr();
+  const qrMutation = useGetEventCheckinQr({
+    request: { headers: venueBusinessHeaders },
+  });
   const decideJoinRequest = useDecideCommunityEventJoinRequest();
   const posterRef = useRef<View | null>(null);
   const posterKey = `${eventType}:${eventId}`;
@@ -229,7 +246,7 @@ export default function EventAttendeesScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 8, borderBottomColor: colors.border }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("common.back")}
@@ -271,7 +288,7 @@ export default function EventAttendeesScreen() {
         <KeyboardAwareScrollViewCompat
           contentContainerStyle={[
             styles.content,
-            { paddingBottom: insets.bottom + 28 },
+            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 28 },
           ]}
           bottomOffset={20}
           keyboardDismissMode="on-drag"

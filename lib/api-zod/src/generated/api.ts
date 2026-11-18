@@ -3665,6 +3665,310 @@ export const GetVenueOwnerMeGuestsResponse = zod.object({
 
 
 /**
+ * @summary List events for the selected approved venue
+ */
+export const getVenueOwnerMeEventsHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const GetVenueOwnerMeEventsHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(getVenueOwnerMeEventsHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
+})
+
+export const getVenueOwnerMeEventsResponseEventsItemGalleryPhotosMax = 10;
+
+export const getVenueOwnerMeEventsResponseEventsItemContactPhoneMax = 40;
+
+export const getVenueOwnerMeEventsResponseEventsItemWebsiteUrlMax = 2000;
+
+export const getVenueOwnerMeEventsResponseEventsItemPublicEmailMax = 254;
+
+
+
+export const GetVenueOwnerMeEventsResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(getVenueOwnerMeEventsResponseEventsItemGalleryPhotosMax).optional(),
+  "contactPhone": zod.string().max(getVenueOwnerMeEventsResponseEventsItemContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(getVenueOwnerMeEventsResponseEventsItemWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(getVenueOwnerMeEventsResponseEventsItemPublicEmailMax).nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
+  "rsvpCount": zod.number().int().optional(),
+  "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+}))
+})
+
+
+/**
+ * @summary Create an event for the selected approved venue
+ */
+export const createVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const CreateVenueOwnerMeEventHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(createVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
+})
+
+export const createVenueOwnerMeEventBodyTitleMax = 120;
+
+export const createVenueOwnerMeEventBodyDescriptionMax = 2000;
+
+export const createVenueOwnerMeEventBodyGalleryPhotosMax = 10;
+
+export const createVenueOwnerMeEventBodyContactPhoneMax = 40;
+
+export const createVenueOwnerMeEventBodyWebsiteUrlMax = 2000;
+
+export const createVenueOwnerMeEventBodyPublicEmailMax = 254;
+
+
+export const createVenueOwnerMeEventBodyReminderOffsetsHoursMax = 2;
+
+export const createVenueOwnerMeEventBodyInviteeUidsItemMax = 128;
+
+export const createVenueOwnerMeEventBodyInviteeUidsMax = 200;
+
+export const createVenueOwnerMeEventBodyInvitePasscodeMin = 6;
+export const createVenueOwnerMeEventBodyInvitePasscodeMax = 64;
+
+
+
+export const CreateVenueOwnerMeEventBody = zod.object({
+  "title": zod.string().min(1).max(createVenueOwnerMeEventBodyTitleMax),
+  "description": zod.string().max(createVenueOwnerMeEventBodyDescriptionMax).nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerMeEventBodyGalleryPhotosMax).optional(),
+  "contactPhone": zod.string().max(createVenueOwnerMeEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createVenueOwnerMeEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createVenueOwnerMeEventBodyPublicEmailMax).nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(createVenueOwnerMeEventBodyReminderOffsetsHoursMax).optional(),
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(createVenueOwnerMeEventBodyInviteeUidsItemMax)).max(createVenueOwnerMeEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(createVenueOwnerMeEventBodyInvitePasscodeMin).max(createVenueOwnerMeEventBodyInvitePasscodeMax).nullish()
+})
+
+export const createVenueOwnerMeEventResponseEventGalleryPhotosMax = 10;
+
+export const createVenueOwnerMeEventResponseEventContactPhoneMax = 40;
+
+export const createVenueOwnerMeEventResponseEventWebsiteUrlMax = 2000;
+
+export const createVenueOwnerMeEventResponseEventPublicEmailMax = 254;
+
+
+
+export const CreateVenueOwnerMeEventResponse = zod.object({
+  "event": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
+  "contactPhone": zod.string().max(createVenueOwnerMeEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createVenueOwnerMeEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createVenueOwnerMeEventResponseEventPublicEmailMax).nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
+  "rsvpCount": zod.number().int().optional(),
+  "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary Get an event for the selected approved venue
+ */
+
+
+
+export const GetVenueOwnerMeEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const getVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const GetVenueOwnerMeEventHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(getVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
+})
+
+export const getVenueOwnerMeEventResponseEventGalleryPhotosMax = 10;
+
+export const getVenueOwnerMeEventResponseEventContactPhoneMax = 40;
+
+export const getVenueOwnerMeEventResponseEventWebsiteUrlMax = 2000;
+
+export const getVenueOwnerMeEventResponseEventPublicEmailMax = 254;
+
+
+
+export const GetVenueOwnerMeEventResponse = zod.object({
+  "event": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(getVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
+  "contactPhone": zod.string().max(getVenueOwnerMeEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(getVenueOwnerMeEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(getVenueOwnerMeEventResponseEventPublicEmailMax).nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
+  "rsvpCount": zod.number().int().optional(),
+  "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary Update a venue event
+ */
+
+
+
+export const UpdateVenueOwnerMeEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const updateVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const UpdateVenueOwnerMeEventHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(updateVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
+})
+
+export const updateVenueOwnerMeEventBodyTitleMax = 120;
+
+export const updateVenueOwnerMeEventBodyDescriptionMax = 2000;
+
+export const updateVenueOwnerMeEventBodyGalleryPhotosMax = 10;
+
+export const updateVenueOwnerMeEventBodyContactPhoneMax = 40;
+
+export const updateVenueOwnerMeEventBodyWebsiteUrlMax = 2000;
+
+export const updateVenueOwnerMeEventBodyPublicEmailMax = 254;
+
+
+export const updateVenueOwnerMeEventBodyReminderOffsetsHoursMax = 2;
+
+export const updateVenueOwnerMeEventBodyInviteeUidsItemMax = 128;
+
+export const updateVenueOwnerMeEventBodyInviteeUidsMax = 200;
+
+export const updateVenueOwnerMeEventBodyInvitePasscodeMin = 6;
+export const updateVenueOwnerMeEventBodyInvitePasscodeMax = 64;
+
+
+
+export const UpdateVenueOwnerMeEventBody = zod.object({
+  "title": zod.string().min(1).max(updateVenueOwnerMeEventBodyTitleMax).optional(),
+  "description": zod.string().max(updateVenueOwnerMeEventBodyDescriptionMax).nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerMeEventBodyGalleryPhotosMax).optional(),
+  "contactPhone": zod.string().max(updateVenueOwnerMeEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateVenueOwnerMeEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateVenueOwnerMeEventBodyPublicEmailMax).nullish(),
+  "startsAt": zod.coerce.date().optional(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(updateVenueOwnerMeEventBodyReminderOffsetsHoursMax).optional(),
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(updateVenueOwnerMeEventBodyInviteeUidsItemMax)).max(updateVenueOwnerMeEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(updateVenueOwnerMeEventBodyInvitePasscodeMin).max(updateVenueOwnerMeEventBodyInvitePasscodeMax).nullish()
+})
+
+export const updateVenueOwnerMeEventResponseEventGalleryPhotosMax = 10;
+
+export const updateVenueOwnerMeEventResponseEventContactPhoneMax = 40;
+
+export const updateVenueOwnerMeEventResponseEventWebsiteUrlMax = 2000;
+
+export const updateVenueOwnerMeEventResponseEventPublicEmailMax = 254;
+
+
+
+export const UpdateVenueOwnerMeEventResponse = zod.object({
+  "event": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
+  "contactPhone": zod.string().max(updateVenueOwnerMeEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateVenueOwnerMeEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateVenueOwnerMeEventResponseEventPublicEmailMax).nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
+  "rsvpCount": zod.number().int().optional(),
+  "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary Delete a venue event
+ */
+
+
+
+export const DeleteVenueOwnerMeEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const deleteVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const DeleteVenueOwnerMeEventHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(deleteVenueOwnerMeEventHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
+})
+
+export const DeleteVenueOwnerMeEventResponse = zod.void()
+
+
+/**
  * @summary Get a shareable invitation link for a venue event
  */
 
@@ -3672,6 +3976,13 @@ export const GetVenueOwnerMeGuestsResponse = zod.object({
 
 export const CreateVenueOwnerEventInviteLinkParams = zod.object({
   "eventId": zod.coerce.number().int().min(1)
+})
+
+export const createVenueOwnerEventInviteLinkHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const CreateVenueOwnerEventInviteLinkHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(createVenueOwnerEventInviteLinkHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
 })
 
 export const CreateVenueOwnerEventInviteLinkResponse = zod.object({
@@ -3690,6 +4001,13 @@ export const RevokeVenueOwnerEventInviteLinkParams = zod.object({
   "eventId": zod.coerce.number().int().min(1)
 })
 
+export const revokeVenueOwnerEventInviteLinkHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const RevokeVenueOwnerEventInviteLinkHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(revokeVenueOwnerEventInviteLinkHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
+})
+
 export const RevokeVenueOwnerEventInviteLinkResponse = zod.void()
 
 
@@ -3701,6 +4019,13 @@ export const RevokeVenueOwnerEventInviteLinkResponse = zod.void()
 
 export const RotateVenueOwnerEventInviteLinkParams = zod.object({
   "eventId": zod.coerce.number().int().min(1)
+})
+
+export const rotateVenueOwnerEventInviteLinkHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const RotateVenueOwnerEventInviteLinkHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(rotateVenueOwnerEventInviteLinkHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
 })
 
 export const RotateVenueOwnerEventInviteLinkResponse = zod.object({
@@ -4297,6 +4622,13 @@ export const GetEventCheckinQrParams = zod.object({
   "eventId": zod.coerce.number().int()
 })
 
+export const getEventCheckinQrHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const GetEventCheckinQrHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(getEventCheckinQrHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
+})
+
 export const getEventCheckinQrBodyRotateDefault = false;
 
 export const GetEventCheckinQrBody = zod.object({
@@ -4314,6 +4646,13 @@ export const GetEventCheckinQrResponse = zod.object({
 export const GetEventAttendeesParams = zod.object({
   "eventType": zod.enum(['venue', 'member']),
   "eventId": zod.coerce.number().int()
+})
+
+export const getEventAttendeesHeaderXMetVenueBusinessIdRegExp = new RegExp('^(0|[1-9]\\d{0,9})$');
+
+
+export const GetEventAttendeesHeader = zod.object({
+  "X-Met-Venue-Business-Id": zod.string().regex(getEventAttendeesHeaderXMetVenueBusinessIdRegExp).optional().describe('Selects the venue branch for owner-managed mobile requests.')
 })
 
 export const GetEventAttendeesResponse = zod.object({
