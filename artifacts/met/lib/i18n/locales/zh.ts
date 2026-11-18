@@ -727,6 +727,9 @@ export const zh: LocaleTree = {
     bluetoothSub: "在不暴露身份的情况下检测附近的 Met 用户。",
     bluetoothDesc:
       "你的手机通过 BLE 发出微小信标,让附近的 Met 用户能够察觉到你。",
+    bluetoothRadioOff:
+      "蓝牙已关闭。请在设备设置中开启，以便发现附近的人。",
+    bluetoothUnsupported: "此设备不支持蓝牙扫描。",
     locationTitle: "位置",
     locationSub: "短暂使用以标记你们相遇的地点。",
     locationDesc:
@@ -750,6 +753,7 @@ export const zh: LocaleTree = {
     statusAllow: "允许",
     statusTryAgain: "重试",
     statusOpenSettings: "打开设置",
+    statusUnavailable: "不可用",
   },
   scan: {
     title: "扫描 Met 二维码",

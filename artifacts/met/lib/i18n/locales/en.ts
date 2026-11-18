@@ -759,6 +759,10 @@ export const en = {
     bluetoothSub: "Detects nearby Met users without revealing your identity.",
     bluetoothDesc:
       "Your phone broadcasts a tiny beacon over BLE so other Met users nearby can spot you.",
+    bluetoothRadioOff:
+      "Bluetooth is off. Turn it on in your device settings to detect nearby users.",
+    bluetoothUnsupported:
+      "This device does not support Bluetooth scanning.",
     locationTitle: "Location",
     locationSub: "Used briefly to label where you crossed paths.",
     locationDesc:
@@ -782,6 +786,7 @@ export const en = {
     statusAllow: "Continue",
     statusTryAgain: "Try again",
     statusOpenSettings: "Open Settings",
+    statusUnavailable: "Unavailable",
   },
 
   scan: {

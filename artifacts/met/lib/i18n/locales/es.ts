@@ -748,6 +748,10 @@ export const es: LocaleTree = {
     bluetoothSub: "Detecta usuarios de Met cerca sin revelar tu identidad.",
     bluetoothDesc:
       "Tu teléfono emite una pequeña baliza por BLE para que otros usuarios de Met cerca te detecten.",
+    bluetoothRadioOff:
+      "El Bluetooth está apagado. Actívalo en los ajustes del dispositivo para detectar a personas cercanas.",
+    bluetoothUnsupported:
+      "Este dispositivo no admite el escaneo por Bluetooth.",
     locationTitle: "Ubicación",
     locationSub: "Se usa brevemente para etiquetar dónde os cruzasteis.",
     locationDesc:
@@ -772,6 +776,7 @@ export const es: LocaleTree = {
     statusAllow: "Permitir",
     statusTryAgain: "Reintentar",
     statusOpenSettings: "Abrir ajustes",
+    statusUnavailable: "No disponible",
   },
   scan: {
     title: "Escanear un QR de Met",

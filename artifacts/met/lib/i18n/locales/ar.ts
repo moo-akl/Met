@@ -756,6 +756,9 @@ export const ar: LocaleTree = {
       "يكتشف مستخدمي Met القريبين دون كشف هويتك.",
     bluetoothDesc:
       "يبثّ هاتفك إشارة BLE صغيرة حتى يلاحظك مستخدمو Met القريبون.",
+    bluetoothRadioOff:
+      "البلوتوث متوقف. شغّله من إعدادات الجهاز لاكتشاف الأشخاص القريبين.",
+    bluetoothUnsupported: "هذا الجهاز لا يدعم البحث عبر البلوتوث.",
     locationTitle: "الموقع",
     locationSub:
       "يُستخدم لفترة وجيزة لتسمية مكان لقائكما.",
@@ -781,6 +784,7 @@ export const ar: LocaleTree = {
     statusAllow: "السماح",
     statusTryAgain: "حاول مجددًا",
     statusOpenSettings: "فتح الإعدادات",
+    statusUnavailable: "غير متاح",
   },
   scan: {
     title: "مسح رمز Met QR",

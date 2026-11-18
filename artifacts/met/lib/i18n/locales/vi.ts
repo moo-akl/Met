@@ -753,6 +753,10 @@ export const vi: LocaleTree = {
       "Phát hiện người dùng Met ở gần mà không tiết lộ danh tính.",
     bluetoothDesc:
       "Điện thoại phát một đèn hiệu BLE nhỏ để người dùng Met khác ở gần có thể thấy bạn.",
+    bluetoothRadioOff:
+      "Bluetooth đang tắt. Hãy bật trong cài đặt thiết bị để phát hiện người ở gần.",
+    bluetoothUnsupported:
+      "Thiết bị này không hỗ trợ quét Bluetooth.",
     locationTitle: "Vị trí",
     locationSub: "Sử dụng ngắn để gắn nhãn nơi các bạn gặp nhau.",
     locationDesc:
@@ -777,6 +781,7 @@ export const vi: LocaleTree = {
     statusAllow: "Cho phép",
     statusTryAgain: "Thử lại",
     statusOpenSettings: "Mở cài đặt",
+    statusUnavailable: "Không khả dụng",
   },
   scan: {
     title: "Quét QR Met",

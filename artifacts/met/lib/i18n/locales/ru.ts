@@ -753,6 +753,10 @@ export const ru: LocaleTree = {
       "Обнаруживает пользователей Met рядом, не раскрывая вашу личность.",
     bluetoothDesc:
       "Ваш телефон отправляет небольшой BLE-маяк, чтобы другие пользователи Met рядом могли вас заметить.",
+    bluetoothRadioOff:
+      "Bluetooth выключен. Включите его в настройках устройства, чтобы обнаруживать людей поблизости.",
+    bluetoothUnsupported:
+      "Это устройство не поддерживает поиск по Bluetooth.",
     locationTitle: "Геолокация",
     locationSub: "Используется кратко, чтобы пометить место встречи.",
     locationDesc:
@@ -777,6 +781,7 @@ export const ru: LocaleTree = {
     statusAllow: "Разрешить",
     statusTryAgain: "Попробовать снова",
     statusOpenSettings: "Открыть настройки",
+    statusUnavailable: "Недоступно",
   },
   scan: {
     title: "Сканировать QR Met",

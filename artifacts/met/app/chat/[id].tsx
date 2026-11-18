@@ -35,6 +35,10 @@ import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { buildStoreDemoChat, isStoreDemoEnabled } from "@/lib/storeDemo";
 import {
+  attemptChatDraftDelivery,
+  type UploadedChatDraftAttachment,
+} from "@/lib/chatDraftDelivery";
+import {
   type ChatMessage,
   type ChatMeta,
   clearChatHistory,
@@ -756,6 +760,8 @@ function ChatScreen() {
   const [pendingAudioMs, setPendingAudioMs] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
+  const uploadedAttachmentCacheRef =
+    useRef<UploadedChatDraftAttachment | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -909,6 +915,7 @@ function ChatScreen() {
         Alert.alert("Image too large", "Please choose an image under 5 MB.");
         return;
       }
+      uploadedAttachmentCacheRef.current = null;
       setPendingMedia(asset.uri);
       setSendError(null);
     }
@@ -929,6 +936,7 @@ function ChatScreen() {
         const status = await rec.stopAndUnloadAsync();
         const uri = rec.getURI();
         if (uri) {
+          uploadedAttachmentCacheRef.current = null;
           setPendingAudio(uri);
           setPendingAudioMs((status as { durationMillis?: number }).durationMillis ?? recordSecs * 1000);
           setSendError(null);
@@ -945,6 +953,7 @@ function ChatScreen() {
       }
       setRecordSecs(0);
     } else {
+      uploadedAttachmentCacheRef.current = null;
       setPendingAudio(null);
 
       // Defensive: unload any stale recording object that was never cleaned up
@@ -1020,32 +1029,6 @@ function ChatScreen() {
     setPendingAudioMs(0);
     setReplyingTo(null);
 
-    let mediaUrl: string | undefined;
-    if (capturedMedia) {
-      try {
-        mediaUrl = await uploadChatMedia(myUid, peerUid, capturedMedia);
-      } catch {
-        setSendError(t("chat.sendFailed"));
-        if (trimmed) setText(trimmed);
-        setPendingMedia(capturedMedia);
-        setReplyingTo(capturedReplyTo);
-        setSending(false);
-        return;
-      }
-    } else if (capturedAudio) {
-      try {
-        mediaUrl = await uploadChatAudio(myUid, peerUid, capturedAudio);
-      } catch {
-        setSendError(t("chat.sendFailed"));
-        if (trimmed) setText(trimmed);
-        setPendingAudio(capturedAudio);
-        setPendingAudioMs(capturedAudioMs);
-        setReplyingTo(capturedReplyTo);
-        setSending(false);
-        return;
-      }
-    }
-
     const replyToPayload = capturedReplyTo
       ? {
           id: capturedReplyTo.id,
@@ -1053,23 +1036,35 @@ function ChatScreen() {
           text: capturedReplyTo.text,
           ...(capturedReplyTo.mediaType ? { mediaType: capturedReplyTo.mediaType } : {}),
         }
-      : undefined;
+      : null;
 
-    const err = await sendMessage(myUid, peerUid, trimmed, {
-      mediaUri: capturedAudio ? undefined : mediaUrl,
-      audioUri: capturedAudio ? mediaUrl : undefined,
-      audioDurationMs: capturedAudio ? capturedAudioMs : undefined,
-      replyTo: replyToPayload,
-    });
-    if (err !== null) {
+    const result = await attemptChatDraftDelivery(
+      {
+        text: trimmed,
+        mediaUri: capturedMedia,
+        audioUri: capturedAudio,
+        audioDurationMs: capturedAudioMs,
+        replyTo: replyToPayload,
+      },
+      uploadedAttachmentCacheRef.current,
+      {
+        uploadImage: (uri) => uploadChatMedia(myUid, peerUid, uri),
+        uploadAudio: (uri) => uploadChatAudio(myUid, peerUid, uri),
+        send: (messageText, options) =>
+          sendMessage(myUid, peerUid, messageText, options),
+      },
+    );
+    uploadedAttachmentCacheRef.current = result.ok
+      ? null
+      : result.cachedAttachment;
+
+    if (!result.ok) {
       setSendError(t("chat.sendFailed"));
-      if (trimmed) setText(trimmed);
-      if (capturedMedia && !mediaUrl) setPendingMedia(capturedMedia);
-      if (capturedAudio && !mediaUrl) {
-        setPendingAudio(capturedAudio);
-        setPendingAudioMs(capturedAudioMs);
-      }
-      if (capturedReplyTo) setReplyingTo(capturedReplyTo);
+      setText(trimmed);
+      setPendingMedia(capturedMedia);
+      setPendingAudio(capturedAudio);
+      setPendingAudioMs(capturedAudioMs);
+      setReplyingTo(capturedReplyTo);
     }
     setSending(false);
   }, [canSend, myUid, peerUid, text, pendingMedia, pendingAudio, pendingAudioMs, replyingTo, t, storeDemo]);
@@ -1548,7 +1543,15 @@ function ChatScreen() {
               />
             </View>
             <Pressable
-              onPress={() => { setPendingAudio(null); setPendingAudioMs(0); }}
+              onPress={() => {
+                if (
+                  uploadedAttachmentCacheRef.current?.localUri === pendingAudio
+                ) {
+                  uploadedAttachmentCacheRef.current = null;
+                }
+                setPendingAudio(null);
+                setPendingAudioMs(0);
+              }}
               style={[styles.mediaRemoveBtn, { backgroundColor: colors.muted }]}
               hitSlop={8}
             >
@@ -1580,7 +1583,14 @@ function ChatScreen() {
               />
             </Pressable>
             <Pressable
-              onPress={() => setPendingMedia(null)}
+              onPress={() => {
+                if (
+                  uploadedAttachmentCacheRef.current?.localUri === pendingMedia
+                ) {
+                  uploadedAttachmentCacheRef.current = null;
+                }
+                setPendingMedia(null);
+              }}
               style={[styles.mediaRemoveBtn, { backgroundColor: colors.muted }]}
               accessibilityLabel={t("chat.removePhoto")}
               hitSlop={8}

@@ -752,6 +752,10 @@ export const nl: LocaleTree = {
       "Detecteert Met-gebruikers in de buurt zonder je identiteit te onthullen.",
     bluetoothDesc:
       "Je telefoon zendt een klein BLE-baken uit zodat andere Met-gebruikers in de buurt je kunnen detecteren.",
+    bluetoothRadioOff:
+      "Bluetooth staat uit. Schakel het in via de apparaatinstellingen om mensen in de buurt te detecteren.",
+    bluetoothUnsupported:
+      "Dit apparaat ondersteunt geen Bluetooth-scan.",
     locationTitle: "Locatie",
     locationSub:
       "Kort gebruikt om te labelen waar jullie elkaar tegenkwamen.",
@@ -777,6 +781,7 @@ export const nl: LocaleTree = {
     statusAllow: "Toestaan",
     statusTryAgain: "Probeer opnieuw",
     statusOpenSettings: "Instellingen openen",
+    statusUnavailable: "Niet beschikbaar",
   },
   scan: {
     title: "Een Met-QR scannen",

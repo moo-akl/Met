@@ -535,7 +535,10 @@ function RootLayoutNav() {
         name="event-chat/[id]"
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
-      <Stack.Screen name="venue-owner" />
+      <Stack.Screen
+        name="venue-owner"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
       <Stack.Screen
         name="encounter/[id]"
         options={{ presentation: "card", animation: "slide_from_right" }}

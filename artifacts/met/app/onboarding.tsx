@@ -50,6 +50,11 @@ import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { loadDragHintDismissed, loadProfile, saveDragHintDismissed } from "@/lib/storage";
 import { runAppleSignIn } from "@/lib/onboardingAppleAuth";
 import { runGoogleSignIn } from "@/lib/onboardingGoogleAuth";
+import {
+  getOnboardingAuthBackTarget,
+  isValidAuthEmail,
+  type OnboardingAuthOrigin,
+} from "@/lib/onboardingFlow";
 import { ValueTour } from "@/components/ValueTour";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
@@ -176,6 +181,9 @@ export default function OnboardingScreen() {
   // the current/device language. A stored pending intent (cold start after
   // force-quit) also counts.
   const qrIntentRef = useRef<QrIntent | null>(null);
+  const authOriginRef = useRef<OnboardingAuthOrigin>(
+    qr === "1" ? "router" : "language",
+  );
   // The registration form needs a Firebase account, but venue applicants
   // should not be forced through the optional personal-profile setup first.
   // This intent survives authentication and email verification, and is
@@ -210,6 +218,10 @@ export default function OnboardingScreen() {
           ? "auth"
           : "language",
   );
+  const enterAuthFrom = (origin: Exclude<OnboardingAuthOrigin, "router">) => {
+    authOriginRef.current = origin;
+    setPhase("auth");
+  };
 
   useEffect(() => {
     if (permissionsOnly || completeProfileMode) return;
@@ -217,6 +229,7 @@ export default function OnboardingScreen() {
     loadQrIntent(null).then((intent) => {
       if (cancelled || !intent) return;
       qrIntentRef.current = intent;
+      authOriginRef.current = "router";
       setPhase((p) =>
         p === "language" || p === "valueTour" || p === "intro" ? "auth" : p,
       );
@@ -573,18 +586,22 @@ export default function OnboardingScreen() {
   const handleEmailAuth = async () => {
     if (!requireTerms()) return;
     const email = authEmail.trim();
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      Alert.alert(
-        t("onboarding.invalidEmail"),
-        t("onboarding.invalidEmailBody"),
-      );
+    if (!isValidAuthEmail(email)) {
+      if (authMode !== "signup") {
+        Alert.alert(
+          t("onboarding.invalidEmail"),
+          t("onboarding.invalidEmailBody"),
+        );
+      }
       return;
     }
     if (authPassword.length < 6) {
-      Alert.alert(
-        t("onboarding.weakPassword"),
-        t("onboarding.weakPasswordBody"),
-      );
+      if (authMode !== "signup") {
+        Alert.alert(
+          t("onboarding.weakPassword"),
+          t("onboarding.weakPasswordBody"),
+        );
+      }
       return;
     }
     setAuthBusy(true);
@@ -1067,7 +1084,7 @@ export default function OnboardingScreen() {
             onPress={() => {
               void (async () => {
                 setLanguage(selectedLang);
-                setPhase("auth");
+                  enterAuthFrom("language");
               })();
             }}
             style={({ pressed }) => ({
@@ -1090,7 +1107,7 @@ export default function OnboardingScreen() {
   if (phase === "valueTour") {
     return (
       <ValueTour
-        onDone={() => setPhase("auth")}
+        onDone={() => enterAuthFrom("valueTour")}
       />
     );
   }
@@ -1126,14 +1143,14 @@ export default function OnboardingScreen() {
           }}
         >
           <Pressable
-            onPress={() => setPhase("auth")}
+            onPress={() => enterAuthFrom("intro")}
             hitSlop={12}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
             <Feather name="chevron-left" size={24} color={colors.foreground} />
           </Pressable>
           <Pressable
-            onPress={() => setPhase("auth")}
+            onPress={() => enterAuthFrom("intro")}
             hitSlop={12}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
@@ -1443,7 +1460,9 @@ export default function OnboardingScreen() {
           </View>
 
           <Pressable
-            onPress={() => (isLast ? setPhase("auth") : setSlide(slide + 1))}
+            onPress={() =>
+              isLast ? enterAuthFrom("intro") : setSlide(slide + 1)
+            }
             style={({ pressed }) => ({
               flexDirection: "row",
               alignItems: "center",
@@ -1502,8 +1521,12 @@ export default function OnboardingScreen() {
               onPress={() => {
                 if (permissionsOnly) { router.back(); return; }
                 if (phase === "auth") {
-                  if (qr === "1" || qrIntentRef.current) router.back();
-                  else setPhase("language");
+                  const target = getOnboardingAuthBackTarget(
+                    authOriginRef.current,
+                    qr === "1" || !!qrIntentRef.current,
+                  );
+                  if (target === "router") router.back();
+                  else setPhase(target);
                 }
                 else if (phase === "info") setPhase("photo");
                 else if (phase === "socials") setPhase(nameFromApple ? "photo" : "info");
@@ -1724,9 +1747,16 @@ export default function OnboardingScreen() {
 
             <View style={styles.field}>
               <TextInput
+                testID="onboarding-email-input"
                 value={authEmail}
                 onChangeText={setAuthEmail}
                 placeholder={t("onboarding.emailPlaceholder")}
+                accessibilityLabel={t("onboarding.emailPlaceholder")}
+                accessibilityHint={
+                  authMode === "signup"
+                    ? t("onboarding.invalidEmailBody")
+                    : undefined
+                }
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -1740,14 +1770,32 @@ export default function OnboardingScreen() {
                   },
                 ]}
               />
+              {authMode === "signup" && !isValidAuthEmail(authEmail) ? (
+                <Text
+                  testID="signup-email-requirement"
+                  style={[
+                    styles.stepSub,
+                    { color: colors.mutedForeground, marginTop: 6 },
+                  ]}
+                >
+                  {t("onboarding.invalidEmailBody")}
+                </Text>
+              ) : null}
             </View>
 
             <View style={styles.field}>
               <View style={styles.passwordWrap}>
                 <TextInput
+                  testID="onboarding-password-input"
                   value={authPassword}
                   onChangeText={setAuthPassword}
                   placeholder={t("onboarding.passwordPlaceholder")}
+                  accessibilityLabel={t("onboarding.passwordPlaceholder")}
+                  accessibilityHint={
+                    authMode === "signup"
+                      ? t("onboarding.passwordMinimum")
+                      : undefined
+                  }
                   placeholderTextColor={colors.mutedForeground}
                   secureTextEntry={!authPasswordVisible}
                   autoCapitalize="none"

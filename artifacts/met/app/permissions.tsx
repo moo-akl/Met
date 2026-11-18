@@ -18,6 +18,10 @@ import {
 
 import { loadPlx } from "@/lib/ble/plx";
 import { isAdvertisingAvailable } from "@/lib/ble";
+import {
+  classifyBluetoothAdapterState,
+  type BluetoothAvailability,
+} from "@/lib/ble/permissionState";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -44,6 +48,8 @@ type RowProps = {
   title: string;
   description: string;
   status: Status;
+  statusDetail?: string;
+  unavailable?: boolean;
   onPress: () => void;
   t: (k: string, opts?: Record<string, unknown>) => string;
 };
@@ -63,6 +69,8 @@ export default function PermissionsScreen() {
     notifications: "idle",
     camera: "idle",
   });
+  const [bluetoothAvailability, setBluetoothAvailability] =
+    useState<BluetoothAvailability>("unknown");
   const [busy, setBusy] = useState<PermKey | null>(null);
 
   // Mirror statuses in a ref so the AppState callback always reads the
@@ -105,28 +113,34 @@ export default function PermissionsScreen() {
       if (plx) {
         try {
           const manager = new plx.BleManager();
-          const result = await new Promise<Status>((resolve) => {
-            const timer = setTimeout(() => {
-              try { sub.remove(); } catch { /* noop */ }
-              resolve("idle");
-            }, 1500);
-            const sub = manager.onStateChange((state) => {
-              if (state === plx.State.PoweredOn || state === plx.State.PoweredOff) {
-                clearTimeout(timer);
-                sub.remove();
-                resolve("granted");
-              } else if (
-                state === plx.State.Unauthorized ||
-                state === plx.State.Unsupported
-              ) {
-                clearTimeout(timer);
-                sub.remove();
-                resolve("denied");
-              }
+          const result = await new Promise<ReturnType<
+            typeof classifyBluetoothAdapterState
+          > | null>((resolve) => {
+            let finished = false;
+            let sub: { remove: () => void } | undefined;
+            const finish = (
+              value: ReturnType<typeof classifyBluetoothAdapterState> | null,
+            ) => {
+              if (finished) return;
+              finished = true;
+              clearTimeout(timer);
+              try { sub?.remove(); } catch { /* noop */ }
+              resolve(value);
+            };
+            const timer = setTimeout(() => finish(null), 1500);
+            sub = manager.onStateChange((state) => {
+              const probe = classifyBluetoothAdapterState(state);
+              if (probe.settled) finish(probe);
             }, true);
+            if (finished) {
+              try { sub.remove(); } catch { /* noop */ }
+            }
           });
           try { manager.destroy(); } catch { /* noop */ }
-          if (result !== "idle") updates.bluetooth = result;
+          if (result) {
+            if (result.permission) updates.bluetooth = result.permission;
+            setBluetoothAvailability(result.availability);
+          }
         } catch { /* keep the last known state if the OS query fails */ }
       }
     }
@@ -182,26 +196,34 @@ export default function PermissionsScreen() {
         if (plx) {
           try {
             const manager = new plx.BleManager();
-            const result = await new Promise<"granted" | "denied" | "idle">(
-              (resolve) => {
-                const timer = setTimeout(() => {
-                  try { sub.remove(); } catch { /* noop */ }
-                  resolve("idle");
-                }, 1500);
-                const sub = manager.onStateChange((s) => {
-                  if (s === plx.State.PoweredOn || s === plx.State.PoweredOff) {
-                    clearTimeout(timer); sub.remove(); resolve("granted");
-                  } else if (
-                    s === plx.State.Unauthorized ||
-                    s === plx.State.Unsupported
-                  ) {
-                    clearTimeout(timer); sub.remove(); resolve("denied");
-                  }
-                }, true);
-              },
-            );
+            const result = await new Promise<ReturnType<
+              typeof classifyBluetoothAdapterState
+            > | null>((resolve) => {
+              let finished = false;
+              let sub: { remove: () => void } | undefined;
+              const finish = (
+                value: ReturnType<typeof classifyBluetoothAdapterState> | null,
+              ) => {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timer);
+                try { sub?.remove(); } catch { /* noop */ }
+                resolve(value);
+              };
+              const timer = setTimeout(() => finish(null), 1500);
+              sub = manager.onStateChange((state) => {
+                const probe = classifyBluetoothAdapterState(state);
+                if (probe.settled) finish(probe);
+              }, true);
+              if (finished) {
+                try { sub.remove(); } catch { /* noop */ }
+              }
+            });
             try { manager.destroy(); } catch { /* noop */ }
-            if (result !== "idle") updates.bluetooth = result;
+            if (result) {
+              if (result.permission) updates.bluetooth = result.permission;
+              if (!cancelled) setBluetoothAvailability(result.availability);
+            }
           } catch { /* noop */ }
         }
       }
@@ -448,7 +470,15 @@ export default function PermissionsScreen() {
             icon="bluetooth"
             iconLib="mc"
             title={t("permissions.bluetoothTitle")}
-            description="This is how Met detects people near you — works indoors where GPS can't."
+            description={t("permissions.bluetoothDesc")}
+            statusDetail={
+              bluetoothAvailability === "off"
+                ? t("permissions.bluetoothRadioOff")
+                : bluetoothAvailability === "unsupported"
+                  ? t("permissions.bluetoothUnsupported")
+                  : undefined
+            }
+            unavailable={bluetoothAvailability === "unsupported"}
             status={statuses.bluetooth}
             onPress={requestBluetooth}
             busy={busy === "bluetooth"}
@@ -528,6 +558,8 @@ function PermRow({
   title,
   description,
   status,
+  statusDetail,
+  unavailable = false,
   onPress,
   busy,
   colors,
@@ -540,7 +572,9 @@ function PermRow({
   const statusColor = granted
     ? "#FFFFFF"
     : "#FFFFFF";
-  const statusLabel = granted
+  const statusLabel = unavailable
+    ? t("permissions.statusUnavailable")
+    : granted
     ? t("permissions.statusGranted")
     : denied
       ? t("permissions.statusOpenSettings")
@@ -582,10 +616,20 @@ function PermRow({
         <Text style={[styles.rowDesc, { color: colors.mutedForeground }]}>
           {description}
         </Text>
+        {statusDetail ? (
+          <Text
+            style={[
+              styles.rowDesc,
+              { color: colors.mutedForeground, marginTop: 2 },
+            ]}
+          >
+            {statusDetail}
+          </Text>
+        ) : null}
       </View>
       <Pressable
         onPress={denied ? () => Linking.openSettings() : onPress}
-        disabled={busy || granted}
+        disabled={busy || granted || unavailable}
         hitSlop={6}
         style={({ pressed }) => [
           styles.statusBtn,
