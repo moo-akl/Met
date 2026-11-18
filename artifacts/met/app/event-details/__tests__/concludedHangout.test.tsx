@@ -13,6 +13,7 @@ const baseEvent = {
   description: "This longer description should not appear in the concluded summary.",
   imageUrl: "https://example.test/hangout.jpg",
   location: "Lumphini Park",
+  placeId: null as string | null,
   venueName: null,
   visibility: "public",
   isInvited: false,
