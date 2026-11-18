@@ -34,6 +34,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { buildStoreDemoChat, isStoreDemoEnabled } from "@/lib/storeDemo";
+import { prepareChatImage } from "@/lib/chatMedia";
 import {
   attemptChatDraftDelivery,
   type UploadedChatDraftAttachment,
@@ -410,6 +411,7 @@ function MessageBubble({
   const hasAudio = !!message.mediaUri && message.mediaType === "audio";
   const hasText = !!message.text;
   const isDeleted = message.deleted === true;
+  const isPhoto = hasMedia && !hasAudio && !isDeleted;
 
   return (
     <View
@@ -448,12 +450,14 @@ function MessageBubble({
           disabled={false}
           style={[
             styles.bubble,
-            isMine
+            isPhoto
+              ? styles.bubblePhoto
+              : isMine
               ? [styles.bubbleMine, { backgroundColor: colors.primary }]
               : [styles.bubbleTheirs, { backgroundColor: colors.muted }],
-            hasMedia && !hasText && !isDeleted && !hasAudio ? styles.bubbleImageOnly : null,
             isDeleted ? styles.bubbleDeleted : null,
           ]}
+          testID={isPhoto ? "chat-photo-message-bubble" : undefined}
         >
           {isDeleted ? (
             <Text
@@ -489,15 +493,17 @@ function MessageBubble({
                 />
               ) : null}
               {hasText ? (
-                <Text
-                  style={[
-                    styles.bubbleText,
-                    { color: isMine ? ownMessageForeground : colors.foreground },
-                    hasMedia && !hasAudio ? styles.bubbleCaption : null,
-                  ]}
-                >
-                  {message.text}
-                </Text>
+                isPhoto ? (
+                  <View style={[styles.bubblePhotoCaption, { backgroundColor: colors.card }]}>
+                    <Text style={[styles.bubbleText, styles.bubbleCaption, { color: colors.foreground }]}>
+                      {message.text}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.bubbleText, { color: isMine ? ownMessageForeground : colors.foreground }]}>
+                    {message.text}
+                  </Text>
+                )
               ) : null}
             </>
           )}
@@ -900,23 +906,22 @@ function ChatScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: false,
-      quality: 1,
+      quality: 0.82,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-      let byteSize = asset.fileSize;
-      if (byteSize == null) {
-        const FileSystem = await import("expo-file-system/legacy");
-        const info = await FileSystem.getInfoAsync(asset.uri);
-        byteSize = info.exists && "size" in info ? (info.size as number) : 0;
-      }
-      if (byteSize > MAX_BYTES) {
-        Alert.alert("Image too large", "Please choose an image under 5 MB.");
+      let prepared: Awaited<ReturnType<typeof prepareChatImage>>;
+      try {
+        prepared = await prepareChatImage(asset.uri, asset.width, asset.height);
+      } catch (error) {
+        Alert.alert(
+          "Photo not ready",
+          error instanceof Error ? error.message : "Could not prepare this photo.",
+        );
         return;
       }
       uploadedAttachmentCacheRef.current = null;
-      setPendingMedia(asset.uri);
+      setPendingMedia(prepared.uri);
       setSendError(null);
     }
   }, [isMyTurn, sending]);
@@ -1873,6 +1878,12 @@ const styles = StyleSheet.create({
   bubble: { paddingHorizontal: 14, paddingVertical: 10, marginBottom: 3 },
   bubbleMine: { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 5 },
   bubbleTheirs: { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomRightRadius: 22, borderBottomLeftRadius: 5 },
+  bubblePhoto: {
+    padding: 0,
+    backgroundColor: "transparent",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
   bubbleDeleted: { opacity: 0.7 },
   bubbleText: {
     fontFamily: "Inter_400Regular",
@@ -2057,19 +2068,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Message bubble image support
-  bubbleImageOnly: {
-    padding: 0,
-    overflow: "hidden",
-  },
   bubbleImage: {
     width: 210,
     height: 210,
     borderRadius: 15,
   },
   bubbleCaption: {
-    paddingTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
+  bubblePhotoCaption: { paddingHorizontal: 4, paddingBottom: 4 },
 
   // Fullscreen image viewer
   viewerOverlay: {

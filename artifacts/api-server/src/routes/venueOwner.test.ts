@@ -741,6 +741,26 @@ describe("membership revocation gates — event, reward, and announcement writes
   }
 
   /**
+   * Stub access and the existing row lookup for routes that edit or delete
+   * records after resolving the active venue membership.
+   */
+  function mockActiveAccessForEdit(existingRow: Record<string, unknown> = { id: 42, placeId: "place-1" }) {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { uid: "venue-owner-uid", status: "active", role: "owner", businessId: 1 },
+    ]);
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([
+        { id: 1, placeId: "place-1", isActive: true, venueOwnerProfileId: 99 },
+      ])
+      .mockResolvedValueOnce([
+        { id: 99, placeId: "place-1", ownerUid: "venue-owner-uid", isApproved: true, applicationStatus: "approved" },
+      ])
+      .mockResolvedValueOnce([existingRow]);
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning.mockResolvedValue([existingRow]);
+  }
+
+  /**
    * Simulate a revoked or inactive membership: the status='active' filter in
    * loadVenueAccess returns no rows.  The legacy owner fallback also returns
    * nothing, so requireVenueAccess resolves to null → 403.
@@ -755,40 +775,25 @@ describe("membership revocation gates — event, reward, and announcement writes
     // legacy fallback: where() → chain (default), limit() → [] (default)
   }
 
-  // ── event creation ────────────────────────────────────────────────────────
+  // ── legacy mobile event mutation endpoints ────────────────────────────────
 
-  it("blocks event creation when the caller has a revoked membership", async () => {
-    mockRevokedAccess();
-
-    const response = await request(app)
+  it("directs event creation, editing, and deletion to Venue Manager", async () => {
+    const create = await request(app)
       .post("/api/venue-owner/me/events")
       .send(validEvent);
+    const update = await request(app)
+      .put("/api/venue-owner/me/events/42")
+      .send({ title: "Updated Title" });
+    const remove = await request(app)
+      .delete("/api/venue-owner/me/events/42");
 
-    expect(response.status).toBe(403);
+    for (const response of [create, update, remove]) {
+      expect(response.status).toBe(410);
+      expect(response.body.message).toBe("Venue events are managed in Venue Manager.");
+    }
     expect(dbMocks.chain.insert).not.toHaveBeenCalled();
-  });
-
-  it("blocks event creation when the caller has an inactive membership", async () => {
-    // inactive and revoked both produce an empty active-membership query result
-    mockRevokedAccess();
-
-    const response = await request(app)
-      .post("/api/venue-owner/me/events")
-      .send(validEvent);
-
-    expect(response.status).toBe(403);
-    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
-  });
-
-  it("allows event creation when the caller has an active membership", async () => {
-    mockActiveAccess();
-
-    const response = await request(app)
-      .post("/api/venue-owner/me/events")
-      .send(validEvent);
-
-    expect(response.status).toBe(201);
-    expect(dbMocks.chain.insert).toHaveBeenCalled();
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
   });
 
   // ── reward creation ───────────────────────────────────────────────────────
@@ -837,76 +842,6 @@ describe("membership revocation gates — event, reward, and announcement writes
 
     expect(response.status).toBe(201);
     expect(dbMocks.chain.insert).toHaveBeenCalled();
-  });
-
-  // ── helpers for edit/delete tests ─────────────────────────────────────────
-
-  /**
-   * Extends mockActiveAccess for routes that first look up an existing record
-   * after requireVenueAccess succeeds (PUT/DELETE handlers). The third limit()
-   * call resolves to a stub row so the "not found" guard does not fire.
-   */
-  function mockActiveAccessForEdit(existingRow: Record<string, unknown> = { id: 42, placeId: "place-1" }) {
-    dbMocks.chain.where.mockResolvedValueOnce([
-      { uid: "venue-owner-uid", status: "active", role: "owner", businessId: 1 },
-    ]);
-    dbMocks.chain.limit
-      .mockResolvedValueOnce([
-        { id: 1, placeId: "place-1", isActive: true, venueOwnerProfileId: 99 },
-      ])
-      .mockResolvedValueOnce([
-        { id: 99, placeId: "place-1", ownerUid: "venue-owner-uid", isApproved: true, applicationStatus: "approved" },
-      ])
-      .mockResolvedValueOnce([existingRow]);
-    // PUT routes call returning() with the updated row; reset so the default [] doesn't interfere.
-    dbMocks.chain.returning.mockReset();
-    dbMocks.chain.returning.mockResolvedValue([existingRow]);
-  }
-
-  // ── event PUT ─────────────────────────────────────────────────────────────
-
-  it("blocks event update (PUT) when the caller has a revoked membership", async () => {
-    mockRevokedAccess();
-
-    const response = await request(app)
-      .put("/api/venue-owner/me/events/42")
-      .send({ title: "Updated Title" });
-
-    expect(response.status).toBe(403);
-    expect(dbMocks.chain.update).not.toHaveBeenCalled();
-  });
-
-  it("allows event update (PUT) when the caller has an active membership", async () => {
-    mockActiveAccessForEdit({ id: 42, placeId: "place-1", title: "Old Title" });
-
-    const response = await request(app)
-      .put("/api/venue-owner/me/events/42")
-      .send({ title: "Updated Title" });
-
-    expect(response.status).toBe(200);
-    expect(dbMocks.chain.update).toHaveBeenCalled();
-  });
-
-  // ── event DELETE ──────────────────────────────────────────────────────────
-
-  it("blocks event deletion when the caller has a revoked membership", async () => {
-    mockRevokedAccess();
-
-    const response = await request(app)
-      .delete("/api/venue-owner/me/events/42");
-
-    expect(response.status).toBe(403);
-    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
-  });
-
-  it("allows event deletion when the caller has an active membership", async () => {
-    mockActiveAccessForEdit({ id: 42, placeId: "place-1" });
-
-    const response = await request(app)
-      .delete("/api/venue-owner/me/events/42");
-
-    expect(response.status).toBe(200);
-    expect(dbMocks.chain.delete).toHaveBeenCalled();
   });
 
   // ── reward PUT ────────────────────────────────────────────────────────────

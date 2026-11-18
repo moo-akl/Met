@@ -28,6 +28,7 @@ import { EventReviewSection } from "@/components/EventReviewSection";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
 import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
+import { openVenueManager as openVenueManagerLink } from "@/lib/venueManagerLink";
 import {
   getGetEventDetailsQueryKey,
   getGetEventDetailsQueryOptions,
@@ -72,6 +73,7 @@ export default function EventDetailsScreen() {
   const [rsvpPending, setRsvpPending] = useState(false);
   const [joinRequestPending, setJoinRequestPending] = useState(false);
   const [checkinPending, setCheckinPending] = useState(false);
+  const [startedEventKey, setStartedEventKey] = useState("");
   const [locationPermission, requestLocationPermission] =
     Location.useForegroundPermissions();
   const eventQuery = useQuery({
@@ -113,6 +115,32 @@ export default function EventDetailsScreen() {
   });
 
   const event = eventQuery.data;
+  const eventStartKey = event ? `${event.eventType}:${event.id}:${event.startsAt}` : "";
+  const eventHasStarted = Boolean(
+    event &&
+      ((Number.isFinite(Date.parse(event.startsAt)) &&
+        Date.parse(event.startsAt) <= Date.now()) ||
+        eventStartKey === startedEventKey),
+  );
+  useEffect(() => {
+    if (!event || !eventStartKey) return;
+    const startsAtMs = Date.parse(event.startsAt);
+    if (!Number.isFinite(startsAtMs)) return;
+    if (startsAtMs <= Date.now()) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const updateStartState = () => {
+      const remaining = startsAtMs - Date.now();
+      if (remaining <= 0) {
+        setStartedEventKey(eventStartKey);
+        return;
+      }
+      timer = setTimeout(updateStartState, Math.min(remaining, 60_000));
+    };
+    updateStartState();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [event, eventStartKey]);
   const isOwner = Boolean(event && event.ownerUid === authedUid);
   const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
   const isFriendPlan = Boolean(
@@ -272,7 +300,7 @@ export default function EventDetailsScreen() {
   };
 
   const checkInWithLocation = async () => {
-    if (!event || isOwner || !canAccessHangout || event.latitude == null || event.longitude == null) return;
+    if (!event || !eventHasStarted || isOwner || !canAccessHangout || event.latitude == null || event.longitude == null) return;
     setCheckinPending(true);
     setActionError("");
     try {
@@ -450,6 +478,17 @@ export default function EventDetailsScreen() {
     }
   };
 
+  const openVenueManager = async () => {
+    try {
+      await openVenueManagerLink();
+    } catch (error) {
+      Alert.alert(
+        "Venue Manager unavailable",
+        error instanceof Error ? error.message : "Please open Venue Manager in your browser.",
+      );
+    }
+  };
+
   const doDelete = () => {
     if (event?.eventType !== "member" || !isOwner) return;
     deleteEvent.mutate({ eventId: event.id });
@@ -480,11 +519,26 @@ export default function EventDetailsScreen() {
         {isOwner && event && !isConcludedHangout ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t("tabs.events.editEvent")}
-            onPress={() => router.push(`/event-edit/${event.id}` as never)}
+            accessibilityLabel={
+              event.eventType === "venue"
+                ? "Open Venue Manager"
+                : t("tabs.events.editEvent")
+            }
+            testID="event-details-edit-button"
+            onPress={() => {
+              if (event.eventType === "venue") {
+                void openVenueManager();
+              } else {
+                router.push(`/event-edit/${event.id}` as never);
+              }
+            }}
             style={styles.headerButton}
           >
-            <Feather name="edit-2" size={19} color={colors.text} />
+            <Feather
+              name={event.eventType === "venue" ? "external-link" : "edit-2"}
+              size={19}
+              color={colors.text}
+            />
           </Pressable>
         ) : (
           <View style={styles.headerButton} />
@@ -778,69 +832,55 @@ export default function EventDetailsScreen() {
               </Text>
             ) : null}
             <EventFollowThroughActions event={event} uid={authedUid ?? null} />
-            {(
-              event.eventType === "venue"
-                ? isOwner || canAccessHangout
-                : isHangout && isOwner
-            ) ? (
-            <View style={[styles.attendanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {isOwner && (event.eventType === "venue" || isHangout) ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={manageEventLabel}
+                testID="button-manage-event-attendance"
+                onPress={() => router.push({
+                  pathname: "/event-attendees/[eventType]/[id]",
+                  params: {
+                    eventType: event.eventType,
+                    id: String(event.id),
+                    title: event.title,
+                    joinApprovalRequired: String(event.joinApprovalRequired),
+                  },
+                } as never)}
+                style={[styles.ownerManageAction, { borderBottomColor: colors.border }]}
+              >
+                <View style={[styles.ownerManageIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name={event.joinApprovalRequired ? "user-check" : "users"} size={17} color={colors.primary} />
+                </View>
+                <Text style={[styles.ownerManageText, { color: colors.text }]}>{manageEventLabel}</Text>
+                <Feather name="chevron-right" size={19} color={colors.mutedForeground} />
+              </Pressable>
+            ) : null}
+            {!isOwner && event.eventType === "venue" && canAccessHangout && eventHasStarted ? (
+            <View testID="event-checkin-panel" style={[styles.attendanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.attendanceHeading}>
                 <View style={[styles.attendanceIcon, { backgroundColor: colors.primarySoft }]}>
                   <Feather name="check-circle" size={18} color={colors.primary} />
                 </View>
                 <View style={styles.attendanceCopy}>
                   <Text accessibilityRole="header" style={[styles.attendanceTitle, { color: colors.text }]}>
-                    {isOwner
-                      ? event.joinApprovalRequired
-                        ? t("tabs.events.joinRequests")
-                        : t("tabs.events.attendanceOwnerHeading")
-                      : t("tabs.events.attendanceGuestHeading")}
+                    {t("tabs.events.attendanceGuestHeading")}
                   </Text>
-                  {!isHangout ? (
-                    <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
-                      {isOwner
-                        ? t("tabs.events.attendanceOwnerHint")
-                        : t("tabs.events.attendanceGuestHint")}
-                    </Text>
-                  ) : null}
                 </View>
               </View>
-              {isOwner ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={manageEventLabel}
-                  testID="button-manage-event-attendance"
-                  onPress={() => router.push({
-                    pathname: "/event-attendees/[eventType]/[id]",
-                    params: {
-                      eventType: event.eventType,
-                      id: String(event.id),
-                      title: event.title,
-                      joinApprovalRequired: String(event.joinApprovalRequired),
-                    },
-                  } as never)}
-                  style={[styles.attendanceButton, { backgroundColor: colors.primary }]}
-                >
-                  <Feather name="users" size={16} color={colors.primaryForeground} />
-                  <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
-                    {manageEventLabel}
-                  </Text>
-                </Pressable>
-              ) : (
-                <View style={styles.attendanceActions}>
-                  {!isHangout ? <Pressable
+              <View style={styles.attendanceActions}>
+                  <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t("tabs.events.scanEventQr")}
                     testID="button-scan-event-qr"
                     onPress={() => router.push("/qr-scan" as never)}
-                    style={[styles.attendanceButton, { backgroundColor: colors.primary }]}
+                    style={[styles.attendanceButton, styles.attendanceButtonScan, { backgroundColor: colors.primary }]}
                   >
                     <Feather name="maximize" size={16} color={colors.primaryForeground} />
                     <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
                       {t("tabs.events.scanEventQr")}
                     </Text>
-                  </Pressable> : null}
-                  {!isHangout && event.latitude != null && event.longitude != null ? (
+                  </Pressable>
+                  {event.latitude != null && event.longitude != null ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={t("tabs.events.checkInByLocation")}
@@ -859,8 +899,7 @@ export default function EventDetailsScreen() {
                       </Text>
                     </Pressable>
                   ) : null}
-                </View>
-              )}
+              </View>
             </View>
             ) : null}
             {event.contactPhone || event.websiteUrl || event.publicEmail ? (
@@ -1320,6 +1359,24 @@ const styles = StyleSheet.create({
   hostRatingSubmitText: { fontSize: 12, fontWeight: "700" },
   description: { fontSize: 15, lineHeight: 23, marginTop: 18 },
   contactHeading: { fontSize: 16, fontWeight: "700", marginBottom: 2 },
+  ownerManageAction: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+    marginTop: 18,
+  },
+  ownerManageIcon: {
+    width: 38,
+    height: 38,
+    borderTopLeftRadius: 15,
+    borderBottomRightRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ownerManageText: { flex: 1, fontSize: 14, fontWeight: "700" },
   attendanceCard: { borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 22, padding: 16, gap: 14, marginTop: 20 },
   attendanceHeading: { flexDirection: "row", alignItems: "center", gap: 11 },
   attendanceIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
@@ -1328,6 +1385,7 @@ const styles = StyleSheet.create({
   attendanceHint: { fontSize: 12, lineHeight: 17 },
   attendanceActions: { gap: 8 },
   attendanceButton: { minHeight: 48, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14 },
+  attendanceButtonScan: { borderTopLeftRadius: 24, borderBottomRightRadius: 18 },
   attendanceButtonSecondary: { borderWidth: 1, backgroundColor: "transparent" },
   attendanceButtonText: { fontSize: 13, fontWeight: "700" },
   rsvpSection: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 22, paddingTop: 16 },

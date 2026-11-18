@@ -236,9 +236,13 @@ function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number):
   return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
 }
 
-function eventCheckinOpen(startsAt: Date, endsAt: Date | null): boolean {
+function eventCheckinOpen(
+  startsAt: Date,
+  endsAt: Date | null,
+  earlyWindowMs = 60 * 60_000,
+): boolean {
   const now = Date.now();
-  const opensAt = startsAt.getTime() - 60 * 60_000;
+  const opensAt = startsAt.getTime() - earlyWindowMs;
   const closesAt = (endsAt?.getTime() ?? startsAt.getTime() + 4 * 60 * 60_000) + 2 * 60 * 60_000;
   return now >= opensAt && now <= closesAt;
 }
@@ -3975,7 +3979,7 @@ router.post(
       ))
       .limit(1);
     if (venueEvent) {
-      if (!eventCheckinOpen(venueEvent.startsAt, venueEvent.endsAt)) {
+      if (!eventCheckinOpen(venueEvent.startsAt, venueEvent.endsAt, 0)) {
         res.status(403).json({ message: "Check-in is available near the event time." });
         return;
       }

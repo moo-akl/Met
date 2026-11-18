@@ -33,6 +33,7 @@ let mockRouteParams: { eventType: string; id: string } = {
 };
 const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefined) };
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn() };
+const mockOpenVenueManager = jest.fn();
 jest.mock("@expo/vector-icons", () => {
   const React = require("react");
   const { View } = require("react-native");
@@ -84,6 +85,9 @@ jest.mock("@/lib/api/client", () => ({
 jest.mock("@/lib/firestore/client", () => ({ getAppCheckToken: jest.fn() }));
 jest.mock("@/lib/eventLinks", () => ({ buildEventDetailsUrl: jest.fn() }));
 jest.mock("@/lib/eventReminders", () => ({ cancelEventReminder: jest.fn() }));
+jest.mock("@/lib/venueManagerLink", () => ({
+  openVenueManager: (...args: unknown[]) => mockOpenVenueManager(...args),
+}));
 jest.mock("@/components/EventFollowThroughActions", () => () => null);
 jest.mock("@/components/TrustScoreBadge", () => ({ TrustScoreBadge: () => null }));
 jest.mock("react-native-keyboard-controller", () => {
@@ -193,6 +197,151 @@ describe("event detail layouts", () => {
     expect(root.root.findByProps({ testID: "event-detail-standard-hero" })).toBeTruthy();
     expect(root.root.findAllByProps({ testID: "event-detail-hangout-hero" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("opens venue-event editing through the venue manager", () => {
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      ownerUid: "guest-user",
+      joinApprovalRequired: false,
+      placeId: "venue-place",
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+    act(() => {
+      root.root.findByProps({ testID: "event-details-edit-button" }).props.onPress();
+    });
+
+    expect(mockOpenVenueManager).toHaveBeenCalledTimes(1);
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it("hides guest check-in before the start while keeping RSVP, then shows it after start", () => {
+    const startsAt = Date.now() + 60_000;
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      ownerUid: "venue-owner",
+      joinApprovalRequired: false,
+      placeId: "venue-place",
+      startsAt: new Date(startsAt).toISOString(),
+      endsAt: new Date(startsAt + 60 * 60_000).toISOString(),
+      myRsvp: null,
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+    expect(root.root.findAllByProps({ testID: "event-checkin-panel" })).toHaveLength(0);
+    expect(root.root.findAll((node) => node.props.children === "tabs.events.rsvpHeading").length)
+      .toBeGreaterThan(0);
+    expect(root.root.findAllByProps({ testID: "button-scan-event-qr" })).toHaveLength(0);
+
+    mockEvent = {
+      ...mockEvent,
+      startsAt: new Date(Date.now() - 1_000).toISOString(),
+      endsAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    };
+    act(() => root.update(<EventDetailsScreen />));
+
+    expect(root.root.findByProps({ testID: "event-checkin-panel" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "button-scan-event-qr" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "button-check-in-by-location" })).toHaveLength(0);
+    expect(root.root.findAll((node) => node.props.children === "tabs.events.attendanceGuestHint")).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("keeps the event owner's RSVP-management action available before the event starts", () => {
+    const startsAt = Date.now() + 60_000;
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      ownerUid: "guest-user",
+      joinApprovalRequired: false,
+      placeId: "venue-place",
+      startsAt: new Date(startsAt).toISOString(),
+      endsAt: new Date(startsAt + 60 * 60_000).toISOString(),
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+    expect(root.root.findByProps({ testID: "button-manage-event-attendance" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "event-checkin-panel" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("keeps member-event editing on the community editor", () => {
+    mockEvent = {
+      ...baseEvent,
+      ownerUid: "guest-user",
+      joinApprovalRequired: false,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+
+    const root = renderScreen();
+    act(() => {
+      root.root.findByProps({ testID: "event-details-edit-button" }).props.onPress();
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith("/event-edit/42");
+    act(() => root.unmount());
+  });
+
+  it("keeps active Hangout editing on the community editor", () => {
+    mockEvent = {
+      ...baseEvent,
+      ownerUid: "guest-user",
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+
+    const root = renderScreen();
+    act(() => {
+      root.root.findByProps({ testID: "event-details-edit-button" }).props.onPress();
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith("/event-edit/42");
+    act(() => root.unmount());
+  });
+
+  it("does not show venue-event editing to someone who is not the owner", () => {
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      joinApprovalRequired: false,
+      placeId: "venue-place",
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+
+    expect(root.root.findAllByProps({ testID: "event-details-edit-button" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("hides venue-event editing when the venue manager route cannot identify its venue", () => {
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      ownerUid: "guest-user",
+      joinApprovalRequired: false,
+      placeId: null,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+
+    expect(root.root.findAllByProps({ testID: "event-details-edit-button" })).toHaveLength(0);
     act(() => root.unmount());
   });
 });

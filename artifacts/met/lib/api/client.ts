@@ -1400,72 +1400,11 @@ export const api = {
       opts,
     ),
 
-  /** Create an event at the caller's venue. */
-  createVenueEvent: (
-    opts: ApiOptions,
-    body: {
-      title: string;
-      description?: string | null;
-      imageUrl?: string | null;
-      contactPhone?: string | null;
-      websiteUrl?: string | null;
-      publicEmail?: string | null;
-      startsAt: string;
-      endsAt?: string | null;
-      capacityLimit?: number | null;
-      isPublished?: boolean;
-      visibility?: "public" | "invite_only";
-      inviteeUids?: string[];
-      invitePasscode?: string | null;
-    },
-  ) =>
-    request<{ event: VenueEvent }>(
-      "POST",
-      "/api/venue-owner/me/events",
-      opts,
-      body,
-    ),
-
   /** List events for a venue (public). */
   getVenueEvents: (opts: ApiOptions, placeId: string) =>
     request<{ events: VenueEvent[] }>(
       "GET",
       `/api/venue-owner/${encodeURIComponent(placeId)}/events`,
-      opts,
-    ),
-
-  /** Update an event owned by the caller. */
-  updateVenueEvent: (
-    opts: ApiOptions,
-    eventId: number,
-    body: {
-      title?: string;
-      description?: string | null;
-      imageUrl?: string | null;
-      contactPhone?: string | null;
-      websiteUrl?: string | null;
-      publicEmail?: string | null;
-      startsAt?: string;
-      endsAt?: string | null;
-      capacityLimit?: number | null;
-      isPublished?: boolean;
-      visibility?: "public" | "invite_only";
-      inviteeUids?: string[];
-      invitePasscode?: string | null;
-    },
-  ) =>
-    request<{ event: VenueEvent }>(
-      "PUT",
-      `/api/venue-owner/me/events/${eventId}`,
-      opts,
-      body,
-    ),
-
-  /** Delete an event owned by the caller. */
-  deleteVenueEvent: (opts: ApiOptions, eventId: number) =>
-    request<{ success: boolean }>(
-      "DELETE",
-      `/api/venue-owner/me/events/${eventId}`,
       opts,
     ),
 

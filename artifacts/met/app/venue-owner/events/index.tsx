@@ -20,12 +20,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, type VenueEvent } from "@/lib/api/client";
-import { cancelEventReminder } from "@/lib/eventReminders";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { useCreateVenueOwnerEventInviteLink } from "@workspace/api-client-react";
+import { openVenueManager as openVenueManagerLink } from "@/lib/venueManagerLink";
 
 const GREEN = "#00E87A";
 
@@ -67,24 +67,17 @@ export default function VenueOwnerEventsScreen() {
     }, [ownerLoading, fetchEvents]),
   );
 
-  const handleDelete = (eventId: number) => {
-    Alert.alert("Delete Event", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          if (!authedUid) return;
-          try {
-            await api.deleteVenueEvent({ uid: authedUid }, eventId);
-            await cancelEventReminder(authedUid, "venue", eventId).catch(() => {});
-            setEvents((prev) => prev.filter((e) => e.id !== eventId));
-          } catch {
-            Alert.alert("Error", "Failed to delete event");
-          }
-        },
-      },
-    ]);
+  const openVenueManager = async () => {
+    try {
+      await openVenueManagerLink();
+    } catch (error) {
+      Alert.alert(
+        "Venue Manager unavailable",
+        error instanceof Error
+          ? error.message
+          : "Open Venue Manager in your browser to manage venue events.",
+      );
+    }
   };
 
   const handleShare = async (event: VenueEvent) => {
@@ -143,10 +136,12 @@ export default function VenueOwnerEventsScreen() {
         rightAction={
           <Pressable
             testID="venue-owner-new-event"
-            onPress={() => router.push("/venue-owner/events/new" as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Open Venue Manager"
+            onPress={() => void openVenueManager()}
             style={[styles.addBtn, { backgroundColor: accent }]}
           >
-            <Text style={[styles.addBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>+ New</Text>
+            <Text style={[styles.addBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>Manage online</Text>
           </Pressable>
         }
       />
@@ -160,10 +155,12 @@ export default function VenueOwnerEventsScreen() {
             <Feather name="calendar" size={38} color={accent} style={styles.emptyEmoji} />
             <Text style={[styles.emptyText, { color: vEmpty }]}>No events yet</Text>
             <Pressable
-              onPress={() => router.push("/venue-owner/events/new" as never)}
+              accessibilityRole="button"
+              accessibilityLabel="Open Venue Manager"
+              onPress={() => void openVenueManager()}
               style={[styles.emptyBtn, { borderColor: accent }]}
             >
-              <Text style={[styles.emptyBtnText, { color: accent }]}>Create your first event</Text>
+              <Text style={[styles.emptyBtnText, { color: accent }]}>Open Venue Manager</Text>
             </Pressable>
           </View>
         }
@@ -192,34 +189,25 @@ export default function VenueOwnerEventsScreen() {
               ) : null}
             </View>
             <View style={styles.cardActions}>
-              <Pressable
-                testID={`venue-owner-event-edit-${item.id}`}
-                onPress={() =>
-                  router.push({
-                    pathname: `/venue-owner/events/${item.id}` as never,
+              {item.ownerUid === authedUid ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`View RSVPs and attendance for ${item.title}`}
+                  testID={`venue-owner-event-rsvps-${item.id}`}
+                  onPress={() => router.push({
+                    pathname: "/event-attendees/[eventType]/[id]",
                     params: {
+                      eventType: "venue",
                       id: String(item.id),
                       title: item.title,
-                      description: item.description ?? "",
-                      imageUrl: item.imageUrl ?? "",
-                      contactPhone: item.contactPhone ?? "",
-                      websiteUrl: item.websiteUrl ?? "",
-                      publicEmail: item.publicEmail ?? "",
-                      startsAt: item.startsAt,
-                      endsAt: item.endsAt ?? "",
-                      capacityLimit: item.capacityLimit != null ? String(item.capacityLimit) : "",
-                      isPublished: String(item.isPublished),
-                      visibility: item.visibility,
-                       inviteLinkEnabled: String(item.inviteLinkEnabled),
-                      invitePasscodeRequired: String(item.invitePasscodeRequired),
                     },
-                  })
-                }
-                style={styles.editBtn}
-                hitSlop={8}
-              >
-                <Feather name="edit-2" size={16} color={vMuted} />
-              </Pressable>
+                  } as never)}
+                  style={styles.rsvpAction}
+                  hitSlop={8}
+                >
+                  <Feather name="users" size={17} color={accent} />
+                </Pressable>
+              ) : null}
               {item.visibility === "invite_only" ? (
                 <Pressable
                   accessibilityRole="button"
@@ -236,13 +224,6 @@ export default function VenueOwnerEventsScreen() {
                   </Text>
                 </Pressable>
               ) : null}
-              <Pressable
-                onPress={() => handleDelete(item.id)}
-                style={styles.deleteBtn}
-                hitSlop={8}
-              >
-                <Feather name="trash-2" size={18} color={vMuted} />
-              </Pressable>
             </View>
             {/* Signal mode: thin bottom separator between rows */}
             {!isDark && <View style={[StyleSheet.absoluteFill, { top: undefined, bottom: -8, height: 0.5, backgroundColor: vSeparator, marginHorizontal: 14 }]} pointerEvents="none" />}
@@ -256,7 +237,7 @@ export default function VenueOwnerEventsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  addBtn: { minHeight: 40, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  addBtn: { minHeight: 40, borderTopLeftRadius: 16, borderBottomRightRadius: 16, paddingHorizontal: 14, paddingVertical: 8, justifyContent: "center" },
   addBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   list: { paddingHorizontal: 18, paddingVertical: 12, gap: 10 },
   card: {
@@ -280,9 +261,7 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: "row", alignItems: "center", gap: 4 },
   inviteListAction: { flexDirection: "row", alignItems: "center", gap: 3, padding: 4 },
   inviteListActionText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  editBtn: { padding: 4 },
-  editBtnText: { fontSize: 16 },
-  deleteBtn: { minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center" },
+  rsvpAction: { minWidth: 38, minHeight: 38, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingTop: 60 },
   emptyEmoji: { marginBottom: 12 },
   emptyText: { fontSize: 16, fontFamily: "Inter_400Regular", marginBottom: 20 },

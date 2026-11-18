@@ -338,12 +338,59 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     );
   });
 
-  it("rejects venue-owner event creation when the end is not after the start", async () => {
-    const { profile } = await makeBusiness("owner-invalid-end-create");
+  it("rejects venue guest QR check-in until the event start time", async () => {
+    const { agent, csrf, business } = await claimOwner("qr-before-start");
     const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const response = await api()
-      .post("/api/venue-owner/me/events")
-      .set("x-test-uid", profile.ownerUid)
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "QR Check-in Start Boundary",
+        startsAt: startsAt.toISOString(),
+        isPublished: true,
+      });
+    expect(created.status).toBe(201);
+    const eventId = Number(created.body.event.id);
+
+    const qr = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events/${eventId}/check-in-qr`)
+      .set("x-csrf-token", csrf)
+      .send({});
+    expect(qr.status).toBe(200);
+    const token = new URL(qr.body.url as string).pathname.split("/").pop();
+
+    const mockNow = vi.spyOn(Date, "now");
+    try {
+      mockNow.mockReturnValue(startsAt.getTime() - 1);
+      const beforeStart = await api()
+        .post("/api/events/check-in/qr")
+        .set("x-test-uid", GUEST_UID)
+        .send({ token });
+      expect(beforeStart.status).toBe(403);
+
+      mockNow.mockReturnValue(startsAt.getTime());
+      const atStart = await api()
+        .post("/api/events/check-in/qr")
+        .set("x-test-uid", GUEST_UID)
+        .send({ token });
+      expect(atStart.status).toBe(200);
+      expect(atStart.body).toMatchObject({
+        eventType: "venue",
+        eventId,
+        checkInMethod: "qr",
+        alreadyCheckedIn: false,
+      });
+    } finally {
+      mockNow.mockRestore();
+    }
+  });
+
+  it("rejects venue-owner event creation when the end is not after the start", async () => {
+    const { agent, csrf, business } = await claimOwner("owner-invalid-end-create");
+    const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const response = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
       .send({
         title: "Invalid schedule",
         startsAt: startsAt.toISOString(),
@@ -355,12 +402,12 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
   });
 
   it("rejects invalid event updates and accepts an end after the start", async () => {
-    const { profile } = await makeBusiness("owner-invalid-end-update");
+    const { agent, csrf, business } = await claimOwner("owner-invalid-end-update");
     const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
-    const created = await api()
-      .post("/api/venue-owner/me/events")
-      .set("x-test-uid", profile.ownerUid)
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
       .send({
         title: "Schedule update",
         startsAt: startsAt.toISOString(),
@@ -368,27 +415,27 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       });
     expect(created.status).toBe(201);
     const eventId = Number(created.body.event.id);
-    const route = `/api/venue-owner/me/events/${eventId}`;
+    const route = `/api/venue-manager/businesses/${business.id}/events/${eventId}`;
 
-    const invalidStart = await api()
-      .put(route)
-      .set("x-test-uid", profile.ownerUid)
+    const invalidStart = await agent
+      .patch(route)
+      .set("x-csrf-token", csrf)
       .send({ startsAt: new Date(endsAt.getTime() + 1).toISOString() });
     expect(invalidStart.status).toBe(400);
     expect(invalidStart.body.message).toBe("Event end time must be after the start time.");
 
-    const invalidEnd = await api()
-      .put(route)
-      .set("x-test-uid", profile.ownerUid)
+    const invalidEnd = await agent
+      .patch(route)
+      .set("x-csrf-token", csrf)
       .send({ endsAt: new Date(startsAt.getTime() - 1).toISOString() });
     expect(invalidEnd.status).toBe(400);
     expect(invalidEnd.body.message).toBe("Event end time must be after the start time.");
 
     const nextStart = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
     const nextEnd = new Date(nextStart.getTime() + 60 * 60 * 1000);
-    const validUpdate = await api()
-      .put(route)
-      .set("x-test-uid", profile.ownerUid)
+    const validUpdate = await agent
+      .patch(route)
+      .set("x-csrf-token", csrf)
       .send({
         startsAt: nextStart.toISOString(),
         endsAt: nextEnd.toISOString(),

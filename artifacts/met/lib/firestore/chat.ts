@@ -77,25 +77,20 @@ export async function uploadChatMedia(
     `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o` +
     `?uploadType=media&name=${encodedPath}`;
 
-  const fileResponse = await fetch(localUri);
-  if (!fileResponse.ok) throw new Error(`Cannot read local file (${fileResponse.status})`);
-  const blob = await fileResponse.blob();
-
-  const uploadResponse = await fetch(uploadUrl, {
-    method: "POST",
+  const uploadResult = await FileSystem.uploadAsync(uploadUrl, localUri, {
+    httpMethod: "POST",
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
     headers: {
       Authorization: `Bearer ${idToken}`,
       "Content-Type": "image/jpeg",
     },
-    body: blob,
   });
 
-  if (!uploadResponse.ok) {
-    const errText = await uploadResponse.text().catch(() => String(uploadResponse.status));
-    throw new Error(`Storage upload failed (${uploadResponse.status}): ${errText}`);
+  if (uploadResult.status < 200 || uploadResult.status >= 300) {
+    throw new Error(`Storage upload failed (${uploadResult.status}): ${uploadResult.body}`);
   }
 
-  const meta = (await uploadResponse.json()) as { downloadTokens?: string };
+  const meta = JSON.parse(uploadResult.body) as { downloadTokens?: string };
   const dlToken = meta.downloadTokens;
   if (!dlToken) throw new Error("No download token in upload response");
 

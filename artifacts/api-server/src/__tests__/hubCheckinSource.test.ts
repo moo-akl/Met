@@ -553,15 +553,15 @@ describe.skipIf(!hasDatabase)(
     });
 
     it("a published public venue event appears in the Events pool with venue coordinates", async () => {
-      const created = await request(app)
-        .post("/api/venue-owner/me/events")
-        .set(uid(OWNER_UID))
-        .send({
+      const [created] = await db.insert(venueEventsTable).values({
+          ownerUid: OWNER_UID,
+          placeId: PLACE_ID,
           title: `Source Test Public Venue Event ${TP}`,
-          startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
           visibility: "public",
-        });
-      expect(created.status).toBe(201);
+          isPublished: true,
+        }).returning({ id: venueEventsTable.id });
+      expect(created).toBeDefined();
 
       const feed = await request(app)
         .get("/api/events/feed")
@@ -570,7 +570,7 @@ describe.skipIf(!hasDatabase)(
       expect(feed.body.events).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            id: created.body.event.id,
+            id: created!.id,
             eventType: "venue",
             title: `Source Test Public Venue Event ${TP}`,
             latitude: 51.5074,

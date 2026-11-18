@@ -6,10 +6,10 @@
  * PUT    /venue-owner/me                            — update own profile
  * GET    /venue-owner/:placeId                      — public (approved only)
  *
- * POST   /venue-owner/me/events                    — create event
+ * POST   /venue-owner/me/events                    — retired (use Venue Manager)
  * GET    /venue-owner/:placeId/events              — list events for venue
- * PUT    /venue-owner/me/events/:id                — update event
- * DELETE /venue-owner/me/events/:id               — delete event
+ * PUT    /venue-owner/me/events/:id                — retired (use Venue Manager)
+ * DELETE /venue-owner/me/events/:id               — retired (use Venue Manager)
  * POST   /venue-events/:id/rsvp                    — RSVP to an event
  * GET    /venue-events/:id/rsvp                    — caller's current RSVP
  *
@@ -2404,6 +2404,11 @@ router.get(
 // Phase 1 — Events
 // ---------------------------------------------------------------------------
 
+function rejectLegacyVenueEventMutation(res: Response): boolean {
+  res.status(410).json({ message: "Venue events are managed in Venue Manager." });
+  return true;
+}
+
 /**
  * POST /venue-owner/me/events
  */
@@ -2412,6 +2417,8 @@ router.post(
   requireUid,
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
+    // Event creation is handled in Venue Manager; retain a clear response for old app versions.
+    if (rejectLegacyVenueEventMutation(res)) return;
     const uid = req.uid!;
     const schema = z.object({
       title: z.string().min(1).max(120),
@@ -2593,6 +2600,8 @@ router.put(
   requireUid,
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
+    // Event editing is handled in Venue Manager; retain a clear response for old app versions.
+    if (rejectLegacyVenueEventMutation(res)) return;
     const uid = req.uid!;
     const eventId = parseInt(String(req.params["id"] ?? ""), 10);
     if (isNaN(eventId)) {
@@ -2948,6 +2957,8 @@ router.delete(
   requireUid,
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
+    // Event deletion is handled in Venue Manager; retain a clear response for old app versions.
+    if (rejectLegacyVenueEventMutation(res)) return;
     const uid = req.uid!;
     const eventId = parseInt(String(req.params["id"] ?? ""), 10);
     if (isNaN(eventId)) {

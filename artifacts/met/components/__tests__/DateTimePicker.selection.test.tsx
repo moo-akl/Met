@@ -5,10 +5,9 @@ import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 
 const mockCreateCommunityEvent = jest.fn();
 const mockUpdateCommunityEvent = jest.fn();
-const mockCreateVenueEvent = jest.fn();
-const mockUpdateVenueEvent = jest.fn();
 const mockGetVenueEvents = jest.fn();
 const mockRouterPush = jest.fn();
+const mockOpenVenueManager = jest.fn();
 const mockQueryClient = {
   setQueryData: jest.fn(),
   invalidateQueries: jest.fn().mockResolvedValue(undefined),
@@ -95,6 +94,9 @@ jest.mock("@/components/KeyboardAwareScrollViewCompat", () => {
 });
 jest.mock("@/lib/venueEventImage", () => ({ prepareVenueEventImage: jest.fn() }));
 jest.mock("@/lib/eventReminders", () => ({ cancelEventReminder: jest.fn() }));
+jest.mock("@/lib/venueManagerLink", () => ({
+  openVenueManager: (...args: unknown[]) => mockOpenVenueManager(...args),
+}));
 jest.mock("expo-image-picker", () => ({ MediaTypeOptions: { Images: "Images" } }));
 jest.mock("expo-location", () => ({
   getForegroundPermissionsAsync: jest.fn().mockResolvedValue({ granted: false }),
@@ -104,8 +106,6 @@ jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn() }));
 jest.mock("@/lib/api/client", () => ({
   api: {
     uploadVenueEventImage: jest.fn(),
-    createVenueEvent: (...args: unknown[]) => mockCreateVenueEvent(...args),
-    updateVenueEvent: (...args: unknown[]) => mockUpdateVenueEvent(...args),
     getVenueEvents: (...args: unknown[]) => mockGetVenueEvents(...args),
   },
   ApiError: class ApiError extends Error {},
@@ -134,8 +134,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockQueryClient.invalidateQueries.mockResolvedValue(undefined);
   mockLocalSearchParams = {};
-  mockCreateVenueEvent.mockResolvedValue({ event: { id: 48 } });
-  mockUpdateVenueEvent.mockResolvedValue({});
+  mockOpenVenueManager.mockResolvedValue(undefined);
   mockGetVenueEvents.mockResolvedValue({ events: [] });
 });
 
@@ -594,112 +593,30 @@ describe("DateTimePicker platform behavior", () => {
     act(() => root.unmount());
   });
 
-  it("saves the selected start and end values when creating a venue event", async () => {
-    let root!: renderer.ReactTestRenderer;
-    act(() => {
-      root = renderer.create(<NewVenueEventScreen />);
-    });
-
-    const titleInput = root.root.find((node) => node.props.placeholder === "Friday Night Quiz");
-    await act(async () => {
-      titleInput.props.onChangeText("Quiz night");
-    });
-
-    const expectedStart = await selectDateTime(root, 0, 2, 20, 10);
-    const expectedEnd = await selectDateTime(root, 1, 1, 23, 25);
-    expectDateTimeDisplayed(root, expectedStart);
-    expectDateTimeDisplayed(root, expectedEnd);
-
-    await act(async () => {
-      const submit = root.root.findAll(
-        (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
-      ).at(-1)!;
-      await submit.props.onPress();
-    });
-
-    expect(mockCreateVenueEvent).toHaveBeenCalledWith(
-      { uid: "event-owner" },
-      expect.objectContaining({
-        title: "Quiz night",
-        startsAt: expectedStart.toISOString(),
-        endsAt: expectedEnd.toISOString(),
-      }),
-    );
+  it("opens Venue Manager from the retired mobile create and edit routes", async () => {
+    for (const Screen of [NewVenueEventScreen, EditVenueEventScreen]) {
+      let root!: renderer.ReactTestRenderer;
+      act(() => {
+        root = renderer.create(<Screen />);
+      });
+      await act(async () => {
+        findByTestId(root, "open-venue-manager").props.onPress();
+      });
+      expect(mockOpenVenueManager).toHaveBeenCalled();
+      act(() => root.unmount());
+    }
+    expect(mockOpenVenueManager).toHaveBeenCalledTimes(2);
   });
 
-  it("saves the selected start and end values when editing a venue event", async () => {
-    mockLocalSearchParams = {
-      id: "73",
-      title: "Existing event",
-      startsAt: new Date(2031, 6, 10, 18, 0, 0, 0).toISOString(),
-      endsAt: new Date(2031, 6, 10, 21, 0, 0, 0).toISOString(),
-      isPublished: "true",
-      visibility: "public",
-    };
-    let root!: renderer.ReactTestRenderer;
-    act(() => {
-      root = renderer.create(<EditVenueEventScreen />);
-    });
-
-    const expectedStart = await selectDateTime(root, 0, 2, 19, 40);
-    const expectedEnd = await selectDateTime(root, 1, 3, 22, 55);
-    expectDateTimeDisplayed(root, expectedStart);
-    expectDateTimeDisplayed(root, expectedEnd);
-
-    await act(async () => {
-      const submit = root.root.findAll(
-        (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
-      ).at(-1)!;
-      await submit.props.onPress();
-    });
-
-    expect(mockUpdateVenueEvent).toHaveBeenCalledWith(
-      { uid: "event-owner" },
-      73,
-      expect.objectContaining({
-        startsAt: expectedStart.toISOString(),
-        endsAt: expectedEnd.toISOString(),
-      }),
-    );
-  });
-
-  it("returns to the same start and end times after reopening an event", async () => {
-    mockLocalSearchParams = {
-      id: "84",
-      title: "Round-trip event",
-      startsAt: new Date(2032, 2, 10, 18, 0, 0, 0).toISOString(),
-      endsAt: new Date(2032, 2, 10, 21, 0, 0, 0).toISOString(),
-      isPublished: "true",
-      visibility: "public",
-    };
-    let editRoot!: renderer.ReactTestRenderer;
-    act(() => {
-      editRoot = renderer.create(<EditVenueEventScreen />);
-    });
-
-    const expectedStart = await selectDateTime(editRoot, 0, 2, 19, 35);
-    const expectedEnd = await selectDateTime(editRoot, 1, 3, 22, 50);
-    await act(async () => {
-      const save = editRoot.root.findAll(
-        (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
-      ).at(-1)!;
-      await save.props.onPress();
-    });
-    expect(mockUpdateVenueEvent).toHaveBeenCalledWith(
-      { uid: "event-owner" },
-      84,
-      expect.objectContaining({
-        startsAt: expectedStart.toISOString(),
-        endsAt: expectedEnd.toISOString(),
-      }),
-    );
-
+  it("keeps RSVP access and ignores old edit links in the mobile event list", async () => {
+    mockLocalSearchParams = { editEventId: "84" };
     mockGetVenueEvents.mockResolvedValue({
       events: [{
         id: 84,
-        title: "Round-trip event",
-        startsAt: expectedStart.toISOString(),
-        endsAt: expectedEnd.toISOString(),
+        ownerUid: "event-owner",
+        title: "Owner event",
+        startsAt: "2032-03-10T18:00:00.000Z",
+        endsAt: null,
         description: null,
         imageUrl: null,
         contactPhone: null,
@@ -710,93 +627,33 @@ describe("DateTimePicker platform behavior", () => {
         visibility: "public",
         inviteLinkEnabled: false,
         invitePasscodeRequired: false,
-        rsvpCount: 0,
+        rsvpCount: 3,
       }],
     });
-    let listRoot!: renderer.ReactTestRenderer;
+
+    let root!: renderer.ReactTestRenderer;
     await act(async () => {
-      listRoot = renderer.create(<VenueOwnerEventsScreen />);
+      root = renderer.create(<VenueOwnerEventsScreen />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(mockGetVenueEvents).toHaveBeenCalledWith(
       { uid: "event-owner" },
       "venue-place",
     );
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(findByTestId(root, "venue-owner-event-rsvps-84")).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "venue-owner-event-edit-84" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "venue-owner-event-delete-84" })).toHaveLength(0);
 
-    const editButton = findByTestId(listRoot, "venue-owner-event-edit-84");
     await act(async () => {
-      editButton.props.onPress();
+      findByTestId(root, "venue-owner-event-rsvps-84").props.onPress();
     });
-    const route = mockRouterPush.mock.calls[0]![0] as {
-      params: Record<string, string>;
-    };
-    expect(route.params).toMatchObject({
-      startsAt: expectedStart.toISOString(),
-      endsAt: expectedEnd.toISOString(),
-    });
-
-    mockLocalSearchParams = route.params;
-    let reopenedEditRoot!: renderer.ReactTestRenderer;
-    act(() => {
-      reopenedEditRoot = renderer.create(<EditVenueEventScreen />);
-    });
-    expectDateTimeDisplayed(reopenedEditRoot, expectedStart);
-    expectDateTimeDisplayed(reopenedEditRoot, expectedEnd);
-  });
-
-  it("shows an error and blocks creating an event whose end precedes its start", async () => {
-    let root!: renderer.ReactTestRenderer;
-    act(() => {
-      root = renderer.create(<NewVenueEventScreen />);
-    });
-    const titleInput = root.root.find((node) => node.props.placeholder === "Friday Night Quiz");
-    await act(async () => {
-      titleInput.props.onChangeText("Quiz night");
-    });
-
-    const start = await selectDateTime(root, 0, 2, 20, 10);
-    const end = await selectDateTime(root, 1, 0, 20, 9);
-    expect(end.getTime()).toBeLessThan(start.getTime());
-    expect(findByTestId(root, "venue-event-schedule-error").props.children)
-      .toBe("End date and time must be after the start date and time.");
-    const submit = root.root.findAll(
-      (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
-    ).at(-1)!;
-    expect(submit.props.disabled).toBe(true);
-    await act(async () => {
-      await submit.props.onPress();
-    });
-    expect(mockCreateVenueEvent).not.toHaveBeenCalled();
-  });
-
-  it("shows an error and blocks saving an event whose end precedes its start", async () => {
-    mockLocalSearchParams = {
-      id: "85",
-      title: "Existing event",
-      startsAt: new Date(2032, 2, 10, 18, 0, 0, 0).toISOString(),
-      endsAt: new Date(2032, 2, 10, 21, 0, 0, 0).toISOString(),
-      isPublished: "true",
-      visibility: "public",
-    };
-    let root!: renderer.ReactTestRenderer;
-    act(() => {
-      root = renderer.create(<EditVenueEventScreen />);
-    });
-
-    const start = await selectDateTime(root, 0, 2, 20, 10);
-    const end = await selectDateTime(root, 1, 0, 20, 9);
-    expect(end.getTime()).toBeLessThan(start.getTime());
-    expect(findByTestId(root, "venue-event-schedule-error").props.children)
-      .toBe("End date and time must be after the start date and time.");
-    const submit = root.root.findAll(
-      (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
-    ).at(-1)!;
-    expect(submit.props.disabled).toBe(true);
-    await act(async () => {
-      await submit.props.onPress();
-    });
-    expect(mockUpdateVenueEvent).not.toHaveBeenCalled();
-  });
+    expect(mockRouterPush).toHaveBeenCalledWith(expect.objectContaining({
+      pathname: "/event-attendees/[eventType]/[id]",
+      params: expect.objectContaining({ eventType: "venue", id: "84" }),
+    }));
+    act(() => root.unmount());
+  }, 20_000);
 });
 
 async function selectDateTime(

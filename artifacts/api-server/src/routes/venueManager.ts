@@ -1038,6 +1038,7 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   if (startsAt <= new Date()) return void res.status(400).json({ message: "Event start time must be in the future." });
   const endsAt = req.body?.endsAt === null ? null : validDate(req.body?.endsAt);
   if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
+  if (endsAt && endsAt <= startsAt) return void res.status(400).json({ message: "Event end time must be after the start time." });
   const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body?.capacityLimit === null ? null : Number(req.body?.capacityLimit);
   if (capacityLimit !== undefined && capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
   const reminderOffsetsHours = parseReminderOffsets(req.body?.reminderOffsetsHours, [24, 2]);
@@ -1138,6 +1139,9 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
   const nextEndsAt = req.body?.endsAt === undefined
     ? existing.endsAt
     : endsAt ?? null;
+  if (nextEndsAt && nextEndsAt <= nextStartsAt) {
+    return void res.status(400).json({ message: "Event end time must be after the start time." });
+  }
   const invitePasscode = typeof req.body?.invitePasscode === "string" ? req.body.invitePasscode.trim() : req.body?.invitePasscode === null ? null : undefined;
   if (invitePasscode && (invitePasscode.length < 6 || invitePasscode.length > 64)) return void res.status(400).json({ message: "Passcodes must be between 6 and 64 characters." });
   if (visibility !== "invite_only" && invitePasscode) return void res.status(400).json({ message: "Passcodes are only available for invite-only events." });

@@ -2560,49 +2560,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/VenueGuestListResponse"
 
-  /venue-owner/me/events:
-    post:
-      operationId: createVenueOwnerEvent
-      tags: [venue-owner]
-      summary: Create an event for the caller's venue
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VenueManagerEventInput"
-      responses:
-        "201":
-          description: Created event
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VenueManagerEventResponse"
-
-  /venue-owner/me/events/{eventId}:
-    put:
-      operationId: updateVenueOwnerEvent
-      tags: [venue-owner]
-      summary: Update an event for the caller's venue
-      parameters:
-        - name: eventId
-          in: path
-          required: true
-          schema: { type: integer }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VenueManagerEventUpdate"
-      responses:
-        "200":
-          description: Updated event
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VenueManagerEventResponse"
-
   /venue-owner/me/events/{eventId}/invite-link:
     post:
       operationId: createVenueOwnerEventInviteLink
