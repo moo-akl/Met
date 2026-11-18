@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "358",
+      "buildNumber": "359",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "associatedDomains": [
@@ -31,7 +31,7 @@
     },
     "android": {
       "package": "app.met.founders",
-      "versionCode": 358,
+      "versionCode": 359,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
