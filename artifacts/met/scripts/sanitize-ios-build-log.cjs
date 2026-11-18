@@ -39,6 +39,17 @@ const NATIVE_DIAGNOSTICS = [
   [/cannot access|is not public|visibility/i, "access restriction"],
 ];
 
+const COCOAPODS_DIAGNOSTICS = [
+  [/could not find compatible versions for pod/i, "CocoaPods dependency version conflict."],
+  [/unable to find a specification for|none of your spec sources contain a spec satisfying/i, "CocoaPods could not find a required podspec."],
+  [/higher minimum deployment target|deployment target.*(?:required|higher|conflict)/i, "CocoaPods deployment target conflict."],
+  [/cannot yet be integrated as static librar(?:y|ies)|static framework.*(?:conflict|incompatib)/i, "CocoaPods static framework integration conflict."],
+  [/invalid podfile|podfile.*syntax error|syntax error.*podfile/i, "CocoaPods Podfile parsing failed."],
+  [/post_install hook.*(?:error|fail)|error.*processing.*post_install|post-install hook/i, "CocoaPods post-install hook failed."],
+  [/CDN:.*(?:couldn't|could not) be downloaded|could not connect to server|could not resolve host|connection reset|timed out|SSL_connect/i, "CocoaPods spec source or network request failed."],
+  [/\[!\]\s*Error installing\b|pod install.*(?:failed|error)/i, "CocoaPods dependency installation failed."],
+];
+
 function isSensitiveFormat(line) {
   const trimmed = line.trim();
   return (
@@ -100,6 +111,12 @@ function summarizeNativeCompileError(line) {
   return `Native compile error: ${category}${suffix}${detailSuffix}.`;
 }
 
+function summarizeCocoaPodsError(line) {
+  return (
+    COCOAPODS_DIAGNOSTICS.find(([pattern]) => pattern.test(line))?.[1] ?? null
+  );
+}
+
 function sanitizeLine(line) {
   if (typeof line !== "string" || line.length > MAX_LINE_LENGTH) {
     return null;
@@ -154,6 +171,9 @@ function sanitizeLine(line) {
   if (isSensitiveFormat(line)) {
     return null;
   }
+
+  const cocoaPodsError = summarizeCocoaPodsError(line);
+  if (cocoaPodsError) return cocoaPodsError;
 
   const gradleTask = line.match(/Execution failed for task ['"]([^'"]+)['"]/i);
   if (gradleTask && /^[A-Za-z0-9:_-]{1,100}$/.test(gradleTask[1])) {

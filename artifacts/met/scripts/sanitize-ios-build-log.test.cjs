@@ -30,6 +30,15 @@ test("reports signing diagnostics and safe compiler summaries", () => {
   );
 });
 
+test("reports safe CocoaPods failure categories without exposing raw diagnostics", () => {
+  assert.equal(sanitizeLine("[!] CocoaPods could not find compatible versions for pod 'Firebase/Auth' in /private/build/Podfile"), "CocoaPods dependency version conflict.");
+  assert.equal(sanitizeLine("[!] Unable to find a specification for 'PrivatePod' depended upon by a private target"), "CocoaPods could not find a required podspec.");
+  assert.equal(sanitizeLine("Specs satisfying the Firebase dependency were found, but they required a higher minimum deployment target."), "CocoaPods deployment target conflict.");
+  assert.equal(sanitizeLine("[!] Invalid Podfile file: private source path /private/build/Podfile"), "CocoaPods Podfile parsing failed.");
+  assert.equal(sanitizeLine("[!] CDN: trunk URL couldn't be downloaded: https://private.example/specs"), "CocoaPods spec source or network request failed.");
+  assert.equal(sanitizeLine("CocoaPods encountered an unrecognized private diagnostic"), null);
+});
+
 test("includes short safe details for otherwise unknown compiler diagnostics", () => {
   assert.equal(
     sanitizeLine(
