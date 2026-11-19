@@ -1739,6 +1739,11 @@ export interface VenueManagerEvent {
   title: string;
   /** @nullable */
   description?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  welcomeNote?: string | null;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -1829,6 +1834,11 @@ export interface VenueManagerEventInput {
      * @nullable
      */
   description?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  welcomeNote?: string | null;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -1902,6 +1912,11 @@ export interface VenueManagerEventUpdate {
      * @nullable
      */
   description?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  welcomeNote?: string | null;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -2516,6 +2531,11 @@ export interface CommunityEventInput {
      * @nullable
      */
   description?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  welcomeNote?: string | null;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -2617,6 +2637,18 @@ export interface CommunityEventJoinRequestDecisionInput {
   status: CommunityEventJoinRequestDecisionInputStatus;
 }
 
+export interface EventWelcomeNoteClaimResponse {
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  welcomeNote: string | null;
+}
+
+export interface EventWelcomeNoteAcknowledgeResponse {
+  success: boolean;
+}
+
 export interface EventLocationSearchResult {
   /**
      * @minLength 1
@@ -2674,6 +2706,11 @@ export interface CommunityEventManageResponse {
   title: string;
   /** @nullable */
   description?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  welcomeNote?: string | null;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */

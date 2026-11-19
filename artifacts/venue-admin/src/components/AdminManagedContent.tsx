@@ -98,9 +98,9 @@ function ImageField({ id, value, profileId, onChange, onUploadingChange }: {
   </div>;
 }
 
-type EventDraft = { title: string; description: string; galleryPhotos: string[]; startsAt: string; endsAt: string; capacityLimit: string; isPublished: boolean };
-const emptyEvent: EventDraft = { title: "", description: "", galleryPhotos: [], startsAt: "", endsAt: "", capacityLimit: "", isPublished: false };
-const eventDraft = (item: VenueManagerEvent): EventDraft => ({ title: item.title, description: item.description ?? "", galleryPhotos: item.galleryPhotos?.length ? item.galleryPhotos : item.imageUrl ? [item.imageUrl] : [], startsAt: localDate(item.startsAt), endsAt: localDate(item.endsAt), capacityLimit: item.capacityLimit?.toString() ?? "", isPublished: item.isPublished });
+type EventDraft = { title: string; description: string; welcomeNote: string; galleryPhotos: string[]; startsAt: string; endsAt: string; capacityLimit: string; isPublished: boolean };
+const emptyEvent: EventDraft = { title: "", description: "", welcomeNote: "", galleryPhotos: [], startsAt: "", endsAt: "", capacityLimit: "", isPublished: false };
+const eventDraft = (item: VenueManagerEvent): EventDraft => ({ title: item.title, description: item.description ?? "", welcomeNote: item.welcomeNote ?? "", galleryPhotos: item.galleryPhotos?.length ? item.galleryPhotos : item.imageUrl ? [item.imageUrl] : [], startsAt: localDate(item.startsAt), endsAt: localDate(item.endsAt), capacityLimit: item.capacityLimit?.toString() ?? "", isPublished: item.isPublished });
 
 function Events({ profileId }: { profileId: number }) {
   const { toast } = useToast();
@@ -121,7 +121,7 @@ function Events({ profileId }: { profileId: number }) {
     if (uploading) return;
     if (draft.endsAt && new Date(draft.endsAt) <= new Date(draft.startsAt)) { toast({ variant: "destructive", title: "End must be after start" }); return; }
     const galleryPhotos = draft.galleryPhotos.filter(Boolean);
-    const data: VenueManagerEventInput = { title: draft.title.trim(), description: optional(draft.description), imageUrl: galleryPhotos[0] ?? null, galleryPhotos, startsAt: isoDate(draft.startsAt), endsAt: draft.endsAt ? isoDate(draft.endsAt) : null, capacityLimit: draft.capacityLimit ? Number(draft.capacityLimit) : null, isPublished: draft.isPublished };
+    const data: VenueManagerEventInput = { title: draft.title.trim(), description: optional(draft.description), welcomeNote: optional(draft.welcomeNote), imageUrl: galleryPhotos[0] ?? null, galleryPhotos, startsAt: isoDate(draft.startsAt), endsAt: draft.endsAt ? isoDate(draft.endsAt) : null, capacityLimit: draft.capacityLimit ? Number(draft.capacityLimit) : null, isPublished: draft.isPublished };
     try {
       if (editing === "new") await create.mutateAsync({ id: profileId, data });
       else if (typeof editing === "number") await update.mutateAsync({ id: profileId, eventId: editing, data });
@@ -149,6 +149,35 @@ function Events({ profileId }: { profileId: number }) {
       <form onSubmit={(event) => void save(event)} className="space-y-4">
         <Field id="event-title" label="Title"><Input id="event-title" required maxLength={120} value={draft.title} onChange={(e) => set("title", e.target.value)} /></Field>
         <Field id="event-description" label="Description"><Textarea id="event-description" maxLength={2000} value={draft.description} onChange={(e) => set("description", e.target.value)} /></Field>
+        <Field id="event-welcome-note" label="Welcome note (optional, up to 300 characters)">
+          <Textarea
+            id="event-welcome-note"
+            data-testid="input-event-welcome-note"
+            maxLength={300}
+            value={draft.welcomeNote}
+            onChange={(e) => set("welcomeNote", e.target.value)}
+            placeholder="Write a short note guests will see after they join."
+          />
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>{draft.welcomeNote.length}/300</span>
+            {draft.welcomeNote.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="button-clear-event-welcome-note"
+                onClick={() => set("welcomeNote", "")}
+              >
+                Clear note
+              </Button>
+            )}
+          </div>
+        </Field>
+        <div className="rounded-md border bg-muted/20 p-3" data-testid="preview-event-welcome-note">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Guest preview</p>
+          <p className="text-sm">{draft.welcomeNote.trim() || "Your welcome note will appear here."}</p>
+          <p className="mt-2 text-xs text-muted-foreground">Shown once in a private in-app card after a guest joins. No notification is sent.</p>
+        </div>
         <div className="space-y-3">
           <p className="text-sm font-medium">Event photos (up to 10)</p>
           {draft.galleryPhotos.map((photo, index) => (

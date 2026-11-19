@@ -3517,6 +3517,54 @@ paths:
         "401":
           description: Passcode is incorrect
 
+  /events/{eventType}/{eventId}/welcome-note/claim:
+    post:
+      operationId: claimEventWelcomeNote
+      tags: [events]
+      summary: Read the caller's pending private event welcome note
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventType
+          in: path
+          required: true
+          schema: { type: string, enum: [venue, member] }
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: The pending private note, or null when none is available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventWelcomeNoteClaimResponse"
+
+  /events/{eventType}/{eventId}/welcome-note/acknowledge:
+    post:
+      operationId: acknowledgeEventWelcomeNote
+      tags: [events]
+      summary: Acknowledge that the caller displayed the private event welcome note
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventType
+          in: path
+          required: true
+          schema: { type: string, enum: [venue, member] }
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Acknowledgment accepted without revealing note availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventWelcomeNoteAcknowledgeResponse"
+
   /community-events/{eventId}:
     put:
       operationId: updateCommunityEvent
@@ -7112,6 +7160,7 @@ components:
         id: { type: integer }
         title: { type: string }
         description: { type: ["string", "null"] }
+        welcomeNote: { type: ["string", "null"], maxLength: 300 }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7183,6 +7232,7 @@ components:
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
+        welcomeNote: { type: ["string", "null"], maxLength: 300 }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7212,6 +7262,7 @@ components:
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
+        welcomeNote: { type: ["string", "null"], maxLength: 300 }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7527,6 +7578,7 @@ components:
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
+        welcomeNote: { type: ["string", "null"], maxLength: 300 }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7565,6 +7617,16 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [accepted, declined] }
+    EventWelcomeNoteClaimResponse:
+      type: object
+      required: [welcomeNote]
+      properties:
+        welcomeNote: { type: ["string", "null"], maxLength: 300 }
+    EventWelcomeNoteAcknowledgeResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
     EventLocationSearchResult:
       type: object
       required: [placeId, label, name, latitude, longitude]
@@ -7588,6 +7650,7 @@ components:
         id: { type: integer }
         title: { type: string }
         description: { type: ["string", "null"] }
+        welcomeNote: { type: ["string", "null"], maxLength: 300 }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array

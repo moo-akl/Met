@@ -240,6 +240,7 @@ function EventFormFields({
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [welcomeNote, setWelcomeNote] = useState(initial?.welcomeNote ?? "");
   const [galleryPhotos, setGalleryPhotos] = useState<string[]>(
     initial?.galleryPhotos?.length
       ? initial.galleryPhotos
@@ -341,6 +342,7 @@ function EventFormFields({
     const data = {
       title: cleanTitle,
       description: description.trim() || null,
+      welcomeNote: welcomeNote.trim() || null,
       imageUrl: galleryPhotos[0] ?? null,
       galleryPhotos,
       contactPhone: contactPhone.trim() || null,
@@ -441,7 +443,8 @@ function EventFormFields({
             textAlignVertical="top"
             style={[inputStyle, styles.multiline]}
           />
-          <View style={styles.photosHeading}>
+          <View style={{ gap: 8, marginTop: 4 }}>
+            <View style={styles.photosHeading}>
             <View style={styles.photosCopy}>
               <FieldLabel label="Photos" colors={colors} />
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>

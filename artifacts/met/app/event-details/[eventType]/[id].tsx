@@ -1,13 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 import {
   Alert,
   ActivityIndicator,
   Image,
   Linking,
+  Modal,
   Platform,
   Pressable,
   Share,
@@ -47,12 +49,21 @@ import {
   useCreateVenueOwnerEventInviteLink,
   useReportCommunityEvent,
   useRsvpCommunityEvent,
+  useClaimEventWelcomeNote,
+  useAcknowledgeEventWelcomeNote,
   useRequestToJoinCommunityEvent,
   useWithdrawCommunityEventJoinRequest,
   type EventFeedItem,
 } from "@workspace/api-client-react";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
+
+const WELCOME_NOTE_SEEN_KEY_PREFIX = "met:eventWelcomeNoteSeen:v1:";
+const WELCOME_NOTE_CLAIM_ATTEMPTS = 3;
+
+function getWelcomeNoteSeenKey(uid: string, eventType: "venue" | "member", eventId: number) {
+  return `${WELCOME_NOTE_SEEN_KEY_PREFIX}${encodeURIComponent(uid)}:${eventType}:${eventId}`;
+}
 
 export default function EventDetailsScreen() {
   const params = useLocalSearchParams<{
@@ -81,6 +92,17 @@ export default function EventDetailsScreen() {
   const [joinRequestPending, setJoinRequestPending] = useState(false);
   const [checkinPending, setCheckinPending] = useState(false);
   const [startedEventKey, setStartedEventKey] = useState("");
+  const [welcomeNote, setWelcomeNote] = useState<string | null>(null);
+  const [welcomeNoteVisible, setWelcomeNoteVisible] = useState(false);
+  const welcomeNoteClaimedKey = useRef<string | null>(null);
+  const welcomeNoteDisplayTarget = useRef<{
+    key: string;
+    storageKey: string;
+    uid: string;
+    eventType: "venue" | "member";
+    eventId: number;
+  } | null>(null);
+  const welcomeNoteAcknowledgedKey = useRef<string | null>(null);
   const [locationPermission, requestLocationPermission] =
     Location.useForegroundPermissions();
   const eventQuery = useQuery({
@@ -90,6 +112,8 @@ export default function EventDetailsScreen() {
       ...getGetEventDetailsQueryKey(eventType, isValidRoute ? eventId : 0),
       authedUid ?? "signed-out",
     ],
+    refetchInterval: (query) =>
+      query.state.data?.myJoinRequestStatus === "pending" ? 5_000 : false,
   });
   const venueBusinessId = getActiveVenueBusinessId();
   const venueBusinessHeaders = getActiveVenueBusinessHeaders();
@@ -119,6 +143,8 @@ export default function EventDetailsScreen() {
   }, [authedUid, eventId, eventQuery.error, eventType]);
 
   const memberRsvp = useRsvpCommunityEvent();
+  const claimEventWelcomeNote = useClaimEventWelcomeNote();
+  const acknowledgeEventWelcomeNote = useAcknowledgeEventWelcomeNote();
   const requestToJoin = useRequestToJoinCommunityEvent();
   const withdrawJoinRequest = useWithdrawCommunityEventJoinRequest();
   const deleteEvent = useDeleteCommunityEvent({
@@ -170,6 +196,120 @@ export default function EventDetailsScreen() {
         ? venueOwnerEventQuery.isSuccess
         : event.ownerUid === authedUid),
   );
+  const hasActiveMembership = Boolean(
+    event &&
+      (event.myRsvp === "going" ||
+        event.myRsvp === "maybe" ||
+        event.myJoinRequestStatus === "accepted"),
+  );
+  const welcomeNoteUid = !isOwner && hasActiveMembership ? authedUid : null;
+  const welcomeNoteEventType =
+    welcomeNoteUid && event ? event.eventType : null;
+  const welcomeNoteEventId = welcomeNoteUid && event ? event.id : null;
+  const welcomeNoteTargetKey =
+    welcomeNoteUid && welcomeNoteEventType && welcomeNoteEventId
+      ? `${welcomeNoteUid}:${welcomeNoteEventType}:${welcomeNoteEventId}`
+      : null;
+  useEffect(() => {
+    if (
+      !welcomeNoteUid ||
+      !welcomeNoteEventType ||
+      !welcomeNoteEventId ||
+      !welcomeNoteTargetKey
+    ) {
+      return;
+    }
+    if (welcomeNoteClaimedKey.current === welcomeNoteTargetKey) return;
+    welcomeNoteClaimedKey.current = welcomeNoteTargetKey;
+    let cancelled = false;
+    const storageKey = getWelcomeNoteSeenKey(
+      welcomeNoteUid,
+      welcomeNoteEventType,
+      welcomeNoteEventId,
+    );
+
+    void (async () => {
+      let alreadyDisplayed = false;
+      try {
+        alreadyDisplayed = (await AsyncStorage.getItem(storageKey)) === "1";
+      } catch {
+        // If local storage is unavailable, retrieving the pending note is safer
+        // than silently suppressing a note the participant may never have seen.
+      }
+      if (cancelled) return;
+      if (alreadyDisplayed) {
+        void acknowledgeEventWelcomeNote
+          .mutateAsync({
+            eventType: welcomeNoteEventType,
+            eventId: welcomeNoteEventId,
+          })
+          .catch(() => {});
+        return;
+      }
+
+      for (let attempt = 0; attempt < WELCOME_NOTE_CLAIM_ATTEMPTS; attempt += 1) {
+        if (cancelled) return;
+        try {
+          const { welcomeNote: note } = await claimEventWelcomeNote.mutateAsync({
+            eventType: welcomeNoteEventType,
+            eventId: welcomeNoteEventId,
+          });
+          if (cancelled) return;
+          if (note?.trim()) {
+            welcomeNoteDisplayTarget.current = {
+              key: welcomeNoteTargetKey,
+              storageKey,
+              uid: welcomeNoteUid,
+              eventType: welcomeNoteEventType,
+              eventId: welcomeNoteEventId,
+            };
+            setWelcomeNote(note);
+            setWelcomeNoteVisible(true);
+          }
+          return;
+        } catch {
+          if (attempt + 1 === WELCOME_NOTE_CLAIM_ATTEMPTS) {
+            if (welcomeNoteClaimedKey.current === welcomeNoteTargetKey) {
+              welcomeNoteClaimedKey.current = null;
+            }
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    acknowledgeEventWelcomeNote.mutateAsync,
+    claimEventWelcomeNote.mutateAsync,
+    welcomeNoteEventId,
+    welcomeNoteEventType,
+    welcomeNoteTargetKey,
+    welcomeNoteUid,
+  ]);
+  const acknowledgeDisplayedWelcomeNote = () => {
+    const target = welcomeNoteDisplayTarget.current;
+    if (!target || welcomeNoteAcknowledgedKey.current === target.key) return;
+    welcomeNoteAcknowledgedKey.current = target.key;
+    void (async () => {
+      try {
+        await AsyncStorage.setItem(target.storageKey, "1");
+      } catch {
+        // Server acknowledgment still prevents another delivery on this account.
+      }
+      try {
+        await acknowledgeEventWelcomeNote.mutateAsync({
+          eventType: target.eventType,
+          eventId: target.eventId,
+        });
+      } catch {
+        // The local marker suppresses a duplicate; reopening retries the ack.
+      }
+    })();
+  };
   const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
   const isFriendPlan = Boolean(
     eventType === "member" &&
@@ -1277,6 +1417,56 @@ export default function EventDetailsScreen() {
           </View>
         </ScrollView>
       )}
+      <Modal
+        transparent
+        visible={welcomeNoteVisible && Boolean(welcomeNote)}
+        animationType="fade"
+        onShow={acknowledgeDisplayedWelcomeNote}
+        onRequestClose={() => {
+          setWelcomeNoteVisible(false);
+          setWelcomeNote(null);
+        }}
+      >
+        <View style={styles.welcomeModalOverlay}>
+          <View
+            accessibilityViewIsModal
+            testID="event-welcome-note-card"
+            style={[
+              styles.welcomeModalCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={[styles.welcomeModalIcon, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="message-circle" size={20} color={colors.primary} />
+            </View>
+            <Text accessibilityRole="header" style={[styles.welcomeModalTitle, { color: colors.text }]}>
+              {t("tabs.events.welcomeCardTitle")}
+            </Text>
+            <Text testID="event-welcome-note-body" style={[styles.welcomeModalBody, { color: colors.text }]}>
+              {welcomeNote}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              testID="event-welcome-note-dismiss"
+              onPress={() => {
+                setWelcomeNoteVisible(false);
+                setWelcomeNote(null);
+              }}
+              style={({ pressed }) => [
+                styles.welcomeModalDismiss,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.82 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.welcomeModalDismissText, { color: colors.primaryForeground }]}>
+                {t("tabs.events.welcomeCardDismiss")}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1407,4 +1597,40 @@ const styles = StyleSheet.create({
   confirmButton: { minHeight: 40, minWidth: 90, borderRadius: 10, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   confirmButtonText: { fontSize: 13, fontWeight: "700" },
   errorText: { marginTop: 14, fontSize: 13, fontWeight: "600" },
+  welcomeModalOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "rgba(0, 0, 0, 0.48)",
+  },
+  welcomeModalCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderWidth: 1,
+    borderTopLeftRadius: 30,
+    borderBottomRightRadius: 24,
+    padding: 22,
+    gap: 13,
+  },
+  welcomeModalIcon: {
+    width: 46,
+    height: 46,
+    borderTopLeftRadius: 18,
+    borderBottomRightRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  welcomeModalTitle: { fontSize: 20, fontWeight: "700", lineHeight: 26 },
+  welcomeModalBody: { fontSize: 15, lineHeight: 23 },
+  welcomeModalDismiss: {
+    minHeight: 48,
+    borderTopLeftRadius: 24,
+    borderBottomRightRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    marginTop: 3,
+  },
+  welcomeModalDismissText: { fontSize: 14, fontWeight: "700" },
 });

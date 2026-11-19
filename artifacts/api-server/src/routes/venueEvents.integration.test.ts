@@ -757,6 +757,80 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(events[0]!.capacityLimit).toBe(100);
   });
 
+  it("keeps venue welcome notes private and claims them once after a guest RSVPs", async () => {
+    const { agent, csrf, business, profile } = await claimOwner("welcome-note");
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "Welcome note test",
+        startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        welcomeNote: "  Glad you can join us.  ",
+        isPublished: true,
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.event.welcomeNote).toBe("Glad you can join us.");
+    const eventId = Number(created.body.event.id);
+
+    const updated = await agent
+      .patch(`/api/venue-manager/businesses/${business.id}/events/${eventId}`)
+      .set("x-csrf-token", csrf)
+      .send({ welcomeNote: "The updated welcome." });
+    expect(updated.status).toBe(200);
+    expect(updated.body.event.welcomeNote).toBe("The updated welcome.");
+
+    const guestBeforeJoining = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", GUEST_UID);
+    expect(guestBeforeJoining.status).toBe(200);
+    expect(guestBeforeJoining.body).toEqual({ welcomeNote: null });
+
+    const publicList = await api()
+      .get(`/api/venue-owner/${profile.placeId}/events`)
+      .set("x-test-uid", GUEST_UID);
+    expect(publicList.status).toBe(200);
+    const publicEvents = publicList.body.events as Record<string, unknown>[];
+    const publicEvent = publicEvents.find((event) => event.id === eventId);
+    expect(publicEvent).toBeDefined();
+    expect(publicEvent).not.toHaveProperty("welcomeNote");
+
+    const rsvp = await api()
+      .post(`/api/venue-events/${eventId}/rsvp`)
+      .set("x-test-uid", GUEST_UID)
+      .send({ status: "going" });
+    expect(rsvp.status).toBe(200);
+
+    const claimed = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", GUEST_UID);
+    expect(claimed.status).toBe(200);
+    expect(claimed.body).toEqual({ welcomeNote: "The updated welcome." });
+
+    const repeatedClaim = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", GUEST_UID);
+    expect(repeatedClaim.status).toBe(200);
+    expect(repeatedClaim.body).toEqual({ welcomeNote: "The updated welcome." });
+
+    const acknowledged = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/acknowledge`)
+      .set("x-test-uid", GUEST_UID);
+    expect(acknowledged.status).toBe(200);
+    expect(acknowledged.body).toEqual({ success: true });
+
+    const claimAfterAcknowledgment = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", GUEST_UID);
+    expect(claimAfterAcknowledgment.status).toBe(200);
+    expect(claimAfterAcknowledgment.body).toEqual({ welcomeNote: null });
+
+    const unrelatedClaim = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", `${PREFIX}-unrelated`);
+    expect(unrelatedClaim.status).toBe(200);
+    expect(unrelatedClaim.body).toEqual({ welcomeNote: null });
+  });
+
   it("shares invite-only venue events with an optional passcode and grants RSVP access", async () => {
     const { agent, csrf, business, profile } = await claimOwner("social-invite");
     const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -769,6 +843,7 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
         visibility: "invite_only",
         inviteeUids: [],
         invitePasscode: "invite7",
+        welcomeNote: "Welcome to the evening.",
         isPublished: true,
       });
 
@@ -806,12 +881,47 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       id: eventId,
       title: "Invite-only venue event",
     });
+    expect(unlocked.body.event).not.toHaveProperty("welcomeNote");
+
+    const claimBeforeRsvp = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", GUEST_UID);
+    expect(claimBeforeRsvp.status).toBe(200);
+    expect(claimBeforeRsvp.body).toEqual({ welcomeNote: null });
 
     const rsvp = await api()
       .post("/api/event-invites/rsvp")
       .set("x-test-uid", GUEST_UID)
       .send({ token, status: "going", passcode: "invite7" });
     expect(rsvp.status).toBe(200);
+
+    const claimedWelcomeNote = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", GUEST_UID);
+    expect(claimedWelcomeNote.status).toBe(200);
+    expect(claimedWelcomeNote.body).toEqual({
+      welcomeNote: "Welcome to the evening.",
+    });
+
+    const repeatedWelcomeNoteClaim = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", GUEST_UID);
+    expect(repeatedWelcomeNoteClaim.status).toBe(200);
+    expect(repeatedWelcomeNoteClaim.body).toEqual({
+      welcomeNote: "Welcome to the evening.",
+    });
+
+    const acknowledgedWelcomeNote = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/acknowledge`)
+      .set("x-test-uid", GUEST_UID);
+    expect(acknowledgedWelcomeNote.status).toBe(200);
+    expect(acknowledgedWelcomeNote.body).toEqual({ success: true });
+
+    const unrelatedWelcomeNoteClaim = await api()
+      .post(`/api/events/venue/${eventId}/welcome-note/claim`)
+      .set("x-test-uid", `${PREFIX}-unrelated`);
+    expect(unrelatedWelcomeNoteClaim.status).toBe(200);
+    expect(unrelatedWelcomeNoteClaim.body).toEqual({ welcomeNote: null });
 
     const guestDetails = await api()
       .get(`/api/events/venue/${eventId}`)

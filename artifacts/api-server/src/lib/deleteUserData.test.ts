@@ -82,6 +82,8 @@ vi.mock("@workspace/db", () => ({
   networkPollVotesTable: { _name: "network_poll_votes" },
   networkQuestionnaireAnswersTable: { _name: "network_questionnaire_answers" },
   venueEventRsvpsTable: { _name: "venue_event_rsvps" },
+  venueEventWelcomeNoteDeliveriesTable: { _name: "venue_event_welcome_note_deliveries" },
+  communityEventWelcomeNoteDeliveriesTable: { _name: "community_event_welcome_note_deliveries" },
 }));
 
 vi.mock("./firebaseAdmin", () => ({
@@ -147,11 +149,17 @@ describe("deleteUserData — Postgres cleanup", () => {
   });
   it("deletes the user's RSVPs to other venues' events (attendee cleanup)", async () => {
     const { tables } = captureDeletedTables();
-    const { venueEventRsvpsTable } = await import("@workspace/db");
+    const {
+      venueEventRsvpsTable,
+      venueEventWelcomeNoteDeliveriesTable,
+      communityEventWelcomeNoteDeliveriesTable,
+    } = await import("@workspace/db");
 
     await deleteUserData("uid-alice");
 
     expect(tables).toContain(venueEventRsvpsTable);
+    expect(tables).toContain(venueEventWelcomeNoteDeliveriesTable);
+    expect(tables).toContain(communityEventWelcomeNoteDeliveriesTable);
   });
 
   it("deletes the user profile row", async () => {

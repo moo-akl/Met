@@ -135,6 +135,12 @@ describe("VenueOwnerEventForm", () => {
       screen.getByLabelText("Public event website"),
       "met-app.org/events",
     );
+    const welcomeNoteInput = screen.getByTestId("venue-event-welcome-note");
+    await fireEvent.changeText(welcomeNoteInput, "Welcome to the opening night!");
+    expect(screen.getByText("Welcome to the opening night!")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("venue-event-welcome-note-clear"));
+    expect(welcomeNoteInput.props.value).toBe("");
+    await fireEvent.changeText(welcomeNoteInput, "Welcome to the opening night!");
     await fireEvent.press(screen.getByTestId("venue-event-save"));
 
     await waitFor(() => {
@@ -145,6 +151,7 @@ describe("VenueOwnerEventForm", () => {
           isPublished: true,
           reminderOffsetsHours: [24, 2],
           websiteUrl: "https://met-app.org/events",
+          welcomeNote: "Welcome to the opening night!",
         }),
       });
     });

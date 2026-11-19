@@ -356,6 +356,7 @@ export const venueEventsTable = pgTable(
     placeId: text("place_id").notNull(),
     title: text("title").notNull(),
     description: text("description"),
+    welcomeNote: text("welcome_note"),
     /** Cover image URL (Firebase Storage). */
     imageUrl: text("image_url"),
     /** Uploaded event gallery photos; imageUrl remains the first-photo compatibility field. */
@@ -462,6 +463,28 @@ export const insertVenueEventRsvpSchema = createInsertSchema(
 export type InsertVenueEventRsvp = z.infer<typeof insertVenueEventRsvpSchema>;
 export type VenueEventRsvp = typeof venueEventRsvpsTable.$inferSelect;
 
+export const venueEventWelcomeNoteDeliveriesTable = pgTable(
+  "venue_event_welcome_note_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => venueEventsTable.id, { onDelete: "cascade" }),
+    userUid: text("user_uid").notNull(),
+    welcomeNote: text("welcome_note"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventUserUniq: uniqueIndex("venue_event_welcome_note_event_user_uniq").on(
+      t.eventId,
+      t.userUid,
+    ),
+  }),
+);
+
 // ---------------------------------------------------------------------------
 // community_events
 // Events created by Met members. Venue events remain in venue_events so their
@@ -474,6 +497,7 @@ export const communityEventsTable = pgTable(
     ownerUid: text("owner_uid").notNull(),
     title: text("title").notNull(),
     description: text("description"),
+    welcomeNote: text("welcome_note"),
     imageUrl: text("image_url"),
     contactPhone: text("contact_phone"),
     websiteUrl: text("website_url"),
@@ -632,6 +656,28 @@ export const communityEventRsvpsTable = pgTable(
     ),
     eventIdIdx: index("community_event_rsvps_event_id_idx").on(t.eventId),
     userUidIdx: index("community_event_rsvps_user_uid_idx").on(t.userUid),
+  }),
+);
+
+export const communityEventWelcomeNoteDeliveriesTable = pgTable(
+  "community_event_welcome_note_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => communityEventsTable.id, { onDelete: "cascade" }),
+    userUid: text("user_uid").notNull(),
+    welcomeNote: text("welcome_note"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventUserUniq: uniqueIndex("community_event_welcome_note_event_user_uniq").on(
+      t.eventId,
+      t.userUid,
+    ),
   }),
 );
 

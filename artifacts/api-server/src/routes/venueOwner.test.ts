@@ -66,6 +66,7 @@ vi.mock("@workspace/db", () => ({
     startsAt: "startsAt",
   },
   venueEventRsvpsTable: { eventId: "eventId" },
+  venueEventWelcomeNoteDeliveriesTable: { eventId: "eventId", userUid: "userUid" },
   eventAttendanceTable: { eventType: "eventType", eventId: "eventId" },
   venueRewardsTable: {},
   venueAnnouncementsTable: {},
@@ -707,6 +708,7 @@ describe("membership revocation gates — event, reward, and announcement writes
   const validEvent = {
     title: "Friday Night Social",
     startsAt: futureIso,
+    welcomeNote: "Welcome to Friday night.",
   };
 
   const validReward = {
@@ -804,10 +806,12 @@ describe("membership revocation gates — event, reward, and announcement writes
       .send(validEvent);
 
     expect(response.status).toBe(201);
+    expect(response.body.event).not.toHaveProperty("welcomeNote");
     expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
       ownerUid: "venue-owner-uid",
       placeId: "place-1",
       title: validEvent.title,
+      welcomeNote: validEvent.welcomeNote,
       reminderOffsetsHours: [24, 2],
       isPublished: true,
     }));

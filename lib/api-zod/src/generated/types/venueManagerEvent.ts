@@ -13,6 +13,11 @@ export interface VenueManagerEvent {
   title: string;
   /** @nullable */
   description?: string | null;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  welcomeNote?: string | null;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */

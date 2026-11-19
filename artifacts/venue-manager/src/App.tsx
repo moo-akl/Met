@@ -1966,6 +1966,7 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
   );
   const [visibility, setVisibility] = useState<"public" | "invite_only">(event?.visibility ?? "public");
   const [reminderOffsetsHours, setReminderOffsetsHours] = useState<ReminderOffsetHours[]>(event?.reminderOffsetsHours ?? [24, 2]);
+  const [welcomeNote, setWelcomeNote] = useState(event?.welcomeNote ?? "");
   const [inviteeUids, setInviteeUids] = useState<string[]>(event?.inviteeUids ?? []);
   const hadPasscode = Boolean(event?.invitePasscodeRequired);
   const [requireInvitePasscode, setRequireInvitePasscode] = useState(hadPasscode);
@@ -2083,6 +2084,7 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
         onSubmit({
           title: formText(f.get("title")),
           description: formText(f.get("description")) || null,
+          welcomeNote: welcomeNote.trim() || null,
           startsAt: isoFromInput(f.get("startsAt")),
           endsAt: isoFromInput(f.get("endsAt")) || null,
           capacityLimit: f.get("capacityLimit") ? Number(f.get("capacityLimit")) : null,
@@ -2175,6 +2177,35 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           {!event && <label className="checkbox"><input type="checkbox" checked={shareAfterSave} onChange={(e) => setShareAfterSave(e.target.checked)} />Share invitation after saving</label>}
         </div>}
         <label className="full">Description<textarea name="description" rows={4} defaultValue={event?.description ?? ""} /></label>
+        <label className="full">
+          Welcome note for new guests <span className="vm-optional">optional · up to 300 characters</span>
+          <textarea
+            data-testid="input-event-welcome-note"
+            rows={3}
+            maxLength={300}
+            value={welcomeNote}
+            onChange={(change) => setWelcomeNote(change.target.value)}
+            placeholder="Share a short message guests will see after they join."
+          />
+          <small>{welcomeNote.length}/300</small>
+        </label>
+        <div className="full">
+          <strong>Guest preview</strong>
+          <p className="vm-subtitle">Shown once in a private in-app card after a guest joins. It is not sent as a notification.</p>
+          <div className="vm-item-card" data-testid="preview-event-welcome-note">
+            {welcomeNote.trim() || "Your welcome note will appear here."}
+          </div>
+          {welcomeNote.length > 0 && (
+            <button
+              type="button"
+              className="vm-secondary compact"
+              data-testid="button-clear-event-welcome-note"
+              onClick={() => setWelcomeNote("")}
+            >
+              Clear welcome note
+            </button>
+          )}
+        </div>
         <div className="full">
           <div style={{ display: "grid", gap: 12 }}>
             <strong>Event photos (up to 10)</strong>

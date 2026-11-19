@@ -137,6 +137,8 @@ export * from './eventReviewInput';
 export * from './eventReviewsResponse';
 export * from './eventRsvp';
 export * from './eventRsvpStatus';
+export * from './eventWelcomeNoteAcknowledgeResponse';
+export * from './eventWelcomeNoteClaimResponse';
 export * from './getEventsFeedParams';
 export * from './getNearbyHangoutsParams';
 export * from './getNearbyHangoutsSortMode';

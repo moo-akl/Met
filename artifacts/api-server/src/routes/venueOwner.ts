@@ -65,6 +65,7 @@ import {
   venueApplicationHistoryTable,
   venueEventsTable,
   venueEventRsvpsTable,
+  venueEventWelcomeNoteDeliveriesTable,
   eventAttendanceTable,
   venueRewardsTable,
   venueAnnouncementsTable,
@@ -702,6 +703,7 @@ function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$in
 function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect, baseUrl: string) {
   const {
     ownerUid: _ownerUid,
+    welcomeNote: _welcomeNote,
     inviteeUids: _inviteeUids,
     inviteTokenHash: _inviteTokenHash,
     inviteTokenEncrypted: _inviteTokenEncrypted,
@@ -2366,10 +2368,13 @@ router.get(
     }
     res.setHeader("Cache-Control", "no-store");
     res.json({
-      event: serializePublicVenueEvent(
-        event,
-        `${req.protocol}://${req.get("host")}`,
-      ),
+      event: {
+        ...serializePublicVenueEvent(
+          event,
+          `${req.protocol}://${req.get("host")}`,
+        ),
+        welcomeNote: event.welcomeNote,
+      },
     });
   },
 );
@@ -2386,6 +2391,7 @@ router.post(
     const schema = z.object({
       title: z.string().min(1).max(120),
       description: z.string().max(2000).optional().nullable(),
+      welcomeNote: z.string().trim().max(300).optional().nullable(),
       imageUrl: z.string().url().optional().nullable(),
       galleryPhotos: z.array(z.string().url()).max(EVENT_PHOTO_MAX_COUNT).optional(),
       contactPhone: z.string().trim().max(40).optional().nullable(),
@@ -2472,6 +2478,7 @@ router.post(
         placeId: access.placeId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
+        welcomeNote: parsed.data.welcomeNote?.trim() || null,
         imageUrl: galleryPhotos[0] ?? null,
         galleryPhotos,
         photosExpireAt: getEventPhotosExpireAt(
@@ -2595,6 +2602,7 @@ router.put(
     const schema = z.object({
       title: z.string().min(1).max(120).optional(),
       description: z.string().max(2000).optional().nullable(),
+      welcomeNote: z.string().trim().max(300).optional().nullable(),
       imageUrl: z.string().url().optional().nullable(),
       galleryPhotos: z.array(z.string().url()).max(EVENT_PHOTO_MAX_COUNT).optional(),
       contactPhone: z.string().trim().max(40).optional().nullable(),
@@ -2719,6 +2727,9 @@ router.put(
     }
     if (parsed.data.title !== undefined) updatePayload["title"] = parsed.data.title;
     if (parsed.data.description !== undefined) updatePayload["description"] = parsed.data.description;
+    if (parsed.data.welcomeNote !== undefined) {
+      updatePayload["welcomeNote"] = parsed.data.welcomeNote?.trim() || null;
+    }
     if (parsed.data.imageUrl !== undefined) updatePayload["imageUrl"] = parsed.data.imageUrl;
     if (parsed.data.contactPhone !== undefined) updatePayload["contactPhone"] = parsed.data.contactPhone?.trim() || null;
     if (parsed.data.websiteUrl !== undefined) updatePayload["websiteUrl"] = parsed.data.websiteUrl?.trim() || null;
@@ -3036,6 +3047,7 @@ router.post(
       .select({
         id: venueEventsTable.id,
         ownerUid: venueEventsTable.ownerUid,
+        welcomeNote: venueEventsTable.welcomeNote,
         visibility: venueEventsTable.visibility,
         inviteeUids: venueEventsTable.inviteeUids,
         isPublished: venueEventsTable.isPublished,
@@ -3058,12 +3070,45 @@ router.post(
     }
 
     // Upsert RSVP
-    await db
-      .insert(venueEventRsvpsTable)
-      .values({ eventId, userUid: uid, status: parsed.data.status })
-      .onConflictDoUpdate({
-        target: [venueEventRsvpsTable.eventId, venueEventRsvpsTable.userUid],
-        set: { status: parsed.data.status, updatedAt: new Date() },
+    await db.transaction(async (tx) => {
+      const [existingRsvp] = await tx
+        .select({ status: venueEventRsvpsTable.status })
+        .from(venueEventRsvpsTable)
+        .where(and(
+          eq(venueEventRsvpsTable.eventId, eventId),
+          eq(venueEventRsvpsTable.userUid, uid),
+        ))
+        .for("update")
+        .limit(1);
+      const wasAlreadyJoined =
+        existingRsvp?.status === "going" || existingRsvp?.status === "maybe";
+      const now = new Date();
+      await tx
+        .insert(venueEventRsvpsTable)
+        .values({
+          eventId,
+          userUid: uid,
+          status: parsed.data.status,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [venueEventRsvpsTable.eventId, venueEventRsvpsTable.userUid],
+          set: { status: parsed.data.status, updatedAt: now },
+        });
+      if (
+        parsed.data.status !== "not_going" &&
+        !wasAlreadyJoined &&
+        event.ownerUid !== uid
+      ) {
+        await tx
+          .insert(venueEventWelcomeNoteDeliveriesTable)
+          .values({
+            eventId,
+            userUid: uid,
+            welcomeNote: event.welcomeNote?.trim() || null,
+          })
+          .onConflictDoNothing();
+      }
       });
 
     await syncRsvpCount(eventId);
@@ -5406,6 +5451,7 @@ const adminEventInput = z.object({
   startsAt: adminContentDate,
   endsAt: adminContentDate.nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
+  welcomeNote: z.string().trim().max(300).nullable().optional(),
   imageUrl: adminContentImage.optional(),
   galleryPhotos: z.array(adminContentPhoto).max(EVENT_PHOTO_MAX_COUNT).optional(),
   capacityLimit: z.number().int().positive().nullable().optional(),

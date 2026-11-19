@@ -27,6 +27,7 @@ import {
   communityEventPlanMediaUploadsTable,
   communityEventPlanNotificationPreferencesTable,
   communityEventHostRatingsTable,
+  communityEventWelcomeNoteDeliveriesTable,
   communityEventsTable,
   db,
   eventAttendanceTable,
@@ -35,6 +36,7 @@ import {
   venueEventRsvpsTable,
   venueEventReviewsTable,
   venueEventNotificationRunsTable,
+  venueEventWelcomeNoteDeliveriesTable,
   venueEventsTable,
   venueOwnerProfilesTable,
 } from "@workspace/db";
@@ -45,6 +47,7 @@ import {
   createUserRateLimiter,
 } from "../middlewares/rateLimit";
 import {
+  AcknowledgeEventWelcomeNoteResponse,
   CreateCommunityEventInviteLinkResponse,
   CreateCommunityEventBody,
   CreateCommunityEventResponse,
@@ -913,6 +916,7 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     ownerUid: uid,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
+    welcomeNote: parsed.data.welcomeNote?.trim() || null,
     imageUrl,
     galleryPhotos,
     photosExpireAt: getEventPhotosExpireAt(
@@ -1836,6 +1840,7 @@ router.get(
         id: event.id,
         title: event.title,
         description: event.description,
+        ...(event.ownerUid === uid ? { welcomeNote: event.welcomeNote } : {}),
         imageUrl: event.imageUrl,
         repeatFrequency: event.repeatFrequency,
         recurrenceTimeZone: event.recurrenceTimeZone,
@@ -1857,6 +1862,153 @@ router.get(
         invitePasscodeRequired: Boolean(event.invitePasscodeHash),
       }),
     );
+  },
+);
+
+router.post(
+  "/events/:eventType/:eventId/welcome-note/claim",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const { eventType } = req.params;
+    const eventId = Number(req.params.eventId);
+    if (
+      (eventType !== "venue" && eventType !== "member") ||
+      !Number.isSafeInteger(eventId) ||
+      eventId < 1
+    ) {
+      res.status(400).json({ message: "Invalid event." });
+      return;
+    }
+
+    const uid = req.uid!;
+    const welcomeNote = await db.transaction(async (tx) => {
+      if (eventType === "member") {
+        const [event] = await tx
+          .select({
+            ownerUid: communityEventsTable.ownerUid,
+            isHidden: communityEventsTable.isHidden,
+            verifiedExplorersOnly: communityEventsTable.verifiedExplorersOnly,
+          })
+          .from(communityEventsTable)
+          .where(eq(communityEventsTable.id, eventId))
+          .limit(1);
+        if (
+          !event ||
+          event.isHidden ||
+          event.ownerUid === uid ||
+          (event.verifiedExplorersOnly && !(await isVerifiedExplorer(uid)))
+        ) {
+          return null;
+        }
+        const [rsvp] = await tx
+          .select({ status: communityEventRsvpsTable.status })
+          .from(communityEventRsvpsTable)
+          .where(and(
+            eq(communityEventRsvpsTable.eventId, eventId),
+            eq(communityEventRsvpsTable.userUid, uid),
+            inArray(communityEventRsvpsTable.status, ["going", "maybe"]),
+          ))
+          .for("update")
+          .limit(1);
+        if (!rsvp) return null;
+        const [delivery] = await tx
+          .select({
+            welcomeNote: communityEventWelcomeNoteDeliveriesTable.welcomeNote,
+          })
+          .from(communityEventWelcomeNoteDeliveriesTable)
+          .where(and(
+            eq(communityEventWelcomeNoteDeliveriesTable.eventId, eventId),
+            eq(communityEventWelcomeNoteDeliveriesTable.userUid, uid),
+            isNull(communityEventWelcomeNoteDeliveriesTable.claimedAt),
+            isNotNull(communityEventWelcomeNoteDeliveriesTable.welcomeNote),
+          ))
+          .limit(1);
+        return delivery?.welcomeNote ?? null;
+      }
+
+      const [event] = await tx
+        .select({
+          ownerUid: venueEventsTable.ownerUid,
+          isHidden: venueEventsTable.isHidden,
+          isPublished: venueEventsTable.isPublished,
+        })
+        .from(venueEventsTable)
+        .where(eq(venueEventsTable.id, eventId))
+        .limit(1);
+      if (!event || event.isHidden || !event.isPublished || event.ownerUid === uid) {
+        return null;
+      }
+      const [rsvp] = await tx
+        .select({ status: venueEventRsvpsTable.status })
+        .from(venueEventRsvpsTable)
+        .where(and(
+          eq(venueEventRsvpsTable.eventId, eventId),
+          eq(venueEventRsvpsTable.userUid, uid),
+          inArray(venueEventRsvpsTable.status, ["going", "maybe"]),
+        ))
+        .for("update")
+        .limit(1);
+      if (!rsvp) return null;
+      const [delivery] = await tx
+        .select({
+          welcomeNote: venueEventWelcomeNoteDeliveriesTable.welcomeNote,
+        })
+        .from(venueEventWelcomeNoteDeliveriesTable)
+        .where(and(
+          eq(venueEventWelcomeNoteDeliveriesTable.eventId, eventId),
+          eq(venueEventWelcomeNoteDeliveriesTable.userUid, uid),
+          isNull(venueEventWelcomeNoteDeliveriesTable.claimedAt),
+          isNotNull(venueEventWelcomeNoteDeliveriesTable.welcomeNote),
+        ))
+        .limit(1);
+      return delivery?.welcomeNote ?? null;
+    });
+    res.json({ welcomeNote });
+  },
+);
+
+router.post(
+  "/events/:eventType/:eventId/welcome-note/acknowledge",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const { eventType } = req.params;
+    const eventId = Number(req.params.eventId);
+    if (
+      (eventType !== "venue" && eventType !== "member") ||
+      !Number.isSafeInteger(eventId) ||
+      eventId < 1
+    ) {
+      res.status(400).json({ message: "Invalid event." });
+      return;
+    }
+
+    const uid = req.uid!;
+    const claimedAt = new Date();
+    if (eventType === "member") {
+      await db
+        .update(communityEventWelcomeNoteDeliveriesTable)
+        .set({ claimedAt })
+        .where(and(
+          eq(communityEventWelcomeNoteDeliveriesTable.eventId, eventId),
+          eq(communityEventWelcomeNoteDeliveriesTable.userUid, uid),
+          isNull(communityEventWelcomeNoteDeliveriesTable.claimedAt),
+          isNotNull(communityEventWelcomeNoteDeliveriesTable.welcomeNote),
+        ));
+    } else {
+      await db
+        .update(venueEventWelcomeNoteDeliveriesTable)
+        .set({ claimedAt })
+        .where(and(
+          eq(venueEventWelcomeNoteDeliveriesTable.eventId, eventId),
+          eq(venueEventWelcomeNoteDeliveriesTable.userUid, uid),
+          isNull(venueEventWelcomeNoteDeliveriesTable.claimedAt),
+          isNotNull(venueEventWelcomeNoteDeliveriesTable.welcomeNote),
+        ));
+    }
+
+    res.json(AcknowledgeEventWelcomeNoteResponse.parse({ success: true }));
   },
 );
 
@@ -3210,6 +3362,7 @@ router.put(
       .set({
         title: parsed.data.title,
         description: parsed.data.description ?? null,
+        welcomeNote: parsed.data.welcomeNote?.trim() || null,
         imageUrl: nextImageUrl,
         galleryPhotos: nextGalleryPhotos,
         photosExpireAt: getEventPhotosExpireAt(
@@ -3435,17 +3588,45 @@ router.post(
       return;
     }
     if (event) {
-      await db
-        .insert(communityEventRsvpsTable)
-        .values({
-          eventId: event.id,
-          userUid: uid,
-          status: parsedBody.data.status,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
-          set: { status: parsedBody.data.status, updatedAt: new Date() },
+      await db.transaction(async (tx) => {
+        const [existingRsvp] = await tx
+          .select({ status: communityEventRsvpsTable.status })
+          .from(communityEventRsvpsTable)
+          .where(and(
+            eq(communityEventRsvpsTable.eventId, event.id),
+            eq(communityEventRsvpsTable.userUid, uid),
+          ))
+          .for("update")
+          .limit(1);
+        const wasAlreadyJoined =
+          existingRsvp?.status === "going" || existingRsvp?.status === "maybe";
+        const now = new Date();
+        await tx
+          .insert(communityEventRsvpsTable)
+          .values({
+            eventId: event.id,
+            userUid: uid,
+            status: parsedBody.data.status,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
+            set: { status: parsedBody.data.status, updatedAt: now },
+          });
+        if (
+          parsedBody.data.status !== "not_going" &&
+          !wasAlreadyJoined &&
+          event.ownerUid !== uid
+        ) {
+          await tx
+            .insert(communityEventWelcomeNoteDeliveriesTable)
+            .values({
+              eventId: event.id,
+              userUid: uid,
+              welcomeNote: event.welcomeNote?.trim() || null,
+            })
+            .onConflictDoNothing();
+        }
         });
       res.json({ success: true, status: parsedBody.data.status });
       return;
@@ -3473,17 +3654,45 @@ router.post(
       res.status(401).json({ message: "That passcode does not match." });
       return;
     }
-    await db
-      .insert(venueEventRsvpsTable)
-      .values({
-        eventId: venueEvent.id,
-        userUid: uid,
-        status: parsedBody.data.status,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [venueEventRsvpsTable.eventId, venueEventRsvpsTable.userUid],
-        set: { status: parsedBody.data.status, updatedAt: new Date() },
+    await db.transaction(async (tx) => {
+      const [existingRsvp] = await tx
+        .select({ status: venueEventRsvpsTable.status })
+        .from(venueEventRsvpsTable)
+        .where(and(
+          eq(venueEventRsvpsTable.eventId, venueEvent.id),
+          eq(venueEventRsvpsTable.userUid, uid),
+        ))
+        .for("update")
+        .limit(1);
+      const wasAlreadyJoined =
+        existingRsvp?.status === "going" || existingRsvp?.status === "maybe";
+      const now = new Date();
+      await tx
+        .insert(venueEventRsvpsTable)
+        .values({
+          eventId: venueEvent.id,
+          userUid: uid,
+          status: parsedBody.data.status,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [venueEventRsvpsTable.eventId, venueEventRsvpsTable.userUid],
+          set: { status: parsedBody.data.status, updatedAt: now },
+        });
+      if (
+        parsedBody.data.status !== "not_going" &&
+        !wasAlreadyJoined &&
+        venueEvent.ownerUid !== uid
+      ) {
+        await tx
+          .insert(venueEventWelcomeNoteDeliveriesTable)
+          .values({
+            eventId: venueEvent.id,
+            userUid: uid,
+            welcomeNote: venueEvent.welcomeNote?.trim() || null,
+          })
+          .onConflictDoNothing();
+      }
       });
     const [rsvpCount] = await db
       .select({ value: count() })
@@ -3576,12 +3785,40 @@ router.post(
       res.json({ success: true, status: parsed.data.status });
       return;
     }
-    await db
-      .insert(communityEventRsvpsTable)
-      .values({ eventId, userUid: uid, status: parsed.data.status, updatedAt: new Date() })
-      .onConflictDoUpdate({
-        target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
-        set: { status: parsed.data.status, updatedAt: new Date() },
+    await db.transaction(async (tx) => {
+      const [existingRsvp] = await tx
+        .select({ status: communityEventRsvpsTable.status })
+        .from(communityEventRsvpsTable)
+        .where(and(
+          eq(communityEventRsvpsTable.eventId, eventId),
+          eq(communityEventRsvpsTable.userUid, uid),
+        ))
+        .for("update")
+        .limit(1);
+      const wasAlreadyJoined =
+        existingRsvp?.status === "going" || existingRsvp?.status === "maybe";
+      const now = new Date();
+      await tx
+        .insert(communityEventRsvpsTable)
+        .values({ eventId, userUid: uid, status: parsed.data.status, updatedAt: now })
+        .onConflictDoUpdate({
+          target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
+          set: { status: parsed.data.status, updatedAt: now },
+        });
+      if (
+        parsed.data.status !== "not_going" &&
+        !wasAlreadyJoined &&
+        event.ownerUid !== uid
+      ) {
+        await tx
+          .insert(communityEventWelcomeNoteDeliveriesTable)
+          .values({
+            eventId,
+            userUid: uid,
+            welcomeNote: event.welcomeNote?.trim() || null,
+          })
+          .onConflictDoNothing();
+      }
       });
     res.json({ success: true, status: parsed.data.status });
   },
@@ -3805,6 +4042,7 @@ router.patch(
       .select({
         ownerUid: communityEventsTable.ownerUid,
         joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+        welcomeNote: communityEventsTable.welcomeNote,
       })
       .from(communityEventsTable)
       .where(and(
@@ -3865,6 +4103,17 @@ router.patch(
         .returning({ id: communityEventJoinRequestsTable.id });
       if (!decision) return false;
       if (status === "accepted") {
+        const [existingRsvp] = await tx
+          .select({ status: communityEventRsvpsTable.status })
+          .from(communityEventRsvpsTable)
+          .where(and(
+            eq(communityEventRsvpsTable.eventId, eventId),
+            eq(communityEventRsvpsTable.userUid, request.userUid),
+          ))
+          .for("update")
+          .limit(1);
+        const wasAlreadyJoined =
+          existingRsvp?.status === "going" || existingRsvp?.status === "maybe";
         await tx
           .insert(communityEventRsvpsTable)
           .values({
@@ -3877,6 +4126,16 @@ router.patch(
             target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
             set: { status: "going", updatedAt: now },
           });
+        if (!wasAlreadyJoined) {
+          await tx
+            .insert(communityEventWelcomeNoteDeliveriesTable)
+            .values({
+              eventId,
+              userUid: request.userUid,
+              welcomeNote: event.welcomeNote?.trim() || null,
+            })
+            .onConflictDoNothing();
+        }
       }
       return true;
     });

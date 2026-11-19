@@ -1,6 +1,7 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { Image } from "react-native";
+import { Image, Modal } from "react-native";
+import { waitFor } from "@testing-library/react-native";
 
 const baseEvent = {
   id: 42,
@@ -38,16 +39,45 @@ let mockRouteParams: { eventType: string; id: string } = {
 const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefined) };
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn() };
 const mockOpenVenueManager = jest.fn();
+const mockWelcomeNoteStorage = new Map<string, string>();
+const mockClaimEventWelcomeNote = jest.fn(async (_input: unknown) => ({
+  welcomeNote: null as string | null,
+}));
+const mockAcknowledgeEventWelcomeNote = jest.fn(async (_input: unknown) => ({
+  success: true,
+}));
+jest.mock("@react-native-async-storage/async-storage", () => ({
+  __esModule: true,
+  default: {
+    getItem: (key: string) =>
+      Promise.resolve(mockWelcomeNoteStorage.get(key) ?? null),
+    setItem: (key: string, value: string) => {
+      mockWelcomeNoteStorage.set(key, value);
+      return Promise.resolve();
+    },
+  },
+}));
 jest.mock("@expo/vector-icons", () => {
   const React = require("react");
   const { View } = require("react-native");
   return { Feather: (props: Record<string, unknown>) => React.createElement(View, props) };
 });
 jest.mock("@tanstack/react-query", () => ({
-  useQuery: (options: { queryKey?: unknown[] }) =>
-    options.queryKey?.[0] === "event-details"
-      ? { data: mockEvent, isLoading: false, error: undefined }
-      : { data: undefined, isLoading: false, error: undefined },
+  useQuery: (options: { queryKey?: unknown[] }) => {
+    if (options.queryKey?.[0] === "event-details") {
+      return { data: mockEvent, isLoading: false, error: undefined };
+    }
+    if (options.queryKey?.[0] === "venue-owner-event") {
+      const isOwner = mockEvent.eventType === "venue" && mockEvent.ownerUid === "guest-user";
+      return {
+        data: isOwner ? { event: mockEvent } : undefined,
+        isLoading: false,
+        isSuccess: isOwner,
+        error: undefined,
+      };
+    }
+    return { data: undefined, isLoading: false, error: undefined };
+  },
   useQueryClient: () => mockQueryClient,
 }));
 jest.mock("expo-router", () => ({
@@ -123,6 +153,10 @@ jest.mock("@workspace/api-client-react", () => ({
   useCreateEventReview: () => ({ mutateAsync: jest.fn(), isPending: false, error: null }),
   useRequestToJoinCommunityEvent: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useWithdrawCommunityEventJoinRequest: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useClaimEventWelcomeNote: () => ({ mutateAsync: mockClaimEventWelcomeNote }),
+  useAcknowledgeEventWelcomeNote: () => ({
+    mutateAsync: mockAcknowledgeEventWelcomeNote,
+  }),
 }));
 
 import EventDetailsScreen from "../[eventType]/[id]";
@@ -138,8 +172,141 @@ function renderScreen() {
 describe("event detail layouts", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockWelcomeNoteStorage.clear();
+    mockClaimEventWelcomeNote.mockReset().mockResolvedValue({ welcomeNote: null });
+    mockAcknowledgeEventWelcomeNote
+      .mockReset()
+      .mockResolvedValue({ success: true });
     mockEvent = { ...baseEvent };
     mockRouteParams = { eventType: "member", id: "42" };
+  });
+
+  it("shows a claimed welcome note in a dismissible card only for an accepted participant", async () => {
+    mockClaimEventWelcomeNote.mockResolvedValue({
+      welcomeNote: "The picnic tables are near the lake.",
+    });
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventDetailsScreen />);
+      await Promise.resolve();
+    });
+
+    expect(mockClaimEventWelcomeNote).toHaveBeenCalledWith({
+      eventType: "member",
+      eventId: 42,
+    });
+    expect(root.root.findByProps({ testID: "event-welcome-note-card" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "event-welcome-note-body" }).props.children)
+      .toBe("The picnic tables are near the lake.");
+    await act(async () => {
+      await root.root.findByType(Modal).props.onShow();
+    });
+    expect(mockWelcomeNoteStorage.get(
+      "met:eventWelcomeNoteSeen:v1:guest-user:member:42",
+    )).toBe("1");
+    expect(mockAcknowledgeEventWelcomeNote).toHaveBeenCalledWith({
+      eventType: "member",
+      eventId: 42,
+    });
+    act(() => {
+      root.root.findByProps({ testID: "event-welcome-note-dismiss" }).props.onPress();
+    });
+    expect(root.root.findAllByProps({ testID: "event-welcome-note-card" })).toHaveLength(0);
+
+    act(() => root.unmount());
+
+    for (const status of ["pending", "declined"] as const) {
+      mockClaimEventWelcomeNote.mockClear();
+      mockEvent = { ...baseEvent, myJoinRequestStatus: status, myRsvp: null };
+      const nonParticipantRoot = renderScreen();
+      expect(mockClaimEventWelcomeNote).not.toHaveBeenCalled();
+      expect(
+        nonParticipantRoot.root.findAllByProps({ testID: "event-welcome-note-card" }),
+      ).toHaveLength(0);
+      act(() => nonParticipantRoot.unmount());
+    }
+  });
+
+  it("retries a lost claim response and acknowledges after displaying the note", async () => {
+    mockClaimEventWelcomeNote
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce({
+        welcomeNote: "The tables are beside the lake.",
+      });
+
+    const root = renderScreen();
+    await waitFor(
+      () => expect(mockClaimEventWelcomeNote).toHaveBeenCalledTimes(2),
+      { timeout: 2_000, interval: 50 },
+    );
+    expect(root.root.findByProps({ testID: "event-welcome-note-card" })).toBeTruthy();
+    await act(async () => {
+      await root.root.findByType(Modal).props.onShow();
+    });
+    expect(mockAcknowledgeEventWelcomeNote).toHaveBeenCalledWith({
+      eventType: "member",
+      eventId: 42,
+    });
+    act(() => root.unmount());
+  });
+
+  it("does not show a note again when the same participant reopens the event", async () => {
+    mockWelcomeNoteStorage.set(
+      "met:eventWelcomeNoteSeen:v1:guest-user:member:42",
+      "1",
+    );
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventDetailsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockClaimEventWelcomeNote).not.toHaveBeenCalled();
+    expect(mockAcknowledgeEventWelcomeNote).toHaveBeenCalledWith({
+      eventType: "member",
+      eventId: 42,
+    });
+    expect(root.root.findAllByProps({ testID: "event-welcome-note-card" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("retries an acknowledgment after reopening without showing the note again", async () => {
+    mockClaimEventWelcomeNote.mockResolvedValue({
+      welcomeNote: "The tables are beside the lake.",
+    });
+    mockAcknowledgeEventWelcomeNote
+      .mockRejectedValueOnce(new Error("ack response lost"))
+      .mockResolvedValueOnce({ success: true });
+
+    let firstRoot!: renderer.ReactTestRenderer;
+    await act(async () => {
+      firstRoot = renderer.create(<EventDetailsScreen />);
+      await Promise.resolve();
+    });
+    expect(firstRoot.root.findByProps({ testID: "event-welcome-note-card" })).toBeTruthy();
+    await act(async () => {
+      await firstRoot.root.findByType(Modal).props.onShow();
+    });
+    expect(mockWelcomeNoteStorage.get(
+      "met:eventWelcomeNoteSeen:v1:guest-user:member:42",
+    )).toBe("1");
+    act(() => firstRoot.unmount());
+
+    mockClaimEventWelcomeNote.mockClear();
+    let reopenedRoot!: renderer.ReactTestRenderer;
+    await act(async () => {
+      reopenedRoot = renderer.create(<EventDetailsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockClaimEventWelcomeNote).not.toHaveBeenCalled();
+    expect(mockAcknowledgeEventWelcomeNote).toHaveBeenCalledTimes(2);
+    expect(reopenedRoot.root.findAllByProps({ testID: "event-welcome-note-card" }))
+      .toHaveLength(0);
+    act(() => reopenedRoot.unmount());
   });
 
   it("shows a short completed summary and keeps host reviews while hiding active-event content", () => {
@@ -416,7 +583,7 @@ describe("event detail layouts", () => {
     act(() => noPhotoRoot.unmount());
   });
 
-  it("opens venue-event editing through the venue manager", () => {
+  it("opens venue-event editing in the venue-owner event form", () => {
     mockEvent = {
       ...baseEvent,
       eventType: "venue",
@@ -433,8 +600,8 @@ describe("event detail layouts", () => {
       root.root.findByProps({ testID: "event-details-edit-button" }).props.onPress();
     });
 
-    expect(mockOpenVenueManager).toHaveBeenCalledTimes(1);
-    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(mockRouter.push).toHaveBeenCalledWith("/venue-owner/events/42");
+    expect(mockOpenVenueManager).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 

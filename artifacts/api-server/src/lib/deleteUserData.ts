@@ -19,6 +19,8 @@ import {
   networkPollVotesTable,
   networkQuestionnaireAnswersTable,
   venueEventRsvpsTable,
+  venueEventWelcomeNoteDeliveriesTable,
+  communityEventWelcomeNoteDeliveriesTable,
   venueQrVerificationsTable,
   venueReviewsTable,
 } from "@workspace/db";
@@ -66,6 +68,12 @@ async function deletePostgresUserData(uid: string): Promise<void> {
     await tx
       .delete(venueEventRsvpsTable)
       .where(eq(venueEventRsvpsTable.userUid, uid));
+    await tx
+      .delete(venueEventWelcomeNoteDeliveriesTable)
+      .where(eq(venueEventWelcomeNoteDeliveriesTable.userUid, uid));
+    await tx
+      .delete(communityEventWelcomeNoteDeliveriesTable)
+      .where(eq(communityEventWelcomeNoteDeliveriesTable.userUid, uid));
     await tx
       .delete(profileViewsTable)
       .where(

@@ -95,6 +95,8 @@ import type {
   EventQrCheckinInput,
   EventReviewInput,
   EventReviewsResponse,
+  EventWelcomeNoteAcknowledgeResponse,
+  EventWelcomeNoteClaimResponse,
   GetEventsFeedParams,
   GetNearbyHangoutsParams,
   GetNotificationInboxParams,
@@ -12313,6 +12315,158 @@ export const useRsvpToEventInvite = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRsvpToEventInviteMutationOptions(options), queryClient);
+    }
+
+export const getClaimEventWelcomeNoteUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}/welcome-note/claim`
+}
+
+/**
+ * @summary Read the caller's pending private event welcome note
+ */
+export const claimEventWelcomeNote = async (eventType: 'venue' | 'member',
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<EventWelcomeNoteClaimResponse> => {
+
+  return customFetch<EventWelcomeNoteClaimResponse>(getClaimEventWelcomeNoteUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getClaimEventWelcomeNoteMutationKey = () => ['claimEventWelcomeNote'] as const;
+
+export const getClaimEventWelcomeNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimEventWelcomeNote>>, TError,ClaimEventWelcomeNoteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimEventWelcomeNote>>, TError,ClaimEventWelcomeNoteMutationVariables, TContext> => {
+
+const mutationKey = getClaimEventWelcomeNoteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimEventWelcomeNote>>, ClaimEventWelcomeNoteMutationVariables> = (props) => {
+          const {eventType,eventId} = props ?? {};
+
+          return  claimEventWelcomeNote(eventType,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimEventWelcomeNoteMutationResult = NonNullable<Awaited<ReturnType<typeof claimEventWelcomeNote>>>
+
+    export type ClaimEventWelcomeNoteMutationError = ErrorType<unknown>
+    export type ClaimEventWelcomeNoteMutationVariables = {eventType: 'venue' | 'member';eventId: number}
+
+    /**
+ * @summary Read the caller's pending private event welcome note
+ */
+export const useClaimEventWelcomeNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimEventWelcomeNote>>, TError,ClaimEventWelcomeNoteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof claimEventWelcomeNote>>,
+        TError,
+        ClaimEventWelcomeNoteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getClaimEventWelcomeNoteMutationOptions(options), queryClient);
+    }
+
+export const getAcknowledgeEventWelcomeNoteUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}/welcome-note/acknowledge`
+}
+
+/**
+ * @summary Acknowledge that the caller displayed the private event welcome note
+ */
+export const acknowledgeEventWelcomeNote = async (eventType: 'venue' | 'member',
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<EventWelcomeNoteAcknowledgeResponse> => {
+
+  return customFetch<EventWelcomeNoteAcknowledgeResponse>(getAcknowledgeEventWelcomeNoteUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeEventWelcomeNoteMutationKey = () => ['acknowledgeEventWelcomeNote'] as const;
+
+export const getAcknowledgeEventWelcomeNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeEventWelcomeNote>>, TError,AcknowledgeEventWelcomeNoteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeEventWelcomeNote>>, TError,AcknowledgeEventWelcomeNoteMutationVariables, TContext> => {
+
+const mutationKey = getAcknowledgeEventWelcomeNoteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeEventWelcomeNote>>, AcknowledgeEventWelcomeNoteMutationVariables> = (props) => {
+          const {eventType,eventId} = props ?? {};
+
+          return  acknowledgeEventWelcomeNote(eventType,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeEventWelcomeNoteMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeEventWelcomeNote>>>
+
+    export type AcknowledgeEventWelcomeNoteMutationError = ErrorType<unknown>
+    export type AcknowledgeEventWelcomeNoteMutationVariables = {eventType: 'venue' | 'member';eventId: number}
+
+    /**
+ * @summary Acknowledge that the caller displayed the private event welcome note
+ */
+export const useAcknowledgeEventWelcomeNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeEventWelcomeNote>>, TError,AcknowledgeEventWelcomeNoteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeEventWelcomeNote>>,
+        TError,
+        AcknowledgeEventWelcomeNoteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcknowledgeEventWelcomeNoteMutationOptions(options), queryClient);
     }
 
 export const getUpdateCommunityEventUrl = (eventId: number,) => {

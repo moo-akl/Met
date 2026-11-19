@@ -1036,6 +1036,17 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   const startsAt = validDate(req.body?.startsAt);
   if (!business || !title || !startsAt) return void res.status(400).json({ message: "An event title and start time are required." });
   if (startsAt <= new Date()) return void res.status(400).json({ message: "Event start time must be in the future." });
+  const rawWelcomeNote = req.body?.welcomeNote;
+  if (
+    rawWelcomeNote !== undefined &&
+    rawWelcomeNote !== null &&
+    (typeof rawWelcomeNote !== "string" || rawWelcomeNote.trim().length > 300)
+  ) {
+    return void res.status(400).json({ message: "Welcome notes must be 300 characters or fewer." });
+  }
+  const welcomeNote = typeof rawWelcomeNote === "string"
+    ? rawWelcomeNote.trim() || null
+    : null;
   const endsAt = req.body?.endsAt === null ? null : validDate(req.body?.endsAt);
   if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
   if (endsAt && endsAt <= startsAt) return void res.status(400).json({ message: "Event end time must be after the start time." });
@@ -1076,6 +1087,7 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   const [event] = await db.insert(venueEventsTable).values({
     ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
     description: optionalText(req.body?.description, 2000) ?? null,
+    welcomeNote,
     imageUrl,
     galleryPhotos,
     photosExpireAt: getEventPhotosExpireAt(startsAt, endsAt, Boolean(imageUrl || galleryPhotos.length)),
@@ -1093,6 +1105,19 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
   if (!business || !Number.isInteger(eventId)) return void res.status(400).json({ message: "Invalid event." });
   const [existing] = await db.select().from(venueEventsTable).where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, business.business.placeId))).limit(1);
   if (!existing) return void res.status(404).json({ message: "Event not found." });
+  const rawWelcomeNote = req.body?.welcomeNote;
+  if (
+    rawWelcomeNote !== undefined &&
+    rawWelcomeNote !== null &&
+    (typeof rawWelcomeNote !== "string" || rawWelcomeNote.trim().length > 300)
+  ) {
+    return void res.status(400).json({ message: "Welcome notes must be 300 characters or fewer." });
+  }
+  const welcomeNote = rawWelcomeNote === undefined
+    ? undefined
+    : typeof rawWelcomeNote === "string"
+      ? rawWelcomeNote.trim() || null
+      : null;
   const title = optionalText(req.body?.title, 120);
   const startsAt = req.body?.startsAt === undefined ? undefined : validDate(req.body.startsAt);
   const endsAt = req.body?.endsAt === undefined ? undefined : req.body.endsAt === null ? null : validDate(req.body.endsAt);
@@ -1148,6 +1173,7 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
   const patch = Object.fromEntries(Object.entries({
     title, startsAt, endsAt, capacityLimit, reminderOffsetsHours,
     description: optionalText(req.body?.description, 2000),
+    welcomeNote,
     imageUrl: nextImageUrl,
     galleryPhotos: nextGalleryPhotos,
     photosExpireAt: getEventPhotosExpireAt(

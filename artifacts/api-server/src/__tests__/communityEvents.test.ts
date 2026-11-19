@@ -645,6 +645,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .send({
         title: "Picnic by the lake",
         description: "Bring a snack and say hello.",
+        welcomeNote: "The picnic tables are near the lake.",
         startsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
         location: "Lumphini Park",
         locationPlaceId: "hangout-test-place",
@@ -661,12 +662,16 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       myJoinRequestStatus: null,
       creatorPhotoUrl: "https://example.com/owner.jpg",
     });
+    expect(created.body).not.toHaveProperty("welcomeNote");
     await request(app)
       .get(`/api/community-events/${eventId}/manage`)
       .set(uidHeader(OWNER_UID))
       .expect(200)
       .expect(({ body }) => {
-        expect(body.joinApprovalRequired).toBe(true);
+        expect(body).toMatchObject({
+          joinApprovalRequired: true,
+          welcomeNote: "The picnic tables are near the lake.",
+        });
       });
 
     await request(app)
@@ -695,6 +700,19 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .expect(201);
     expect(joinRequest.body).toMatchObject({ success: true, status: "pending" });
     const requestId = joinRequest.body.requestId as number;
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNote: null });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200, { welcomeNote: null });
+    const publicManage = await request(app)
+      .get(`/api/community-events/${eventId}/manage`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    expect(publicManage.body).not.toHaveProperty("welcomeNote");
 
     await request(app)
       .post(`/api/community-events/${eventId}/join-requests`)
@@ -708,6 +726,10 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .get("/api/events/feed")
       .set(uidHeader(OTHER_UID))
       .expect(200);
+    const feedEvent = (requesterFeed.body.events as Record<string, unknown>[])
+      .find((event) => event.id === eventId);
+    expect(feedEvent).toBeDefined();
+    expect(feedEvent).not.toHaveProperty("welcomeNote");
     expect(requesterFeed.body.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -778,9 +800,43 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       myRsvp: "going",
     });
     await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNote: "The picnic tables are near the lake." });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNote: "The picnic tables are near the lake." });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/acknowledge`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { success: true });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/acknowledge`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { success: true });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNote: null });
+    await request(app)
       .get(`/api/community-events/${eventId}/plan-chat`)
       .set(uidHeader(OTHER_UID))
       .expect(200);
+
+    const declinedRequest = await request(app)
+      .post(`/api/community-events/${eventId}/join-requests`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(201);
+    await request(app)
+      .patch(`/api/community-events/${eventId}/join-requests/${declinedRequest.body.requestId}`)
+      .set(uidHeader(OWNER_UID))
+      .send({ status: "declined" })
+      .expect(200);
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200, { welcomeNote: null });
     await request(app)
       .delete(`/api/community-events/${eventId}/join-requests`)
       .set(uidHeader(OTHER_UID))
@@ -1300,6 +1356,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     const eventBody = {
       title: "Private community gathering",
       description: "An invite-only test event",
+      welcomeNote: "Meet by the front entrance.",
       imageUrl: "https://example.com/community-event.jpg",
       contactPhone: "+1 555 123 4567",
       websiteUrl: "https://example.com/event",
@@ -1327,6 +1384,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       contactPhone: eventBody.contactPhone,
       websiteUrl: eventBody.websiteUrl,
       publicEmail: eventBody.publicEmail,
+      welcomeNote: eventBody.welcomeNote,
     });
 
     await request(app)
@@ -1346,6 +1404,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       websiteUrl: eventBody.websiteUrl,
       publicEmail: eventBody.publicEmail,
     });
+    expect(inviteeDetails.body).not.toHaveProperty("welcomeNote");
 
     const changedBody = {
       ...eventBody,
@@ -1377,6 +1436,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
         contactPhone: "+1 555 765 4321",
         websiteUrl: "https://example.com/updated",
         publicEmail: "updated@example.com",
+        welcomeNote: null,
       })
       .expect(200);
     expect(updated.body.title).toBe("Updated community gathering");
@@ -1385,6 +1445,11 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       websiteUrl: "https://example.com/updated",
       publicEmail: "updated@example.com",
     });
+    const clearedNote = await request(app)
+      .get(`/api/community-events/${eventId}/manage`)
+      .set(uidHeader(OWNER_UID))
+      .expect(200);
+    expect(clearedNote.body.welcomeNote).toBeNull();
 
     await request(app)
       .delete(`/api/community-events/${eventId}`)
@@ -1396,10 +1461,59 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .expect(404);
   });
 
+  it("does not send a note added after a Plan participant already joined", async () => {
+    const startsAt = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Plan with an initially empty note",
+        startsAt,
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+        welcomeNote: "   ",
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ status: "going" })
+      .expect(200);
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200, { welcomeNote: null });
+
+    await request(app)
+      .put(`/api/community-events/${eventId}`)
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Plan with a later note",
+        startsAt,
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+        welcomeNote: "This note was added later.",
+      })
+      .expect(200);
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ status: "going" })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200, { welcomeNote: null });
+  });
+
   it("shares passcode-protected invite links and grants event access after RSVP", async () => {
     const eventBody = {
       title: "Invite link gathering",
       description: "A private event shared by link",
+      welcomeNote: "Thanks for joining the plan.",
       startsAt: new Date(Date.now() + 86_400_000).toISOString(),
       endsAt: null,
       location: null,
@@ -1473,6 +1587,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     expect(resolved.body.event).not.toHaveProperty("ownerUid");
     expect(resolved.body.event).not.toHaveProperty("inviteeUids");
     expect(resolved.body.event).not.toHaveProperty("inviteTokenHash");
+    expect(resolved.body.event).not.toHaveProperty("welcomeNote");
 
     await request(app)
       .get(`/api/events/member/${eventId}`)
@@ -1485,11 +1600,29 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .send({ token, status: "going", passcode: "frosty7" })
       .expect(200, { success: true, status: "going" });
 
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNote: "Thanks for joining the plan." });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNote: "Thanks for joining the plan." });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/acknowledge`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { success: true });
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNote: null });
+
     const recipientDetails = await request(app)
       .get(`/api/events/member/${eventId}`)
       .set(uidHeader(OTHER_UID))
       .expect(200);
     expect(recipientDetails.body.myRsvp).toBe("going");
+    expect(recipientDetails.body).not.toHaveProperty("welcomeNote");
 
     const feed = await request(app)
       .get("/api/events/feed")
