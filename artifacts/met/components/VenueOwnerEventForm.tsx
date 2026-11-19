@@ -445,6 +445,64 @@ function EventFormFields({
           />
           <View style={{ gap: 8, marginTop: 4 }}>
             <View style={styles.photosHeading}>
+              <FieldLabel label="Welcome note" colors={colors} />
+              <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                {welcomeNote.length}/300
+              </Text>
+            </View>
+            <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+              Guests see this privately after they join.
+            </Text>
+            <TextInput
+              accessibilityLabel="Welcome note"
+              testID="venue-event-welcome-note"
+              value={welcomeNote}
+              onChangeText={setWelcomeNote}
+              placeholder="Write a short note for new guests"
+              placeholderTextColor={colors.mutedForeground}
+              maxLength={300}
+              multiline
+              textAlignVertical="top"
+              style={[inputStyle, styles.multiline]}
+            />
+            <View
+              testID="venue-event-welcome-note-preview"
+              style={{
+                gap: 8,
+                padding: 13,
+                borderWidth: 1,
+                borderTopLeftRadius: 18,
+                borderBottomRightRadius: 16,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              }}
+            >
+              <Text style={[styles.helper, { color: colors.mutedForeground, fontWeight: "700" }]}>
+                Preview
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9 }}>
+                <Feather name="message-circle" size={16} color={colors.primary} />
+                <Text style={{ flex: 1, color: colors.text, fontSize: 14, lineHeight: 21 }}>
+                  {welcomeNote.trim() || "Your note preview appears here."}
+                </Text>
+              </View>
+            </View>
+            {welcomeNote.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear welcome note"
+                testID="venue-event-welcome-note-clear"
+                onPress={() => setWelcomeNote("")}
+                style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 }}
+              >
+                <Feather name="x-circle" size={15} color={colors.destructive} />
+                <Text style={{ color: colors.destructive, fontSize: 13, fontWeight: "600" }}>
+                  Clear note
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.photosHeading}>
             <View style={styles.photosCopy}>
               <FieldLabel label="Photos" colors={colors} />
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>
