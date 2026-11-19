@@ -34,6 +34,10 @@ import {
   getActiveVenueBusinessHeaders,
   api,
 } from "@/lib/api/client";
+import {
+  getInitialCommunityEventWebsiteUrl,
+  normalizeCommunityEventWebsiteUrl,
+} from "@/lib/communityEventWebsite";
 import { prepareVenueEventImage } from "@/lib/venueEventImage";
 
 type Mode = "create" | "edit";
@@ -244,7 +248,9 @@ function EventFormFields({
         : [],
   );
   const [contactPhone, setContactPhone] = useState(initial?.contactPhone ?? "");
-  const [websiteUrl, setWebsiteUrl] = useState(initial?.websiteUrl ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(
+    getInitialCommunityEventWebsiteUrl(initial?.websiteUrl),
+  );
   const [publicEmail, setPublicEmail] = useState(initial?.publicEmail ?? "");
   const [startsAt, setStartsAt] = useState<Date>(
     initial ? new Date(initial.startsAt) : defaultStart(),
@@ -338,7 +344,7 @@ function EventFormFields({
       imageUrl: galleryPhotos[0] ?? null,
       galleryPhotos,
       contactPhone: contactPhone.trim() || null,
-      websiteUrl: websiteUrl.trim() || null,
+      websiteUrl: normalizeCommunityEventWebsiteUrl(websiteUrl),
       publicEmail: publicEmail.trim() || null,
       startsAt: startsAt.toISOString(),
       endsAt: hasEndTime ? endsAt.toISOString() : null,

@@ -7,8 +7,7 @@ jest.mock("@/hooks/useColors", () => ({
 
 import {
   EventPhotoCarousel,
-  getEventPhotoIndexAfterSwipe,
-  shouldCaptureEventPhotoSwipe,
+  getEventPhotoIndexAfterScroll,
 } from "../EventPhotoCarousel";
 
 function renderCarousel(photos: string[]) {
@@ -27,7 +26,7 @@ function renderCarousel(photos: string[]) {
 }
 
 describe("EventPhotoCarousel", () => {
-  it("lets guests swipe through all four photos", () => {
+  it("renders every photo in a native horizontal scroller", () => {
     const photos = [
       "https://example.test/event-1.jpg",
       "https://example.test/event-2.jpg",
@@ -36,26 +35,33 @@ describe("EventPhotoCarousel", () => {
     ];
     const root = renderCarousel(photos);
     const carousel = root.root.findByProps({ testID: "event-photos" });
+    const scroll = carousel.findByProps({ testID: "event-photos-scroll" });
 
     expect(
       carousel.findByProps({ testID: "event-photos-image" }).props.source.uri,
     ).toBe(photos[0]);
-    expect(shouldCaptureEventPhotoSwipe(photos.length, -70, 4)).toBe(true);
-    expect(shouldCaptureEventPhotoSwipe(photos.length, 4, -70)).toBe(false);
+    expect(scroll.props.horizontal).toBe(true);
+    expect(scroll.props.nestedScrollEnabled).toBe(true);
+    photos.forEach((photo, index) => {
+      const imageTestId =
+        index === 0 ? "event-photos-image" : `event-photos-image-${index}`;
+      expect(
+        carousel.findByProps({ testID: imageTestId }).props.source.uri,
+      ).toBe(photo);
+    });
 
-    let activeIndex = 0;
-    for (let index = 1; index < photos.length; index += 1) {
-      activeIndex = getEventPhotoIndexAfterSwipe(activeIndex, photos.length, -80);
-      expect(photos[activeIndex]).toBe(photos[index]);
-    }
-    expect(getEventPhotoIndexAfterSwipe(activeIndex, photos.length, -80)).toBe(3);
+    act(() => {
+      scroll.props.onMomentumScrollEnd({
+        nativeEvent: { contentOffset: { x: 400 } },
+      });
+    });
 
     expect(
-      carousel
-        .findByProps({ testID: "event-photos-indicator" })
-        .findByType(require("react-native").Text).props.children
-        .join(""),
-    ).toBe("1 / 4");
+      carousel.findByProps({ testID: "event-photos-image-2" }).props.source.uri,
+    ).toBe(photos[2]);
+    expect(
+      carousel.findByProps({ testID: "event-photos-indicator" }).findByType(require("react-native").Text).props.children.join(""),
+    ).toBe("3 / 4");
     act(() => root.unmount());
   });
 
@@ -67,8 +73,7 @@ describe("EventPhotoCarousel", () => {
       carousel.findByProps({ testID: "event-photos-image" }).props.source.uri,
     ).toBe("https://example.test/only-photo.jpg");
     expect(carousel.findAllByProps({ testID: "event-photos-indicator" })).toHaveLength(0);
-    expect(shouldCaptureEventPhotoSwipe(1, -80, 0)).toBe(false);
-    expect(getEventPhotoIndexAfterSwipe(0, 1, -80)).toBe(0);
+    expect(getEventPhotoIndexAfterScroll(80, 200, 0, 1)).toBe(0);
     act(() => root.unmount());
   });
 

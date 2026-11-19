@@ -17,16 +17,19 @@ export async function prepareChatImage(
     mimeType === "image/jpeg" &&
     width != null &&
     height != null &&
-    longestEdge <= MAX_EDGE &&
-    fileSize != null &&
-    fileSize <= MAX_CHAT_IMAGE_BYTES
+    longestEdge <= MAX_EDGE
   ) {
     const sourceInfo = await FileSystem.getInfoAsync(uri);
-    const sourceSize =
+    const infoSize =
       "size" in sourceInfo && typeof sourceInfo.size === "number"
         ? sourceInfo.size
-        : fileSize;
-    if (sourceInfo.exists && sourceSize <= MAX_CHAT_IMAGE_BYTES) {
+        : null;
+    const sourceSize = infoSize ?? fileSize ?? null;
+    if (
+      sourceInfo.exists &&
+      sourceSize !== null &&
+      sourceSize <= MAX_CHAT_IMAGE_BYTES
+    ) {
       return { uri, size: sourceSize };
     }
   }

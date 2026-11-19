@@ -126,9 +126,14 @@ describe("VenueOwnerEventForm", () => {
 
   it("creates a venue event with its visibility and reminder settings", async () => {
     const screen = await render(<VenueOwnerEventForm mode="create" />);
+    expect(screen.getByLabelText("Public event website").props.value).toBe("https://");
     await fireEvent.changeText(
       screen.getByTestId("venue-event-title"),
       "Friday opening",
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Public event website"),
+      "met-app.org/events",
     );
     await fireEvent.press(screen.getByTestId("venue-event-save"));
 
@@ -139,6 +144,7 @@ describe("VenueOwnerEventForm", () => {
           visibility: "public",
           isPublished: true,
           reminderOffsetsHours: [24, 2],
+          websiteUrl: "https://met-app.org/events",
         }),
       });
     });
@@ -156,7 +162,7 @@ describe("VenueOwnerEventForm", () => {
         imageUrl: null,
         galleryPhotos: [],
         contactPhone: null,
-        websiteUrl: null,
+        websiteUrl: "https://met-app.org/events",
         publicEmail: null,
         startsAt,
         endsAt: null,
@@ -178,6 +184,7 @@ describe("VenueOwnerEventForm", () => {
           title: "Existing event",
           isPublished: false,
           startsAt,
+          websiteUrl: "https://met-app.org/events",
         }),
       });
     });

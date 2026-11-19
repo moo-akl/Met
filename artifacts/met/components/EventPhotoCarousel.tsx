@@ -1,11 +1,13 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   Image,
-  PanResponder,
+  ScrollView,
   StyleSheet,
   Text,
   View,
   type ImageStyle,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -19,27 +21,16 @@ type EventPhotoCarouselProps = {
   accessibilityLabel: string;
 };
 
-export function shouldCaptureEventPhotoSwipe(
+export function getEventPhotoIndexAfterScroll(
+  offsetX: number,
+  itemWidth: number,
+  gap: number,
   photoCount: number,
-  dx: number,
-  dy: number,
 ) {
-  return (
-    photoCount > 1 &&
-    Math.abs(dx) >= 12 &&
-    Math.abs(dx) > Math.abs(dy) * 1.2
-  );
-}
-
-export function getEventPhotoIndexAfterSwipe(
-  currentIndex: number,
-  photoCount: number,
-  dx: number,
-) {
-  if (photoCount < 2 || Math.abs(dx) < 40) return currentIndex;
+  if (photoCount < 2 || itemWidth <= 0) return 0;
   return Math.max(
     0,
-    Math.min(photoCount - 1, currentIndex + (dx < 0 ? 1 : -1)),
+    Math.min(photoCount - 1, Math.round(offsetX / (itemWidth + gap))),
   );
 }
 
@@ -53,58 +44,68 @@ export function EventPhotoCarousel({
   const colors = useColors();
   const photosKey = photos.join("\u0000");
   const [activePage, setActivePage] = useState({ photosKey, index: 0 });
-  const photosRef = useRef(photos);
-  photosRef.current = photos;
-  const photosKeyRef = useRef(photosKey);
-  photosKeyRef.current = photosKey;
   const activeIndex = activePage.photosKey === photosKey ? activePage.index : 0;
+  const flattenedImageStyle = StyleSheet.flatten(imageStyle);
+  const flattenedContainerStyle = StyleSheet.flatten(containerStyle);
+  const itemWidth =
+    typeof flattenedImageStyle.width === "number"
+      ? flattenedImageStyle.width
+      : 0;
+  const itemHeight =
+    typeof flattenedImageStyle.height === "number"
+      ? flattenedImageStyle.height
+      : 230;
+  const gap =
+    typeof flattenedContainerStyle?.gap === "number"
+      ? flattenedContainerStyle.gap
+      : 0;
+  const currentIndex = Math.min(activeIndex, photos.length - 1);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          shouldCaptureEventPhotoSwipe(
-            photosRef.current.length,
-            gesture.dx,
-            gesture.dy,
-          ),
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderRelease: (_event, gesture) => {
-          setActivePage((current) => {
-            const currentIndex =
-              current.photosKey === photosKeyRef.current ? current.index : 0;
-            return {
-              photosKey: photosKeyRef.current,
-              index: getEventPhotoIndexAfterSwipe(
-                currentIndex,
-                photosRef.current.length,
-                gesture.dx,
-              ),
-            };
-          });
-        },
-      }),
-    [],
-  );
+  const updateActivePage = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const index = getEventPhotoIndexAfterScroll(
+      event.nativeEvent.contentOffset.x,
+      itemWidth,
+      gap,
+      photos.length,
+    );
+    setActivePage({ photosKey, index });
+  };
 
   if (photos.length === 0) return null;
 
-  const currentIndex = Math.min(activeIndex, photos.length - 1);
-  const currentPhoto = photos[currentIndex];
-
   return (
-    <View
-      {...panResponder.panHandlers}
-      style={containerStyle}
-      testID={testID}
-    >
-      <Image
-        source={{ uri: currentPhoto }}
-        style={imageStyle}
-        resizeMode="cover"
-        accessibilityLabel={`${accessibilityLabel}, ${currentIndex + 1} of ${photos.length}`}
-        testID={`${testID}-image`}
-      />
+    <View style={containerStyle} testID={testID}>
+      <ScrollView
+        key={photosKey}
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={itemWidth > 0 ? itemWidth + gap : undefined}
+        snapToAlignment="start"
+        style={[styles.scroll, { height: itemHeight }]}
+        contentContainerStyle={gap > 0 ? { gap } : undefined}
+        onScrollEndDrag={updateActivePage}
+        onMomentumScrollEnd={updateActivePage}
+        testID={`${testID}-scroll`}
+      >
+        {photos.map((photo, index) => (
+          <Image
+            key={`${photosKey}-${index}`}
+            source={{ uri: photo }}
+            style={imageStyle}
+            resizeMode="cover"
+            accessibilityLabel={`${accessibilityLabel}, ${index + 1} of ${photos.length}`}
+            testID={
+              index === 0
+                ? `${testID}-image`
+                : `${testID}-image-${index}`
+            }
+          />
+        ))}
+      </ScrollView>
       {photos.length > 1 ? (
         <View
           style={styles.pagination}
@@ -121,6 +122,10 @@ export function EventPhotoCarousel({
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    width: "100%",
+    flexGrow: 0,
+  },
   pagination: {
     alignSelf: "flex-end",
     paddingTop: 4,

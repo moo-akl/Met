@@ -58,6 +58,17 @@ describe("prepareChatImage", () => {
     expect(mockGetInfo).toHaveBeenCalledWith("file:///small.jpg");
   });
 
+  it("resizes a high-resolution JPEG even when it is under the size limit", async () => {
+    await expect(
+      prepareChatImage("file:///large-dimensions.jpg", 4032, 3024, "image/jpeg", 4_000_000),
+    ).resolves.toEqual({ uri: "file:///prepared.jpg", size: 1_000_000 });
+    expect(mockManipulate).toHaveBeenCalledWith(
+      "file:///large-dimensions.jpg",
+      [{ resize: { width: 1280 } }],
+      { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG },
+    );
+  });
+
   it("recompresses a JPEG when its actual file exceeds the size limit", async () => {
     mockGetInfo
       .mockResolvedValueOnce({

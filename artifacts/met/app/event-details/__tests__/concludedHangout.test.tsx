@@ -159,32 +159,64 @@ describe("event detail layouts", () => {
   });
 
   it("gives active Hangouts their own visual hero", () => {
+    const photos = [
+      "https://example.test/hangout-1.jpg",
+      "https://example.test/hangout-2.jpg",
+    ];
     mockEvent = {
       ...baseEvent,
       startsAt: "2030-04-03T12:00:00.000Z",
       endsAt: "2030-04-03T14:00:00.000Z",
+      galleryPhotos: photos,
     };
 
     const root = renderScreen();
 
     expect(root.root.findByProps({ testID: "event-detail-hangout-hero" })).toBeTruthy();
+    const gallery = root.root.findByProps({
+      testID: "event-detail-hangout-gallery",
+    });
+    expect(
+      gallery.findByProps({ testID: "event-detail-hangout-gallery-scroll" })
+        .props.horizontal,
+    ).toBe(true);
+    expect(
+      gallery.findByProps({ testID: "event-detail-hangout-gallery-image-1" })
+        .props.source.uri,
+    ).toBe(photos[1]);
     expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "event-detail-standard-hero" })).toHaveLength(0);
     act(() => root.unmount());
   });
 
   it("gives invite-only Plans their own date-first visual hero", () => {
+    const photos = [
+      "https://example.test/plan-1.jpg",
+      "https://example.test/plan-2.jpg",
+    ];
     mockEvent = {
       ...baseEvent,
       joinApprovalRequired: false,
       startsAt: "2030-04-03T12:00:00.000Z",
       endsAt: "2030-04-03T14:00:00.000Z",
       visibility: "invite_only",
+      galleryPhotos: photos,
     };
 
     const root = renderScreen();
 
     expect(root.root.findByProps({ testID: "event-detail-plan-hero" })).toBeTruthy();
+    const gallery = root.root.findByProps({
+      testID: "event-detail-plan-gallery",
+    });
+    expect(
+      gallery.findByProps({ testID: "event-detail-plan-gallery-scroll" })
+        .props.horizontal,
+    ).toBe(true);
+    expect(
+      gallery.findByProps({ testID: "event-detail-plan-gallery-image-1" })
+        .props.source.uri,
+    ).toBe(photos[1]);
     expect(root.root.findAllByProps({ testID: "event-detail-hangout-hero" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "event-detail-standard-hero" })).toHaveLength(0);
     act(() => root.unmount());
@@ -324,6 +356,13 @@ describe("event detail layouts", () => {
     mockRouteParams = { eventType: "venue", id: "42" };
 
     const root = renderScreen();
+    const gallery = root.root.findByProps({
+      testID: "event-detail-standard-hero",
+    });
+    expect(
+      gallery.findByProps({ testID: "event-detail-standard-hero-scroll" })
+        .props.horizontal,
+    ).toBe(true);
     expect(
       root.root.findByProps({ testID: "event-detail-standard-hero-image" }).props,
     ).toMatchObject({
