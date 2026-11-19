@@ -3809,6 +3809,22 @@ export const CreateVenueOwnerMeEventResponse = zod.object({
 
 
 /**
+ * @summary Upload a venue event photo as a binary file
+ */
+export const uploadVenueEventImageFileHeaderXUploadIdMax = 80;
+
+
+
+export const UploadVenueEventImageFileHeader = zod.object({
+  "X-Upload-Id": zod.string().min(1).max(uploadVenueEventImageFileHeaderXUploadIdMax).describe('Stable upload ID used to make retries overwrite the same photo.')
+})
+
+export const UploadVenueEventImageFileResponse = zod.object({
+  "url": zod.string().url()
+})
+
+
+/**
  * @summary Get an event for the selected approved venue
  */
 

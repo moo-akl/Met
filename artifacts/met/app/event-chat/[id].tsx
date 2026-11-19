@@ -14,6 +14,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -45,7 +46,105 @@ type PendingAttachment = {
   contentType: "image/jpeg" | "audio/mp4";
   durationMs?: number;
   byteSize?: number;
+  uploadStatus?: "preparing" | "uploading" | "uploaded" | "failed";
+  uploadProgress?: number;
+  mediaObjectPath?: string;
 };
+
+type MediaUploadReservation = {
+  uploadUrl: string;
+  uploadFields: Record<string, string>;
+  mediaObjectPath: string;
+  maxBytes: number;
+};
+
+type ActiveReservedUpload = {
+  promise: Promise<void>;
+  cancel: () => void;
+};
+
+type PendingImageUpload = {
+  localUri: string;
+  reservationPromise: Promise<MediaUploadReservation> | null;
+  reservation: MediaUploadReservation | null;
+  uploadPromise: Promise<string> | null;
+  activeUpload: ActiveReservedUpload | null;
+  cancelled: boolean;
+};
+
+function startReservedMediaUpload(
+  reservation: MediaUploadReservation,
+  attachment: PendingAttachment,
+  onProgress: (sentBytes: number, totalBytes: number) => void,
+): ActiveReservedUpload {
+  let task: ReturnType<typeof FileSystem.createUploadTask> | null = null;
+  let xhr: XMLHttpRequest | null = null;
+  let cancelled = false;
+
+  const promise = (async () => {
+    if (Platform.OS === "web") {
+      const localResponse = await fetch(attachment.uri);
+      if (!localResponse.ok) throw new Error("Could not read the selected attachment.");
+      const file = await localResponse.blob();
+      if (cancelled) throw new Error("Attachment upload cancelled.");
+      await new Promise<void>((resolve, reject) => {
+        const form = new FormData();
+        Object.entries(reservation.uploadFields).forEach(([key, value]) => {
+          form.append(key, value);
+        });
+        form.append(
+          "file",
+          file,
+          attachment.mediaType === "image" ? "photo.jpg" : "voice.m4a",
+        );
+        xhr = new XMLHttpRequest();
+        xhr.open("POST", reservation.uploadUrl);
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) onProgress(event.loaded, event.total);
+        };
+        xhr.onerror = () => reject(new Error("Attachment upload failed."));
+        xhr.onabort = () => reject(new Error("Attachment upload cancelled."));
+        xhr.onload = () => {
+          if (xhr && xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`ATTACHMENT_UPLOAD_FAILED_${xhr?.status ?? 0}`));
+        };
+        xhr.send(form);
+      });
+      return;
+    }
+
+    task = FileSystem.createUploadTask(
+      reservation.uploadUrl,
+      attachment.uri,
+      {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: "file",
+        mimeType: attachment.contentType,
+        parameters: reservation.uploadFields,
+      },
+      (progress) =>
+        onProgress(
+          progress.totalBytesSent,
+          progress.totalBytesExpectedToSend,
+        ),
+    );
+    const response = await task.uploadAsync();
+    if (cancelled) throw new Error("Attachment upload cancelled.");
+    if (!response || response.status < 200 || response.status >= 300) {
+      throw new Error(`ATTACHMENT_UPLOAD_FAILED_${response?.status ?? 0}`);
+    }
+  })();
+
+  return {
+    promise,
+    cancel: () => {
+      cancelled = true;
+      if (task) void task.cancelAsync().catch(() => {});
+      xhr?.abort();
+    },
+  };
+}
 
 const VOICE_RECORDING_OPTIONS: RecordingOptions = {
   ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
@@ -170,6 +269,8 @@ export default function EventChatScreen() {
   const lastMarkedReadRef = useRef<{ eventId: number; messageId: number } | null>(null);
   const updateRsvp = useRsvpCommunityEvent();
   const uploadMedia = useCreateCommunityEventPlanChatMediaUpload();
+  const pendingImageUploadRef = useRef<PendingImageUpload | null>(null);
+  const photoPreparationIdRef = useRef(0);
   const planChat = useQuery({
     ...getGetCommunityEventPlanChatQueryOptions(isValidRoute ? eventId : 0),
     enabled: isValidRoute && !!authedUid,
@@ -304,8 +405,135 @@ export default function EventChatScreen() {
     }
   };
 
+  const cancelPendingImageUpload = () => {
+    const current = pendingImageUploadRef.current;
+    if (!current) return;
+    current.cancelled = true;
+    current.activeUpload?.cancel();
+    pendingImageUploadRef.current = null;
+  };
+
+  const updatePendingImage = (
+    uri: string,
+    patch: Partial<PendingAttachment>,
+  ) => {
+    setPendingAttachment((current) =>
+      current?.mediaType === "image" && current.uri === uri
+        ? { ...current, ...patch }
+        : current,
+    );
+  };
+
+  const startPendingImageUpload = (
+    attachment: PendingAttachment,
+  ): Promise<string> => {
+    let record = pendingImageUploadRef.current;
+    if (!record || record.localUri !== attachment.uri) {
+      cancelPendingImageUpload();
+      record = {
+        localUri: attachment.uri,
+        reservationPromise: null,
+        reservation: null,
+        uploadPromise: null,
+        activeUpload: null,
+        cancelled: false,
+      };
+      pendingImageUploadRef.current = record;
+    }
+    if (record.uploadPromise) return record.uploadPromise;
+    if (!record.reservation && !record.reservationPromise) {
+      record.reservationPromise = uploadMedia.mutateAsync({
+        eventId,
+        data: { mediaType: "image", contentType: attachment.contentType },
+      });
+    }
+
+    const currentRecord = record;
+    updatePendingImage(attachment.uri, {
+      uploadStatus: "uploading",
+      uploadProgress: 0,
+    });
+    const uploadPromise = (async () => {
+      const reservation =
+        currentRecord.reservation ??
+        (await currentRecord.reservationPromise!);
+      currentRecord.reservation = reservation;
+      if (
+        currentRecord.cancelled ||
+        pendingImageUploadRef.current !== currentRecord
+      ) {
+        throw new Error("Photo upload cancelled.");
+      }
+      if (
+        attachment.byteSize != null &&
+        attachment.byteSize > reservation.maxBytes
+      ) {
+        throw new Error("ATTACHMENT_TOO_LARGE");
+      }
+      const activeUpload = startReservedMediaUpload(
+        reservation,
+        attachment,
+        (sentBytes, totalBytes) => {
+          if (
+            pendingImageUploadRef.current === currentRecord &&
+            totalBytes > 0
+          ) {
+            updatePendingImage(attachment.uri, {
+              uploadStatus: "uploading",
+              uploadProgress: Math.min(1, sentBytes / totalBytes),
+            });
+          }
+        },
+      );
+      currentRecord.activeUpload = activeUpload;
+      await activeUpload.promise;
+      if (
+        currentRecord.cancelled ||
+        pendingImageUploadRef.current !== currentRecord
+      ) {
+        throw new Error("Photo upload cancelled.");
+      }
+      return reservation.mediaObjectPath;
+    })()
+      .then((mediaObjectPath) => {
+        if (pendingImageUploadRef.current === currentRecord) {
+          currentRecord.activeUpload = null;
+          updatePendingImage(attachment.uri, {
+            uploadStatus: "uploaded",
+            uploadProgress: 1,
+            mediaObjectPath,
+          });
+        }
+        return mediaObjectPath;
+      })
+      .catch((error: unknown) => {
+        if (pendingImageUploadRef.current === currentRecord) {
+          currentRecord.uploadPromise = null;
+          currentRecord.activeUpload = null;
+          if (!currentRecord.reservation) {
+            currentRecord.reservationPromise = null;
+          }
+          updatePendingImage(attachment.uri, {
+            uploadStatus: "failed",
+          });
+        }
+        throw error;
+      });
+    record.uploadPromise = uploadPromise;
+    return uploadPromise;
+  };
+
+  useEffect(
+    () => () => {
+      photoPreparationIdRef.current += 1;
+      cancelPendingImageUpload();
+    },
+    [],
+  );
+
   const pickChatPhoto = async () => {
     if (sendMessage.isPending || uploadingAttachment || isRecording) return;
+    let selectionId: number | null = null;
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
@@ -314,26 +542,51 @@ export default function EventChatScreen() {
       });
       const asset = result.canceled ? null : result.assets[0];
       if (!asset) return;
+      selectionId = ++photoPreparationIdRef.current;
+      cancelPendingImageUpload();
+      setPendingAttachment({
+        uri: asset.uri,
+        mediaType: "image",
+        contentType: "image/jpeg",
+        byteSize: asset.fileSize,
+        uploadStatus: "preparing",
+        uploadProgress: 0,
+      });
+      setSendError("");
       const resized = await ImageManipulator.manipulateAsync(
         asset.uri,
         [{ resize: { width: 1600 } }],
         { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
       );
+      if (selectionId !== photoPreparationIdRef.current) return;
       const info = await FileSystem.getInfoAsync(resized.uri);
-      const byteSize = info.exists && "size" in info ? Number(info.size) : asset.fileSize ?? 0;
+      if (selectionId !== photoPreparationIdRef.current) return;
+      const byteSize =
+        info.exists && "size" in info && typeof info.size === "number"
+          ? info.size
+          : asset.fileSize ?? 0;
       if (byteSize > 8 * 1024 * 1024) {
         setSendError(t("tabs.events.planChatMediaUploadError"));
+        setPendingAttachment(null);
         return;
       }
-      setSendError("");
-      setPendingAttachment({
+      const attachment: PendingAttachment = {
         uri: resized.uri,
         mediaType: "image",
         contentType: "image/jpeg",
         byteSize,
-      });
+        uploadStatus: "uploading",
+        uploadProgress: 0,
+      };
+      setPendingAttachment(attachment);
+      void startPendingImageUpload(attachment).catch(() => {});
     } catch {
-      setSendError(t("tabs.events.planChatMediaUploadError"));
+      if (selectionId === null || selectionId === photoPreparationIdRef.current) {
+        setSendError(t("tabs.events.planChatMediaUploadError"));
+      }
+      if (selectionId !== null && selectionId === photoPreparationIdRef.current) {
+        setPendingAttachment(null);
+      }
     }
   };
 
@@ -379,7 +632,7 @@ export default function EventChatScreen() {
   };
 
   const uploadAttachment = async (attachment: PendingAttachment): Promise<string> => {
-    const reservation = await uploadMedia.mutateAsync({
+    const reservation: MediaUploadReservation = await uploadMedia.mutateAsync({
       eventId,
       data: {
         mediaType: attachment.mediaType,
@@ -389,21 +642,23 @@ export default function EventChatScreen() {
     if (attachment.byteSize != null && attachment.byteSize > reservation.maxBytes) {
       throw new Error("ATTACHMENT_TOO_LARGE");
     }
-    const extension = attachment.mediaType === "image" ? "jpg" : "m4a";
-    const response = await FileSystem.uploadAsync(
-      reservation.uploadUrl,
-      attachment.uri,
-      {
-        httpMethod: "POST",
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: "file",
-        mimeType: attachment.contentType,
-        parameters: reservation.uploadFields,
+    const upload = startReservedMediaUpload(
+      reservation,
+      attachment,
+      (sentBytes, totalBytes) => {
+        if (totalBytes > 0) {
+          setPendingAttachment((current) =>
+            current
+              ? {
+                  ...current,
+                  uploadProgress: Math.min(1, sentBytes / totalBytes),
+                }
+              : current,
+          );
+        }
       },
     );
-    if (response.status < 200 || response.status >= 300) {
-      throw new Error(`ATTACHMENT_UPLOAD_FAILED_${response.status}`);
-    }
+    await upload.promise;
     return reservation.mediaObjectPath;
   };
 
@@ -421,7 +676,11 @@ export default function EventChatScreen() {
     try {
       let mediaObjectPath: string | undefined;
       if (pendingAttachment) {
-        mediaObjectPath = await uploadAttachment(pendingAttachment);
+        mediaObjectPath =
+          pendingAttachment.mediaType === "image"
+            ? pendingAttachment.mediaObjectPath ??
+              (await startPendingImageUpload(pendingAttachment))
+            : await uploadAttachment(pendingAttachment);
       }
       await sendMessage.mutateAsync({
         eventId,
@@ -436,6 +695,7 @@ export default function EventChatScreen() {
       });
       setDraft("");
       setPendingAttachment(null);
+      pendingImageUploadRef.current = null;
       await queryClient.invalidateQueries({
         queryKey: getGetCommunityEventPlanChatQueryKey(eventId),
       });
@@ -831,16 +1091,61 @@ export default function EventChatScreen() {
                       <Feather name="mic" size={16} color={colors.primary} />
                     </View>
                   )}
-                  <Text style={[styles.pendingAttachmentText, { color: colors.text }]} numberOfLines={1}>
-                    {pendingAttachment.mediaType === "voice"
-                      ? t("tabs.events.planChatVoiceMessage")
-                      : t("tabs.events.planChatChoosePhoto")}
-                  </Text>
+                  <View style={styles.pendingAttachmentInfo}>
+                    <Text style={[styles.pendingAttachmentText, { color: colors.text }]} numberOfLines={1}>
+                      {pendingAttachment.mediaType === "voice"
+                        ? t("tabs.events.planChatVoiceMessage")
+                        : t("tabs.events.planChatChoosePhoto")}
+                    </Text>
+                    {pendingAttachment.mediaType === "image" &&
+                    pendingAttachment.uploadStatus ? (
+                      <View style={styles.pendingUploadStatus}>
+                        {pendingAttachment.uploadStatus === "preparing" ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        ) : pendingAttachment.uploadStatus === "uploading" ? (
+                          <>
+                            <Text style={[styles.uploadPercent, { color: colors.mutedForeground }]}>
+                              {Math.round((pendingAttachment.uploadProgress ?? 0) * 100)}%
+                            </Text>
+                            <View style={[styles.uploadTrack, { backgroundColor: colors.border }]}>
+                              <View
+                                style={[
+                                  styles.uploadProgress,
+                                  {
+                                    backgroundColor: colors.primary,
+                                    width: `${Math.round((pendingAttachment.uploadProgress ?? 0) * 100)}%`,
+                                  },
+                                ]}
+                              />
+                            </View>
+                          </>
+                        ) : pendingAttachment.uploadStatus === "failed" ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Retry photo upload"
+                            testID="button-retry-plan-chat-photo-upload"
+                            onPress={() => void startPendingImageUpload(pendingAttachment).catch(() => {})}
+                            style={styles.retryUpload}
+                          >
+                            <Feather name="refresh-cw" size={14} color={colors.primary} />
+                            <Text style={[styles.uploadPercent, { color: colors.primary }]}>Retry</Text>
+                          </Pressable>
+                        ) : (
+                          <Feather name="check" size={14} color={colors.primary} />
+                        )}
+                      </View>
+                    ) : null}
+                  </View>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t("tabs.events.planChatRemoveAttachment")}
                     testID="button-remove-plan-chat-attachment"
-                    onPress={() => setPendingAttachment(null)}
+                    disabled={uploadingAttachment || sendMessage.isPending}
+                    onPress={() => {
+                      photoPreparationIdRef.current += 1;
+                      cancelPendingImageUpload();
+                      setPendingAttachment(null);
+                    }}
                     style={styles.removeAttachment}
                   >
                     <Feather name="x" size={18} color={colors.mutedForeground} />
@@ -915,7 +1220,7 @@ export default function EventChatScreen() {
                     (!draft.trim() && !pendingAttachment) ||
                     sendMessage.isPending ||
                     uploadingAttachment ||
-                    uploadMedia.isPending ||
+                    pendingAttachment?.uploadStatus === "preparing" ||
                     isRecording
                   }
                   onPress={() => void submitMessage()}
@@ -927,14 +1232,14 @@ export default function EventChatScreen() {
                         (!draft.trim() && !pendingAttachment) ||
                         sendMessage.isPending ||
                         uploadingAttachment ||
-                        uploadMedia.isPending ||
+                        pendingAttachment?.uploadStatus === "preparing" ||
                         isRecording
                           ? 0.55
                           : 1,
                     },
                   ]}
                 >
-                  {sendMessage.isPending || uploadingAttachment || uploadMedia.isPending ? (
+                  {sendMessage.isPending || uploadingAttachment ? (
                     <ActivityIndicator size="small" color={colors.primaryForeground} />
                   ) : (
                     <Feather name="arrow-up" size={19} color={colors.primaryForeground} />
@@ -1050,7 +1355,13 @@ const styles = StyleSheet.create({
   pendingAttachment: { minHeight: 48, paddingHorizontal: 9, paddingVertical: 6, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 8 },
   pendingImage: { width: 36, height: 36, borderRadius: 7 },
   pendingVoiceIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  pendingAttachmentText: { flex: 1, fontSize: 12, fontWeight: "600" },
+  pendingAttachmentInfo: { flex: 1, minWidth: 0, gap: 4 },
+  pendingAttachmentText: { fontSize: 12, fontWeight: "600" },
+  pendingUploadStatus: { minHeight: 16, flexDirection: "row", alignItems: "center", gap: 7 },
+  uploadPercent: { fontSize: 10, fontWeight: "600" },
+  uploadTrack: { flex: 1, maxWidth: 120, height: 4, overflow: "hidden", borderRadius: 4 },
+  uploadProgress: { height: "100%", borderRadius: 4 },
+  retryUpload: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 20 },
   removeAttachment: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   recordingLabel: { fontSize: 12, fontWeight: "600", marginBottom: 6 },
   expiryNote: { fontSize: 10, lineHeight: 14, marginTop: 6, textAlign: "center" },

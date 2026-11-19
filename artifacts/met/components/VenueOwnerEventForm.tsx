@@ -24,6 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { EventPhotoUploadStatus } from "@/components/EventPhotoUploadStatus";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { useApp } from "@/contexts/AppContext";
@@ -32,13 +33,12 @@ import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import {
   getActiveVenueBusinessHeaders,
-  api,
 } from "@/lib/api/client";
 import {
   getInitialCommunityEventWebsiteUrl,
   normalizeCommunityEventWebsiteUrl,
 } from "@/lib/communityEventWebsite";
-import { prepareVenueEventImage } from "@/lib/venueEventImage";
+import { useVenueEventPhotoUploads } from "@/lib/useVenueEventPhotoUploads";
 
 type Mode = "create" | "edit";
 type ReminderOffset = 24 | 2;
@@ -241,13 +241,14 @@ function EventFormFields({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [welcomeNote, setWelcomeNote] = useState(initial?.welcomeNote ?? "");
-  const [galleryPhotos, setGalleryPhotos] = useState<string[]>(
+  const initialGalleryUrls =
     initial?.galleryPhotos?.length
       ? initial.galleryPhotos
       : initial?.imageUrl
         ? [initial.imageUrl]
-        : [],
-  );
+        : [];
+  const photoUploads = useVenueEventPhotoUploads(authedUid, initialGalleryUrls);
+  const galleryPhotos = photoUploads.uploadedUrls;
   const [contactPhone, setContactPhone] = useState(initial?.contactPhone ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(
     getInitialCommunityEventWebsiteUrl(initial?.websiteUrl),
@@ -272,15 +273,15 @@ function EventFormFields({
   const [visibility, setVisibility] = useState<"public" | "invite_only">(
     initial?.visibility === "invite_only" ? "invite_only" : "public",
   );
-  const [imageUploading, setImageUploading] = useState(false);
+  const [isPickingPhotos, setIsPickingPhotos] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
   const pickImages = async () => {
-    if (!authedUid || imageUploading) return;
-    const remaining = 10 - galleryPhotos.length;
+    if (!authedUid || isPickingPhotos) return;
+    const remaining = 10 - photoUploads.photos.length;
     if (remaining <= 0) return;
-    setImageUploading(true);
+    setIsPickingPhotos(true);
     setFormError("");
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -290,21 +291,17 @@ function EventFormFields({
         quality: 1,
       });
       if (result.canceled || result.assets.length === 0) return;
-      for (const asset of result.assets.slice(0, remaining)) {
-        const prepared = await prepareVenueEventImage(asset.uri, asset.width);
-        const { url } = await api.uploadVenueEventImage({ uid: authedUid }, prepared);
-        setGalleryPhotos((current) =>
-          current.includes(url) || current.length >= 10
-            ? current
-            : [...current, url],
-        );
-      }
+      photoUploads.addPhotos(
+        result.assets
+          .slice(0, remaining)
+          .map((asset) => ({ uri: asset.uri, width: asset.width })),
+      );
     } catch (error) {
       setFormError(
-        error instanceof Error ? error.message : "Could not upload the event photo.",
+        error instanceof Error ? error.message : "Could not select event photos.",
       );
     } finally {
-      setImageUploading(false);
+      setIsPickingPhotos(false);
     }
   };
 
@@ -318,6 +315,14 @@ function EventFormFields({
 
   const submit = async () => {
     setFormError("");
+    if (photoUploads.hasPendingUploads) {
+      setFormError("Wait for photo uploads to finish before saving.");
+      return;
+    }
+    if (photoUploads.hasFailedUploads) {
+      setFormError("Retry or remove failed photo uploads before saving.");
+      return;
+    }
     const cleanTitle = title.trim();
     if (!cleanTitle) {
       setFormError("Add an event name.");
@@ -513,14 +518,14 @@ function EventFormFields({
               accessibilityRole="button"
               accessibilityLabel="Add event photos"
               testID="venue-event-add-photos"
-              disabled={imageUploading || galleryPhotos.length >= 10}
+              disabled={isPickingPhotos || photoUploads.photos.length >= 10}
               onPress={() => void pickImages()}
               style={({ pressed }) => [
                 styles.addPhotoButton,
                 { borderColor: colors.primary, opacity: pressed ? 0.65 : 1 },
               ]}
             >
-              {imageUploading ? (
+              {isPickingPhotos ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 <Feather name="plus" size={16} color={colors.primary} />
@@ -530,20 +535,25 @@ function EventFormFields({
               </Text>
             </Pressable>
           </View>
-          {galleryPhotos.length ? (
+          {photoUploads.photos.length ? (
             <View style={styles.photoGrid}>
-              {galleryPhotos.map((photo, index) => (
-                <View key={`${photo}-${index}`} style={styles.photoItem}>
-                  <Image source={{ uri: photo }} style={styles.photo} />
+              {photoUploads.photos.map((photo, index) => (
+                <View key={photo.id} style={styles.photoItem}>
+                  <Image
+                    testID={`venue-event-photo-image-${index}`}
+                    source={{ uri: photo.localUri }}
+                    style={styles.photo}
+                  />
+                  <EventPhotoUploadStatus
+                    photo={photo}
+                    testID={`venue-event-photo-${index}`}
+                    onRetry={() => photoUploads.retryPhoto(photo.id)}
+                  />
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Remove photo ${index + 1}`}
                     testID={`venue-event-remove-photo-${index}`}
-                    onPress={() =>
-                      setGalleryPhotos((current) =>
-                        current.filter((item) => item !== photo),
-                      )
-                    }
+                    onPress={() => photoUploads.removePhoto(photo.id)}
                     style={[styles.removePhoto, { backgroundColor: colors.card }]}
                     hitSlop={6}
                   >
@@ -748,13 +758,24 @@ function EventFormFields({
           accessibilityRole="button"
           accessibilityLabel={mode === "create" ? "Create event" : "Save event changes"}
           testID="venue-event-save"
-          disabled={saving || imageUploading}
+          disabled={
+            saving ||
+            photoUploads.hasPendingUploads ||
+            photoUploads.hasFailedUploads
+          }
           onPress={() => void submit()}
           style={({ pressed }) => [
             styles.saveButton,
             {
               backgroundColor: colors.primary,
-              opacity: saving || imageUploading ? 0.55 : pressed ? 0.8 : 1,
+              opacity:
+                saving ||
+                photoUploads.hasPendingUploads ||
+                photoUploads.hasFailedUploads
+                  ? 0.55
+                  : pressed
+                    ? 0.8
+                    : 1,
             },
           ]}
         >

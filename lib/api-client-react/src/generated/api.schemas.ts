@@ -4887,6 +4887,10 @@ export const GetVenueOwnerMeGuestsPeriod = {
   week: 'week',
 } as const;
 
+export type UploadVenueEventImageFile200 = {
+  url: string;
+};
+
 export type GetNearbyHangoutsParams = {
 /**
  * @maxLength 120

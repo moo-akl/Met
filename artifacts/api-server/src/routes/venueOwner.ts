@@ -9456,6 +9456,82 @@ router.post("/venue-owner/events/upload-image", requireUid, async (req, res): Pr
   await handleVenueMediaUpload("venue-event-images", req.uid!, base64, contentType, res, logger);
 });
 
+const venueEventImageUploadParser = express.raw({
+  type: ["image/jpeg", "image/png"],
+  limit: "4mb",
+});
+
+router.post(
+  "/venue-owner/events/upload-image-file",
+  requireUid,
+  (req, res, _next): void => {
+    venueEventImageUploadParser(req, res, async (parseError) => {
+      if (parseError) {
+        const status =
+          typeof parseError === "object" &&
+          parseError !== null &&
+          "status" in parseError &&
+          parseError.status === 413
+            ? 413
+            : 400;
+        res.status(status).json({
+          message:
+            status === 413
+              ? "This photo is too large. Choose a photo under 4 MB."
+              : "Could not read the selected photo.",
+        });
+        return;
+      }
+
+      const uploadId = req.get("X-Upload-Id") ?? "";
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(uploadId)) {
+        res.status(400).json({ message: "Invalid photo upload ID." });
+        return;
+      }
+      const contentType = getSupportedImageContentType(req.get("Content-Type") ?? null);
+      if (!contentType || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+        res.status(400).json({ message: "Unsupported or empty photo upload." });
+        return;
+      }
+      if (!imageMagicMatchesContentType(req.body.subarray(0, 16), contentType)) {
+        res.status(400).json({ message: "The photo data does not match its file type." });
+        return;
+      }
+
+      const ext = contentType === "image/png" ? "png" : "jpg";
+      const objectPath = `venue-event-images/${req.uid}/${uploadId}.${ext}`;
+      const bucket = adminStorage().bucket();
+      const file = bucket.file(objectPath);
+      try {
+        await file.save(req.body, { contentType, resumable: false });
+      } catch (error) {
+        logger.error({ err: error, uid: req.uid }, "venue event image upload failed");
+        res.status(500).json({ message: "Upload failed. Please try again." });
+        return;
+      }
+
+      try {
+        await file.makePublic();
+        res.json({ url: `https://storage.googleapis.com/${bucket.name}/${objectPath}` });
+        return;
+      } catch {
+        // Use the same token URL fallback as existing venue media uploads.
+      }
+      const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      try {
+        await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+      } catch (error) {
+        logger.error({ err: error, uid: req.uid }, "venue event image token setup failed");
+        res.status(500).json({ message: "Upload failed. Please try again." });
+        return;
+      }
+      res.json({
+        url: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`,
+      });
+    });
+  },
+);
+
 router.post("/venue-owner/announcements/upload-image", requireUid, async (req, res): Promise<void> => {
   const { base64, contentType = "image/jpeg" } = req.body as { base64?: string; contentType?: string };
   await handleVenueMediaUpload("venue-announcement-images", req.uid!, base64, contentType, res, logger);

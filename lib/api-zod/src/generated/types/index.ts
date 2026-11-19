@@ -264,6 +264,7 @@ export * from './updateMemberRoleRequestRole';
 export * from './updateNetwork';
 export * from './updateNetworkMemberRole200';
 export * from './updatePresence';
+export * from './uploadVenueEventImageFile200';
 export * from './upsertProfile';
 export * from './upsertProfileSocials';
 export * from './venueActivation';

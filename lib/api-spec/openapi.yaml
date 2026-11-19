@@ -2601,6 +2601,47 @@ paths:
         "400": { description: Invalid event details }
         "403": { description: Active venue membership required }
 
+  /venue-owner/events/upload-image-file:
+    post:
+      operationId: uploadVenueEventImageFile
+      tags: [venue-owner]
+      summary: Upload a venue event photo as a binary file
+      security:
+        - MetUid: []
+      parameters:
+        - name: X-Upload-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+          description: Stable upload ID used to make retries overwrite the same photo.
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Uploaded photo URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url: { type: string, format: uri }
+        "400": { description: Invalid upload ID or unsupported image data }
+        "413": { description: Photo exceeds the 4 MiB upload limit }
+        "401": { description: Authentication required }
+
   /venue-owner/me/events/{eventId}:
     parameters:
       - $ref: "#/components/parameters/VenueEventId"

@@ -20,6 +20,20 @@ const dbMocks = vi.hoisted(() => {
   return { chain };
 });
 
+const storageMocks = vi.hoisted(() => {
+  const file = {
+    save: vi.fn().mockResolvedValue(undefined),
+    makePublic: vi.fn().mockResolvedValue(undefined),
+    setMetadata: vi.fn().mockResolvedValue(undefined),
+  };
+  const bucket = { name: "test-bucket", file: vi.fn(() => file) };
+  return {
+    file,
+    bucket,
+    adminStorage: vi.fn(() => ({ bucket: vi.fn(() => bucket) })),
+  };
+});
+
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
   venueOwnerProfilesTable: {
@@ -87,6 +101,11 @@ vi.mock("@workspace/db", () => ({
   },
   venueMembershipAuditTable: {},
 }));
+
+vi.mock("../lib/firebaseAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/firebaseAdmin")>();
+  return { ...actual, adminStorage: storageMocks.adminStorage };
+});
 
 vi.mock("../middlewares/requireUid", () => ({
   requireUid: (req: { uid?: string }, _res: unknown, next: () => void) => {
@@ -1279,5 +1298,56 @@ describe("native venue branches", () => {
 
     expect(response.status).toBe(403);
     expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("binary venue event photo uploads", () => {
+  beforeEach(() => {
+    storageMocks.file.save.mockClear();
+    storageMocks.file.makePublic.mockClear();
+    storageMocks.file.setMetadata.mockClear();
+    storageMocks.bucket.file.mockClear();
+  });
+
+  it("stores the file under a stable caller-scoped path for safe retries", async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x01]);
+
+    const first = await request(app)
+      .post("/api/venue-owner/events/upload-image-file")
+      .set("Content-Type", "image/jpeg")
+      .set("X-Upload-Id", "photo-test_1")
+      .send(jpeg);
+    const retry = await request(app)
+      .post("/api/venue-owner/events/upload-image-file")
+      .set("Content-Type", "image/jpeg")
+      .set("X-Upload-Id", "photo-test_1")
+      .send(jpeg);
+
+    expect(first.status).toBe(200);
+    expect(retry.status).toBe(200);
+    expect(first.body.url).toContain(
+      "/venue-event-images/venue-owner-uid/photo-test_1.jpg",
+    );
+    expect(retry.body.url).toBe(first.body.url);
+    expect(storageMocks.bucket.file).toHaveBeenCalledWith(
+      "venue-event-images/venue-owner-uid/photo-test_1.jpg",
+    );
+    expect(storageMocks.file.save).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects missing upload IDs and image data that does not match its type", async () => {
+    const missingId = await request(app)
+      .post("/api/venue-owner/events/upload-image-file")
+      .set("Content-Type", "image/jpeg")
+      .send(Buffer.from([0xff, 0xd8, 0xff, 0x00]));
+    const badMagic = await request(app)
+      .post("/api/venue-owner/events/upload-image-file")
+      .set("Content-Type", "image/jpeg")
+      .set("X-Upload-Id", "photo-test_2")
+      .send(Buffer.from("not a jpeg"));
+
+    expect(missingId.status).toBe(400);
+    expect(badMagic.status).toBe(400);
+    expect(storageMocks.file.save).not.toHaveBeenCalled();
   });
 });

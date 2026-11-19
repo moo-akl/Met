@@ -502,6 +502,45 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     });
   });
 
+  it("returns Going, Maybe, and Not going RSVPs to the authorized venue manager", async () => {
+    const { agent, csrf, business } = await claimOwner("rsvp-groups");
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "RSVP groups",
+        startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        isPublished: true,
+      });
+    expect(created.status).toBe(201);
+    const eventId = Number(created.body.event.id);
+    const expectedRsvps = [
+      { uid: `${GUEST_UID}-going`, status: "going" },
+      { uid: `${GUEST_UID}-maybe`, status: "maybe" },
+      { uid: `${GUEST_UID}-not-going`, status: "not_going" },
+    ] as const;
+
+    await db.insert(venueEventRsvpsTable).values(
+      expectedRsvps.map(({ uid, status }) => ({
+        eventId,
+        userUid: uid,
+        status,
+      })),
+    );
+
+    const response = await agent.get(
+      `/api/venue-manager/businesses/${business.id}/events/${eventId}/attendees`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.rsvps).toHaveLength(3);
+    expect(response.body.rsvps).toEqual(
+      expect.arrayContaining(
+        expectedRsvps.map((rsvp) => expect.objectContaining(rsvp)),
+      ),
+    );
+  });
+
   it("claims due 24-hour reminders once and records the notification result", async () => {
     const { agent, csrf, business } = await claimOwner("reminder-run");
     const created = await agent

@@ -16,6 +16,7 @@
 //   2. Replit dev domain when running locally / in Expo Go
 //   3. Throws so we never silently send to the wrong host
 import Constants from "expo-constants";
+import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 function resolveBaseUrl(): string {
@@ -407,6 +408,131 @@ async function request<T>(
     throw new ApiError(msg, res.status, parsed);
   }
   return parsed as T;
+}
+
+export function startVenueEventImageUpload(
+  opts: ApiOptions,
+  input: { uri: string; contentType: string; uploadId: string },
+  onProgress?: (sentBytes: number, totalBytes: number) => void,
+): { promise: Promise<{ url: string }>; cancel: () => void } {
+  let uploadTask: ReturnType<typeof FileSystem.createUploadTask> | null = null;
+  let xhr: XMLHttpRequest | null = null;
+  let cancelled = false;
+
+  const promise = (async () => {
+    if (!BASE_URL) {
+      throw new ApiError("EXPO_PUBLIC_API_URL not configured", 0, null);
+    }
+    const idToken = await getCurrentIdToken();
+    if (cancelled) throw new Error("Photo upload cancelled");
+
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": input.contentType,
+      "X-Upload-Id": input.uploadId,
+    };
+    if (idToken) headers.Authorization = `Bearer ${idToken}`;
+    else headers["X-Met-Uid"] = opts.uid;
+    if (activeVenueBusinessId !== null) {
+      headers["X-Met-Venue-Business-Id"] = String(activeVenueBusinessId);
+    }
+    const url = `${BASE_URL}/api/venue-owner/events/upload-image-file`;
+
+    if (Platform.OS === "web") {
+      const localResponse = await fetch(input.uri);
+      if (!localResponse.ok) {
+        throw new ApiError("Could not read the selected photo.", localResponse.status, null);
+      }
+      const file = await localResponse.blob();
+      if (cancelled) throw new Error("Photo upload cancelled");
+      return await new Promise<{ url: string }>((resolve, reject) => {
+        xhr = new XMLHttpRequest();
+        xhr.open("POST", url);
+        Object.entries(headers).forEach(([name, value]) => xhr?.setRequestHeader(name, value));
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) onProgress?.(event.loaded, event.total);
+        };
+        xhr.onerror = () => reject(new ApiError("Photo upload failed.", 0, null));
+        xhr.onabort = () => reject(new Error("Photo upload cancelled"));
+        xhr.onload = () => {
+          let body: unknown = null;
+          try {
+            body = xhr?.responseText ? JSON.parse(xhr.responseText) : null;
+          } catch {
+            body = xhr?.responseText ?? null;
+          }
+          if (xhr && xhr.status >= 200 && xhr.status < 300) {
+            const uploadedUrl =
+              typeof body === "object" && body !== null && "url" in body
+                ? (body as { url?: unknown }).url
+                : null;
+            if (typeof uploadedUrl === "string") resolve({ url: uploadedUrl });
+            else reject(new ApiError("Upload response was invalid.", xhr.status, body));
+            return;
+          }
+          const message =
+            typeof body === "object" &&
+            body !== null &&
+            "message" in body &&
+            typeof (body as { message?: unknown }).message === "string"
+              ? (body as { message: string }).message
+              : `HTTP ${xhr?.status ?? 0}`;
+          reject(new ApiError(message, xhr?.status ?? 0, body));
+        };
+        xhr.send(file);
+      });
+    }
+
+    uploadTask = FileSystem.createUploadTask(
+      url,
+      input.uri,
+      {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers,
+      },
+      (progress) =>
+        onProgress?.(
+          progress.totalBytesSent,
+          progress.totalBytesExpectedToSend,
+        ),
+    );
+    const response = await uploadTask.uploadAsync();
+    if (cancelled || !response) throw new Error("Photo upload cancelled");
+    let body: unknown = null;
+    try {
+      body = response.body ? JSON.parse(response.body) : null;
+    } catch {
+      body = response.body ?? null;
+    }
+    if (response.status < 200 || response.status >= 300) {
+      const message =
+        typeof body === "object" &&
+        body !== null &&
+        "message" in body &&
+        typeof (body as { message?: unknown }).message === "string"
+          ? (body as { message: string }).message
+          : `HTTP ${response.status}`;
+      throw new ApiError(message, response.status, body);
+    }
+    const uploadedUrl =
+      typeof body === "object" && body !== null && "url" in body
+        ? (body as { url?: unknown }).url
+        : null;
+    if (typeof uploadedUrl !== "string") {
+      throw new ApiError("Upload response was invalid.", response.status, body);
+    }
+    return { url: uploadedUrl };
+  })();
+
+  return {
+    promise,
+    cancel: () => {
+      cancelled = true;
+      if (uploadTask) void uploadTask.cancelAsync().catch(() => {});
+      xhr?.abort();
+    },
+  };
 }
 
 // ----- typed wrappers (kept hand-rolled to avoid pulling react-query into
@@ -1244,18 +1370,6 @@ export const api = {
     request<{ url: string }>(
       "POST",
       "/api/venue-owner/upload-verification-doc",
-      opts,
-      { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
-    ),
-
-  /** Upload a cover image for a venue event. Returns a public URL. */
-  uploadVenueEventImage: (
-    opts: ApiOptions,
-    input: { base64: string; contentType?: string },
-  ) =>
-    request<{ url: string }>(
-      "POST",
-      "/api/venue-owner/events/upload-image",
       opts,
       { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
     ),

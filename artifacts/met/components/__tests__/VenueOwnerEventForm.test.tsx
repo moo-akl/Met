@@ -3,6 +3,9 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 const mockCreateEvent = jest.fn();
 const mockUpdateEvent = jest.fn();
+const mockStartImageUpload = jest.fn();
+const mockPrepareEventImage = jest.fn();
+const mockLaunchImageLibrary = jest.fn();
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
 const mockInvalidateQueries = jest.fn().mockResolvedValue(undefined);
@@ -81,12 +84,13 @@ jest.mock("@/hooks/useVenueOwner", () => ({
 }));
 
 jest.mock("@/lib/api/client", () => ({
+  startVenueEventImageUpload: (...args: unknown[]) => mockStartImageUpload(...args),
   api: { uploadVenueEventImage: jest.fn() },
   getActiveVenueBusinessHeaders: () => ({ "X-Met-Venue-Business-Id": "1" }),
 }));
 
 jest.mock("@/lib/venueEventImage", () => ({
-  prepareVenueEventImage: jest.fn(),
+  prepareVenueEventImage: (...args: unknown[]) => mockPrepareEventImage(...args),
 }));
 
 jest.mock("@/components/VenueOwnerHeader", () => ({
@@ -112,12 +116,15 @@ jest.mock("@/components/KeyboardAwareScrollViewCompat", () => ({
 
 jest.mock("expo-image-picker", () => ({
   MediaTypeOptions: { Images: "images" },
-  launchImageLibraryAsync: jest.fn(),
+  launchImageLibraryAsync: (...args: unknown[]) => mockLaunchImageLibrary(...args),
 }));
 
 describe("VenueOwnerEventForm", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockStartImageUpload.mockReset();
+    mockPrepareEventImage.mockReset();
+    mockLaunchImageLibrary.mockReset();
     mockRouteParams = {};
     mockEventResponse = {};
     mockCreateEvent.mockResolvedValue({ event: { id: 42 } });
@@ -196,6 +203,50 @@ describe("VenueOwnerEventForm", () => {
       });
     });
     expect(mockReplace).toHaveBeenCalledWith("/venue-owner/events");
+  });
+
+  it("shows the selected local photo while its background upload is in progress", async () => {
+    const cancel = jest.fn();
+    mockLaunchImageLibrary.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///local-photo.jpg", width: 2400, height: 1600 }],
+    });
+    mockPrepareEventImage.mockResolvedValue({
+      uri: "file:///prepared-photo.jpg",
+      size: 500_000,
+      contentType: "image/jpeg",
+    });
+    mockStartImageUpload.mockReturnValue({
+      promise: new Promise(() => {}),
+      cancel,
+    });
+
+    const screen = await render(<VenueOwnerEventForm mode="create" />);
+    await fireEvent.press(screen.getByTestId("venue-event-add-photos"));
+
+    await waitFor(() => expect(mockStartImageUpload).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByTestId("venue-event-photo-image-0").props.source.uri,
+    ).toBe("file:///local-photo.jpg");
+    expect(screen.getByTestId("venue-event-photo-0-progress")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("venue-event-save"));
+    expect(mockCreateEvent).not.toHaveBeenCalled();
+    expect(mockPrepareEventImage).toHaveBeenCalledWith(
+      "file:///local-photo.jpg",
+      2400,
+    );
+
+    const progressCallback = mockStartImageUpload.mock.calls[0]?.[2] as (
+      sentBytes: number,
+      totalBytes: number,
+    ) => void;
+    progressCallback(500, 1000);
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("venue-event-photo-0-progress").props
+          .accessibilityLabel,
+      ).toBe("Uploading photo 50%"),
+    );
   });
 });
 

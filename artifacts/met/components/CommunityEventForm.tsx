@@ -20,10 +20,10 @@ import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { EventPhotoUploadStatus } from "@/components/EventPhotoUploadStatus";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
-import { api, ApiError } from "@/lib/api/client";
-import { prepareVenueEventImage } from "@/lib/venueEventImage";
+import { useVenueEventPhotoUploads } from "@/lib/useVenueEventPhotoUploads";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
@@ -111,13 +111,14 @@ export default function CommunityEventForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [welcomeNote, setWelcomeNote] = useState(initial?.welcomeNote ?? "");
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "");
-  const [galleryPhotos, setGalleryPhotos] = useState<string[]>(
+  const initialGalleryUrls =
     initial?.galleryPhotos?.length
       ? initial.galleryPhotos
       : initial?.imageUrl
         ? [initial.imageUrl]
-        : [],
-  );
+        : [];
+  const photoUploads = useVenueEventPhotoUploads(authedUid, initialGalleryUrls);
+  const galleryPhotos = photoUploads.uploadedUrls;
   const [repeatFrequency, setRepeatFrequency] = useState<
     "daily" | "weekly" | "monthly" | null
   >(initial?.repeatFrequency ?? null);
@@ -126,7 +127,7 @@ export default function CommunityEventForm({
     getInitialCommunityEventWebsiteUrl(initial?.websiteUrl),
   );
   const [publicEmail, setPublicEmail] = useState(initial?.publicEmail ?? "");
-  const [imageUploading, setImageUploading] = useState(false);
+  const [isPickingPhotos, setIsPickingPhotos] = useState(false);
   const [location, setLocation] = useState(initial?.location ?? "");
   const [startsAt, setStartsAt] = useState<Date>(
     initial ? new Date(initial.startsAt) : defaultStart(),
@@ -177,10 +178,10 @@ export default function CommunityEventForm({
   const [formError, setFormError] = useState("");
 
   const pickImages = async () => {
-    if (!authedUid || imageUploading) return;
-    const remaining = 10 - galleryPhotos.length;
+    if (!authedUid || isPickingPhotos) return;
+    const remaining = 10 - photoUploads.photos.length;
     if (remaining <= 0) return;
-    setImageUploading(true);
+    setIsPickingPhotos(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -189,30 +190,26 @@ export default function CommunityEventForm({
         quality: 1,
       });
       if (result.canceled || result.assets.length === 0) return;
-      const uploadedUrls: string[] = [];
-      for (const asset of result.assets.slice(0, remaining)) {
-        const prepared = await prepareVenueEventImage(asset.uri, asset.width);
-        const { url } = await api.uploadVenueEventImage({ uid: authedUid }, prepared);
-        uploadedUrls.push(url);
-      }
-      setGalleryPhotos((current) => [...current, ...uploadedUrls].slice(0, 10));
-      setImageUrl((current) => current || uploadedUrls[0] || "");
+      const selected = result.assets.slice(0, remaining);
+      photoUploads.addPhotos(
+        selected.map((asset) => ({ uri: asset.uri, width: asset.width })),
+      );
+      setImageUrl((current) => current || selected[0]?.uri || "");
       setFormError("");
     } catch (error) {
-      setFormError(
-        error instanceof ApiError || error instanceof Error
-          ? error.message
-          : "Could not upload the photo. Please try again.",
-      );
+      setFormError(error instanceof Error ? error.message : "Could not select photos.");
     } finally {
-      setImageUploading(false);
+      setIsPickingPhotos(false);
     }
   };
 
-  const removePhoto = (url: string) => {
-    const next = galleryPhotos.filter((photo) => photo !== url);
-    setGalleryPhotos(next);
-    setImageUrl(next[0] ?? "");
+  const removePhoto = (photoId: string) => {
+    const removed = photoUploads.photos.find((photo) => photo.id === photoId);
+    const next = photoUploads.photos.filter((photo) => photo.id !== photoId);
+    photoUploads.removePhoto(photoId);
+    if (removed && (imageUrl === removed.localUri || imageUrl === removed.url)) {
+      setImageUrl(next[0]?.localUri ?? "");
+    }
   };
 
   useEffect(() => {
@@ -388,7 +385,14 @@ export default function CommunityEventForm({
 
   const submit = () => {
     setFormError("");
-    if (imageUploading) return;
+    if (photoUploads.hasPendingUploads) {
+      setFormError("Wait for photo uploads to finish before saving.");
+      return;
+    }
+    if (photoUploads.hasFailedUploads) {
+      setFormError("Retry or remove failed photo uploads before saving.");
+      return;
+    }
     if (!title.trim()) {
         setFormError(t(isHangout ? "tabs.events.hangoutNameRequired" : "tabs.events.eventNameRequired"));
       return;
@@ -581,23 +585,28 @@ export default function CommunityEventForm({
               {t("tabs.events.planPhotos")}
             </Text>
             <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-              {galleryPhotos.length}/10 · {t("tabs.events.photosExpireHint")}
+              {photoUploads.photos.length}/10 · {t("tabs.events.photosExpireHint")}
             </Text>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            {galleryPhotos.map((photo, index) => (
-              <View key={`${photo}-${index}`} style={{ position: "relative" }}>
+            {photoUploads.photos.map((photo, index) => (
+              <View key={photo.id} style={{ position: "relative" }}>
                 <Image
-                  source={{ uri: photo }}
+                  source={{ uri: photo.localUri }}
                   style={{ width: 92, height: 92, borderRadius: 14, backgroundColor: colors.card }}
                   resizeMode="cover"
                   accessibilityLabel={t("tabs.events.planPhotos")}
+                />
+                <EventPhotoUploadStatus
+                  photo={photo}
+                  testID={`event-photo-${index}`}
+                  onRetry={() => photoUploads.retryPhoto(photo.id)}
                 />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t("tabs.events.removePhoto")}
                   testID={`button-remove-event-photo-${index}`}
-                  onPress={() => removePhoto(photo)}
+                  onPress={() => removePhoto(photo.id)}
                   style={{
                     position: "absolute",
                     top: 5,
@@ -614,12 +623,12 @@ export default function CommunityEventForm({
                 </Pressable>
               </View>
             ))}
-            {galleryPhotos.length < 10 ? (
+            {photoUploads.photos.length < 10 ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t(isHangout ? "tabs.events.addHangoutPhoto" : "tabs.events.addPlanPhotos")}
                 testID={isHangout ? "button-add-hangout-cover" : "button-add-plan-photos"}
-                disabled={imageUploading}
+                disabled={isPickingPhotos}
                 onPress={() => void pickImages()}
                 style={({ pressed }) => ({
                   width: 92,
@@ -632,10 +641,10 @@ export default function CommunityEventForm({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 6,
-                  opacity: pressed || imageUploading ? 0.7 : 1,
+                  opacity: pressed || isPickingPhotos ? 0.7 : 1,
                 })}
               >
-                {imageUploading ? (
+                {isPickingPhotos ? (
                   <ActivityIndicator color={colors.primary} />
                 ) : (
                   <>
@@ -744,7 +753,7 @@ export default function CommunityEventForm({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("tabs.events.addEventPhoto")}
-            disabled={imageUploading}
+            disabled={isPickingPhotos}
             onPress={() => void pickImages()}
             style={({ pressed }) => [
               {
@@ -758,11 +767,11 @@ export default function CommunityEventForm({
                 justifyContent: "center",
                 flexDirection: "row",
                 gap: 9,
-                opacity: pressed || imageUploading ? 0.7 : 1,
+                opacity: pressed || isPickingPhotos ? 0.7 : 1,
               },
             ]}
           >
-            {imageUploading ? (
+            {isPickingPhotos ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
               <>
@@ -1258,13 +1267,24 @@ export default function CommunityEventForm({
         ) : null}
         <Pressable
           accessibilityRole="button"
-          disabled={isPending || imageUploading || creationLimitReached}
+          disabled={
+            isPending ||
+            photoUploads.hasPendingUploads ||
+            photoUploads.hasFailedUploads ||
+            creationLimitReached
+          }
           onPress={submit}
           style={[
             styles.submit,
             {
               backgroundColor: colors.primary,
-              opacity: isPending || creationLimitReached ? 0.7 : 1,
+              opacity:
+                isPending ||
+                photoUploads.hasPendingUploads ||
+                photoUploads.hasFailedUploads ||
+                creationLimitReached
+                  ? 0.7
+                  : 1,
             },
           ]}
         >

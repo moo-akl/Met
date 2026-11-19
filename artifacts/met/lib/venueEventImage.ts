@@ -1,7 +1,8 @@
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 
 const MAX_WIDTH = 1600;
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+export const MAX_VENUE_EVENT_IMAGE_BYTES = 4 * 1024 * 1024;
 
 export async function prepareVenueEventImage(uri: string, width: number) {
   const result = await ImageManipulator.manipulateAsync(
@@ -10,18 +11,21 @@ export async function prepareVenueEventImage(uri: string, width: number) {
     {
       compress: 0.78,
       format: ImageManipulator.SaveFormat.JPEG,
-      base64: true,
     },
   );
 
-  if (!result.base64) {
+  const info = await FileSystem.getInfoAsync(result.uri);
+  if (!info.exists) {
     throw new Error("Could not read the selected photo.");
   }
-
-  const byteSize = Math.floor((result.base64.length * 3) / 4);
-  if (byteSize > MAX_UPLOAD_BYTES) {
+  const size = "size" in info && typeof info.size === "number" ? info.size : null;
+  if (size != null && size > MAX_VENUE_EVENT_IMAGE_BYTES) {
     throw new Error("This photo is still too large. Please choose a smaller image.");
   }
 
-  return { base64: result.base64, contentType: "image/jpeg" };
+  return {
+    uri: result.uri,
+    size,
+    contentType: "image/jpeg",
+  };
 }
