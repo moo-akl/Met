@@ -25,6 +25,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { getAppCheckToken } from "@/lib/firestore/client";
 import { buildEventDetailsUrl } from "@/lib/eventLinks";
 import EventFollowThroughActions from "@/components/EventFollowThroughActions";
+import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
 import { EventReviewSection } from "@/components/EventReviewSection";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
@@ -201,6 +202,13 @@ export default function EventDetailsScreen() {
   const eventEnded = Boolean(eventEndTime && eventEndTime.getTime() <= Date.now());
   const hangoutEnded = eventEnded;
   const isConcludedHangout = isHangout && hangoutEnded;
+  const canEditEvent = Boolean(
+    isOwner &&
+      event &&
+      !isFriendPlan &&
+      !isConcludedHangout &&
+      (event.eventType !== "venue" || event.placeId),
+  );
   const canReviewEvent = Boolean(
     event &&
       eventEnded &&
@@ -534,7 +542,7 @@ export default function EventDetailsScreen() {
                   : "tabs.events.detailsView",
           )}
         </Text>
-        {isOwner && event && !isConcludedHangout ? (
+        {canEditEvent && event ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("tabs.events.editEvent")}
@@ -595,22 +603,13 @@ export default function EventDetailsScreen() {
                   </Text>
                 </View>
               ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.hangoutPhotoRow}
+                <EventPhotoCarousel
+                  photos={eventPhotos}
+                  imageStyle={styles.hangoutCover}
+                  containerStyle={styles.hangoutPhotoRow}
+                  testID="event-detail-hangout-gallery"
                   accessibilityLabel={t("tabs.events.planPhotos")}
-                >
-                  {eventPhotos.map((photo, index) => (
-                    <Image
-                      key={`${photo}-${index}`}
-                      source={{ uri: photo }}
-                      style={styles.hangoutCover}
-                      resizeMode="cover"
-                      accessibilityLabel={t("tabs.events.planPhotos")}
-                    />
-                  ))}
-                </ScrollView>
+                />
               )}
               <View style={styles.hangoutHeroFooter}>
                 <View style={[styles.hangoutHeroIcon, { backgroundColor: colors.primarySoft }]}>
@@ -663,45 +662,28 @@ export default function EventDetailsScreen() {
                 </View>
               </View>
               {eventPhotos.length > 0 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
+                <EventPhotoCarousel
+                  photos={eventPhotos}
+                  imageStyle={styles.planGalleryImage}
+                  containerStyle={styles.planGallery}
                   testID="event-detail-plan-gallery"
-                  contentContainerStyle={styles.planGallery}
                   accessibilityLabel={t("tabs.events.planPhotos")}
-                >
-                  {eventPhotos.map((photo, index) => (
-                    <Image
-                      key={`${photo}-${index}`}
-                      source={{ uri: photo }}
-                      style={styles.planGalleryImage}
-                      resizeMode="cover"
-                      accessibilityLabel={t("tabs.events.planPhotos")}
-                    />
-                  ))}
-                </ScrollView>
+                />
               ) : null}
             </>
           ) : eventPhotos.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
+            <EventPhotoCarousel
+              photos={eventPhotos}
+              imageStyle={[styles.cover, { width: 310 }]}
+              containerStyle={{ gap: 10 }}
               testID="event-detail-standard-hero"
-              contentContainerStyle={{ gap: 10 }}
               accessibilityLabel={t("tabs.events.planPhotos")}
-            >
-              {eventPhotos.map((photo, index) => (
-                <Image
-                  key={`${photo}-${index}`}
-                  source={{ uri: photo }}
-                  style={[styles.cover, { width: 310 }]}
-                  resizeMode="cover"
-                  accessibilityLabel={t("tabs.events.planPhotos")}
-                />
-              ))}
-            </ScrollView>
+            />
           ) : !isConcludedHangout ? (
-            <View style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}>
+            <View
+              testID="event-detail-standard-hero-placeholder"
+              style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}
+            >
               <Feather name={event.eventType === "venue" ? "calendar" : "users"} size={34} color={colors.primary} />
             </View>
           ) : null}
@@ -1009,51 +991,56 @@ export default function EventDetailsScreen() {
               </View>
             ) : !isHangout && canRsvpDirectly ? (
             <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
-              <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
-                {t("tabs.events.rsvpHeading")}
-              </Text>
-              <Text style={[styles.rsvpCount, { color: colors.mutedForeground }]}>
+              {!(isFriendPlan && isOwner) ? (
+                <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
+                  {t("tabs.events.rsvpHeading")}
+                </Text>
+              ) : null}
+              <Text testID="event-rsvp-count" style={[styles.rsvpCount, { color: colors.mutedForeground }]}>
                 {event.rsvpCount} · {t("tabs.events.going")}
               </Text>
-              <View style={styles.rsvpRow}>
-                {([
-                  ["going", t("tabs.events.going")],
-                  ["maybe", t("tabs.events.interested")],
-                  ["not_going", t("tabs.events.notGoing")],
-                ] as const).map(([status, label]) => {
-                  const selected = event.myRsvp === status;
-                  return (
-                    <Pressable
-                      key={status}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${event.title}, ${label}`}
-                      accessibilityState={{ selected }}
-                      disabled={rsvpPending}
-                      onPress={() => void saveRsvp(status)}
-                      style={[
-                        styles.rsvpButton,
-                        {
-                          backgroundColor: selected ? colors.primary : colors.primarySoft,
-                          opacity: rsvpPending ? 0.65 : 1,
-                        },
-                      ]}
-                    >
-                      {rsvpPending && selected ? (
-                        <ActivityIndicator size="small" color={selected ? colors.primaryForeground : colors.primary} />
-                      ) : (
-                        <Text
-                          style={[
-                            styles.rsvpButtonText,
-                            { color: selected ? colors.primaryForeground : colors.primary },
-                          ]}
-                        >
-                          {label}
-                        </Text>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </View>
+              {!(isFriendPlan && isOwner) ? (
+                <View style={styles.rsvpRow}>
+                  {([
+                    ["going", t("tabs.events.going")],
+                    ["maybe", t("tabs.events.interested")],
+                    ["not_going", t("tabs.events.notGoing")],
+                  ] as const).map(([status, label]) => {
+                    const selected = event.myRsvp === status;
+                    return (
+                      <Pressable
+                        key={status}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${event.title}, ${label}`}
+                        testID={`button-direct-rsvp-${status}`}
+                        accessibilityState={{ selected }}
+                        disabled={rsvpPending}
+                        onPress={() => void saveRsvp(status)}
+                        style={[
+                          styles.rsvpButton,
+                          {
+                            backgroundColor: selected ? colors.primary : colors.primarySoft,
+                            opacity: rsvpPending ? 0.65 : 1,
+                          },
+                        ]}
+                      >
+                        {rsvpPending && selected ? (
+                          <ActivityIndicator size="small" color={selected ? colors.primaryForeground : colors.primary} />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.rsvpButtonText,
+                              { color: selected ? colors.primaryForeground : colors.primary },
+                            ]}
+                          >
+                            {label}
+                          </Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
             ) : !isHangout && !isFriendPlan ? (
               <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
@@ -1239,6 +1226,7 @@ export default function EventDetailsScreen() {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={t("tabs.events.deleteEvent")}
+                        testID="button-confirm-delete-event"
                         disabled={deleteEvent.isPending}
                         onPress={doDelete}
                         style={[styles.confirmButton, { backgroundColor: colors.destructive }]}
@@ -1257,6 +1245,7 @@ export default function EventDetailsScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t("tabs.events.deleteEvent")}
+                    testID="button-delete-event"
                     onPress={() => setConfirmDelete(true)}
                     style={[styles.deleteButton, { borderColor: colors.destructive }]}
                   >

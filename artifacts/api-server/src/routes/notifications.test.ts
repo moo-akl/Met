@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import express from "express";
 import request from "supertest";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   db,
   notificationInboxTable,
@@ -54,24 +54,39 @@ describe("notification inbox", () => {
     await db.delete(profilesTable).where(eq(profilesTable.uid, uid));
   });
 
-  it("returns newest notifications, unread count, and an older-page cursor", async () => {
+  it("keeps chat alerts out of the general inbox and unread count", async () => {
     const earlier = new Date(Date.now() - 60_000);
     const later = new Date(Date.now() - 1_000);
+    const newest = new Date(Date.now() - 500);
     await db.insert(notificationInboxTable).values([
       {
         uid,
-        title: "Earlier notification",
+        title: "Earlier general notification",
         body: "Earlier body",
-        data: { type: "chat_message", chatPeerUid: "peer-a" },
+        data: { type: "reveal_request", fromUid: "peer-a" },
         createdAt: earlier,
       },
       {
         uid,
-        title: "Later notification",
+        title: "Later general notification",
         body: "Later body",
-        data: { type: "event_plan_message", eventId: "42" },
+        data: { type: "event_reminder", eventId: "42" },
         createdAt: later,
         readAt: later,
+      },
+      {
+        uid,
+        title: "Direct message",
+        body: "A new message",
+        data: { type: "chat_message", chatPeerUid: "peer-a" },
+        createdAt: newest,
+      },
+      {
+        uid,
+        title: "Plan chat message",
+        body: "A new plan message",
+        data: { type: "event_plan_message", eventId: "42" },
+        createdAt: new Date(newest.getTime() + 1),
       },
     ]);
 
@@ -79,7 +94,7 @@ describe("notification inbox", () => {
       .get("/api/notifications?limit=1")
       .set("x-test-uid", uid);
     expect(firstPage.status).toBe(200);
-    expect(firstPage.body.items[0].title).toBe("Later notification");
+    expect(firstPage.body.items[0].title).toBe("Later general notification");
     expect(firstPage.body.unreadCount).toBe(1);
     expect(firstPage.body.nextCursor).toEqual(expect.any(Number));
 
@@ -87,11 +102,24 @@ describe("notification inbox", () => {
       .get(`/api/notifications?limit=1&beforeId=${firstPage.body.nextCursor}`)
       .set("x-test-uid", uid);
     expect(secondPage.status).toBe(200);
-    expect(secondPage.body.items[0].title).toBe("Earlier notification");
+    expect(secondPage.body.items[0].title).toBe("Earlier general notification");
     expect(secondPage.body.nextCursor).toBeNull();
+
+    const directMessage = await db
+      .select({ id: notificationInboxTable.id })
+      .from(notificationInboxTable)
+      .where(and(
+        eq(notificationInboxTable.uid, uid),
+        eq(notificationInboxTable.title, "Direct message"),
+      ))
+      .limit(1);
+    const hiddenChatNotification = await request(app)
+      .patch(`/api/notifications/${directMessage[0]!.id}/read`)
+      .set("x-test-uid", uid);
+    expect(hiddenChatNotification.status).toBe(404);
   });
 
-  it("marks one notification and then all remaining notifications as read", async () => {
+  it("marks only general notifications as read", async () => {
     const [first, second] = await db.insert(notificationInboxTable).values([
       {
         uid,
@@ -104,6 +132,18 @@ describe("notification inbox", () => {
         title: "Two",
         body: "Second",
         data: { type: "encounter", encounterId: "peer-b" },
+      },
+      {
+        uid,
+        title: "Chat",
+        body: "Message",
+        data: { type: "chat_message", chatPeerUid: "peer-c" },
+      },
+      {
+        uid,
+        title: "Plan chat",
+        body: "Message",
+        data: { type: "event_plan_message", eventId: "43" },
       },
     ]).returning({ id: notificationInboxTable.id });
 
@@ -118,6 +158,19 @@ describe("notification inbox", () => {
       .set("x-test-uid", uid);
     expect(all.status).toBe(200);
     expect(all.body).toEqual({ readCount: 1, unreadCount: 0 });
+
+    const chatRows = await db
+      .select({
+        data: notificationInboxTable.data,
+        readAt: notificationInboxTable.readAt,
+      })
+      .from(notificationInboxTable)
+      .where(eq(notificationInboxTable.uid, uid));
+    expect(chatRows.filter((row) => row.data.type === "chat_message" || row.data.type === "event_plan_message"))
+      .toHaveLength(2);
+    expect(chatRows.filter((row) => row.data.type === "chat_message" || row.data.type === "event_plan_message")
+      .every((row) => row.readAt === null))
+      .toBe(true);
 
     const foreign = await request(app)
       .patch(`/api/notifications/${second!.id}/read`)

@@ -17,7 +17,7 @@ const mockManipulate = ImageManipulator.manipulateAsync as jest.Mock;
 describe("prepareChatImage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockManipulate.mockResolvedValue({ uri: "file:///prepared.jpg", width: 1600, height: 900 });
+    mockManipulate.mockResolvedValue({ uri: "file:///prepared.jpg", width: 1280, height: 720 });
     mockGetInfo.mockResolvedValue({ exists: true, size: 1_000_000 });
   });
 
@@ -28,8 +28,8 @@ describe("prepareChatImage", () => {
     });
     expect(mockManipulate).toHaveBeenCalledWith(
       "file:///source.heic",
-      [{ resize: { width: 1600 } }],
-      { compress: 0.76, format: ImageManipulator.SaveFormat.JPEG },
+      [{ resize: { width: 1280 } }],
+      { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG },
     );
     expect(mockGetInfo).toHaveBeenCalledWith("file:///prepared.jpg");
   });
@@ -38,15 +38,50 @@ describe("prepareChatImage", () => {
     await prepareChatImage("file:///portrait.jpg", 1080, 2400);
     expect(mockManipulate).toHaveBeenLastCalledWith(
       "file:///portrait.jpg",
-      [{ resize: { height: 1600 } }],
-      { compress: 0.76, format: ImageManipulator.SaveFormat.JPEG },
+      [{ resize: { height: 1280 } }],
+      { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG },
     );
 
     await prepareChatImage("file:///small.jpg", 800, 600);
     expect(mockManipulate).toHaveBeenLastCalledWith(
       "file:///small.jpg",
       [],
-      { compress: 0.76, format: ImageManipulator.SaveFormat.JPEG },
+      { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG },
+    );
+  });
+
+  it("reuses a compliant small JPEG without spending time recompressing it", async () => {
+    await expect(
+      prepareChatImage("file:///small.jpg", 1200, 900, "image/jpeg", 420_000),
+    ).resolves.toEqual({ uri: "file:///small.jpg", size: 1_000_000 });
+    expect(mockManipulate).not.toHaveBeenCalled();
+    expect(mockGetInfo).toHaveBeenCalledWith("file:///small.jpg");
+  });
+
+  it("recompresses a JPEG when its actual file exceeds the size limit", async () => {
+    mockGetInfo
+      .mockResolvedValueOnce({
+        exists: true,
+        size: MAX_CHAT_IMAGE_BYTES + 1,
+      })
+      .mockResolvedValueOnce({ exists: true, size: 1_000_000 });
+
+    await expect(
+      prepareChatImage("file:///photo.jpg", 1200, 900, "image/jpeg", 1_000_000),
+    ).resolves.toEqual({ uri: "file:///prepared.jpg", size: 1_000_000 });
+    expect(mockManipulate).toHaveBeenCalledWith(
+      "file:///photo.jpg",
+      [],
+      { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG },
+    );
+  });
+
+  it("still converts small non-JPEG photos for the JPEG upload endpoint", async () => {
+    await prepareChatImage("file:///small.heic", 1200, 900, "image/heic", 420_000);
+    expect(mockManipulate).toHaveBeenCalledWith(
+      "file:///small.heic",
+      [],
+      { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG },
     );
   });
 

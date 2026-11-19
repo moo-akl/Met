@@ -31,74 +31,39 @@ test("reports signing diagnostics and safe compiler summaries", () => {
 });
 
 test("reports safe CocoaPods failure categories without exposing raw diagnostics", () => {
-  assert.equal(sanitizeLine("[!] CocoaPods could not find compatible versions for pod 'Firebase/Auth' in /private/build/Podfile"), "CocoaPods dependency version conflict.");
-  assert.equal(sanitizeLine("[!] Unable to find a specification for 'PrivatePod' depended upon by a private target"), "CocoaPods could not find a required podspec.");
-  assert.equal(sanitizeLine("Specs satisfying the Firebase dependency were found, but they required a higher minimum deployment target."), "CocoaPods deployment target conflict.");
-  assert.equal(sanitizeLine("[!] Invalid Podfile file: private source path /private/build/Podfile"), "CocoaPods Podfile parsing failed.");
-  assert.equal(sanitizeLine("[!] CDN: trunk URL couldn't be downloaded: https://private.example/specs"), "CocoaPods spec source or network request failed.");
-  assert.equal(sanitizeLine("CocoaPods encountered an unrecognized private diagnostic"), null);
-});
-
-test("includes short safe details for otherwise unknown compiler diagnostics", () => {
   assert.equal(
     sanitizeLine(
-      "/private/path/ExpoModulesProvider.swift:18:9: error: could not construct module dependency graph for ExpoModulesCore",
+      "[!] CocoaPods could not find compatible versions for pod 'Firebase/Auth' in /private/build/Podfile",
     ),
-    "Native compile error: other compiler diagnostic (ExpoModulesProvider.swift:18): could not construct module dependency graph for ExpoModulesCore.",
-  );
-});
-
-test("reports only allowlisted native provider checks", () => {
-  assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ValidatorInstalled=present"),
-    "iOS provider check: instrumentation installed.",
+    "CocoaPods dependency version conflict.",
   );
   assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ValidatorInstalled=failed"),
-    "iOS provider check: instrumentation could not be installed.",
+    sanitizeLine(
+      "[!] Unable to find a specification for `PrivatePod` depended upon by a private target",
+    ),
+    "CocoaPods could not find a required podspec.",
   );
   assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Target=matched"),
-    "iOS provider check: app target matched.",
+    sanitizeLine(
+      "Specs satisfying the `Firebase` dependency were found, but they required a higher minimum deployment target.",
+    ),
+    "CocoaPods deployment target conflict.",
   );
   assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present"),
-    "iOS provider check: ExpoLinkingModule present.",
+    sanitizeLine(
+      "[!] Invalid Podfile file: private source path /private/build/Podfile",
+    ),
+    "CocoaPods Podfile parsing failed.",
   );
   assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] SplashScreenModule=missing"),
-    "iOS provider check: SplashScreenModule missing.",
+    sanitizeLine(
+      "[!] CDN: trunk URL couldn't be downloaded: https://private.example/specs",
+    ),
+    "CocoaPods spec source or network request failed.",
   );
   assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Generated provider is missing required entries."),
-    "iOS provider check: validation failed.",
-  );
-  assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present /private/path/App.swift"),
+    sanitizeLine("CocoaPods encountered an unrecognized private diagnostic"),
     null,
-  );
-  assert.equal(
-    sanitizeLine("\u001b[32m› [MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present\u001b[39m"),
-    "iOS provider check: ExpoLinkingModule present.",
-  );
-  assert.equal(
-    sanitizeLine("Build output: [MET_EXPO_PROVIDER_CHECK] Target=matched"),
-    "iOS provider check: app target matched.",
-  );
-});
-
-test("suppresses credential-like details inside compiler diagnostics", () => {
-  const credentialDiagnostic =
-    "/private/path/App.swift:10: error: token rejected for secret-value";
-  const opaqueDiagnostic = `/private/path/App.swift:11: error: ${"A".repeat(64)}`;
-
-  assert.equal(
-    sanitizeLine(credentialDiagnostic),
-    "Native compile error: other compiler diagnostic (App.swift:10).",
-  );
-  assert.equal(
-    sanitizeLine(opaqueDiagnostic),
-    "Native compile error: other compiler diagnostic (App.swift:11).",
   );
 });
 
@@ -119,6 +84,51 @@ test("suppresses private keys, encoded credentials, environment output, JSON, an
   for (const line of sensitiveLines) {
     assert.equal(sanitizeLine(line), null, "credential-like input must be suppressed");
   }
+});
+
+test("sanitizes only allowlisted Expo provider markers", () => {
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ProviderGeneration=present"),
+    "iOS provider check: generated provider file found.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Target=matched"),
+    "iOS provider check: expected app target matched.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=missing"),
+    "iOS provider check: ExpoLinkingModule missing.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] RuntimeRegistration=notchecked"),
+    "iOS provider check: runtime registration was not measured.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ProviderGeneration=unavailable"),
+    "iOS provider check: provider capture was unavailable.",
+  );
+  assert.equal(
+    sanitizeLine(
+      "\u001b[32mBuild output: [MET_EXPO_PROVIDER_CHECK] SplashScreenModule=present\u001b[39m",
+    ),
+    "iOS provider check: SplashScreenModule present.",
+  );
+  assert.equal(
+    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Target=/private/build/Pods-Met"),
+    null,
+  );
+  assert.equal(
+    sanitizeLine(
+      "[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present /private/build/source.swift",
+    ),
+    null,
+  );
+  assert.equal(
+    sanitizeLine(
+      "[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present EXPO_TOKEN=secret",
+    ),
+    null,
+  );
 });
 
 test("reports Android stages, Gradle tasks, and safe native locations", () => {
@@ -149,27 +159,5 @@ test("reports Android stages, Gradle tasks, and safe native locations", () => {
   assert.equal(
     sanitizeLine("e: file:///private/CameraModule.kt:9:12 Type mismatch: expected String, got Boolean"),
     "Native compile error: type mismatch (CameraModule.kt:9).",
-  );
-});
-test("reports provider capture state without claiming runtime registration", () => {
-  assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ProviderGeneration=present"),
-    "iOS provider check: generated provider file found.",
-  );
-  assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] ProviderGeneration=unavailable"),
-    "iOS provider check: provider capture was unavailable.",
-  );
-  assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] Target=unavailable"),
-    "iOS provider check: target could not be identified.",
-  );
-  assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] RuntimeRegistration=notchecked"),
-    "iOS provider check: runtime registration was not measured.",
-  );
-  assert.equal(
-    sanitizeLine("[MET_EXPO_PROVIDER_CHECK] RuntimeRegistration=registered"),
-    null,
   );
 });

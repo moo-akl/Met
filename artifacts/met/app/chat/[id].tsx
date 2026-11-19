@@ -16,6 +16,7 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -36,6 +37,12 @@ import { useT } from "@/lib/i18n";
 import { buildStoreDemoChat, isStoreDemoEnabled } from "@/lib/storeDemo";
 import { prepareChatImage } from "@/lib/chatMedia";
 import {
+  ChatPhotoBubble,
+  ChatPhotoDraftPreview,
+  type ChatPhotoUploadStatus,
+} from "@/components/ChatPhotoBubble";
+import {
+
   attemptChatDraftDelivery,
   type UploadedChatDraftAttachment,
 } from "@/lib/chatDraftDelivery";
@@ -51,7 +58,7 @@ import {
   subscribeToMessages,
   toggleReaction,
   uploadChatAudio,
-  uploadChatMedia,
+  startChatMediaUpload,
 } from "@/lib/firestore/chat";
 
 const MAX_CHARS = 500;
@@ -120,6 +127,12 @@ function getDayLabel(
 type ListItem =
   | { type: "date"; label: string; key: string }
   | { type: "message"; message: ChatMessage };
+
+type PendingChatImageUpload = {
+  localUri: string;
+  handle: ReturnType<typeof startChatMediaUpload>;
+  promise: Promise<UploadedChatDraftAttachment | null>;
+};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -443,71 +456,65 @@ function MessageBubble({
           />
         ) : null}
 
-        <Pressable
-          onPress={hasMedia && !hasAudio && !isDeleted ? () => onImagePress(message.mediaUri!) : undefined}
-          onLongPress={() => onLongPress(message)}
-          delayLongPress={300}
-          disabled={false}
-          style={[
-            styles.bubble,
-            isPhoto
-              ? styles.bubblePhoto
-              : isMine
-              ? [styles.bubbleMine, { backgroundColor: colors.primary }]
-              : [styles.bubbleTheirs, { backgroundColor: colors.muted }],
-            isDeleted ? styles.bubbleDeleted : null,
-          ]}
-          testID={isPhoto ? "chat-photo-message-bubble" : undefined}
-        >
-          {isDeleted ? (
-            <Text
-              style={[
-                styles.bubbleDeletedText,
-                {
-                  color: isMine
-                    ? colors.primary === "#3DCC44"
-                      ? colors.mutedForeground
-                      : "rgba(255,255,255,0.55)"
-                    : colors.mutedForeground,
-                },
-              ]}
-            >
-              Message deleted
-            </Text>
-          ) : (
-            <>
-              {hasAudio && !isDeleted ? (
-                <AudioPlayer
-                  uri={message.mediaUri!}
-                  durationMs={message.audioDurationMs}
-                  isMine={isMine}
-                  colors={colors}
-                />
-              ) : null}
-              {hasMedia && !hasAudio ? (
-                <Image
-                  source={{ uri: message.mediaUri }}
-                  style={styles.bubbleImage}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                />
-              ) : null}
-              {hasText ? (
-                isPhoto ? (
-                  <View style={[styles.bubblePhotoCaption, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.bubbleText, styles.bubbleCaption, { color: colors.foreground }]}>
-                      {message.text}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={[styles.bubbleText, { color: isMine ? ownMessageForeground : colors.foreground }]}>
+        {isPhoto ? (
+          <ChatPhotoBubble
+            uri={message.mediaUri!}
+            caption={hasText ? message.text : undefined}
+            onPress={() => onImagePress(message.mediaUri!)}
+            onLongPress={() => onLongPress(message)}
+          />
+        ) : (
+          <Pressable
+            onLongPress={() => onLongPress(message)}
+            delayLongPress={300}
+            style={[
+              styles.bubble,
+              isMine
+                ? [styles.bubbleMine, { backgroundColor: colors.primary }]
+                : [styles.bubbleTheirs, { backgroundColor: colors.muted }],
+              isDeleted ? styles.bubbleDeleted : null,
+            ]}
+          >
+            {isDeleted ? (
+              <Text
+                style={[
+                  styles.bubbleDeletedText,
+                  {
+                    color: isMine
+                      ? colors.primary === "#3DCC44"
+                        ? colors.mutedForeground
+                        : "rgba(255,255,255,0.55)"
+                      : colors.mutedForeground,
+                  },
+                ]}
+              >
+                Message deleted
+              </Text>
+            ) : (
+              <>
+                {hasAudio ? (
+                  <AudioPlayer
+                    uri={message.mediaUri!}
+                    durationMs={message.audioDurationMs}
+                    isMine={isMine}
+                    colors={colors}
+                  />
+                ) : null}
+                {hasText ? (
+                  <Text
+                    style={[
+                      styles.bubbleText,
+                      { color: isMine ? ownMessageForeground : colors.foreground },
+                    ]}
+                  >
                     {message.text}
                   </Text>
-                )
-              ) : null}
-            </>
-          )}
-        </Pressable>
+                ) : null}
+              </>
+            )}
+          </Pressable>
+        )}
+
 
         {/* Reaction badges */}
         {message.reactions && !isDeleted ? (
@@ -753,6 +760,12 @@ function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [pendingMedia, setPendingMedia] = useState<string | null>(null);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const [imageUploadStatus, setImageUploadStatus] =
+    useState<ChatPhotoUploadStatus>("idle");
+  const [imageUploadProgress, setImageUploadProgress] = useState<number | null>(
+    null,
+  );
   const [viewerUri, setViewerUri] = useState<string | null>(null);
 
   // Long-press action menu state
@@ -768,6 +781,11 @@ function ChatScreen() {
   const [recordSecs, setRecordSecs] = useState(0);
   const uploadedAttachmentCacheRef =
     useRef<UploadedChatDraftAttachment | null>(null);
+  const pendingImageUploadRef = useRef<PendingChatImageUpload | null>(null);
+  const imagePickerInProgressRef = useRef(false);
+  const imagePickerRequestIdRef = useRef(0);
+  const photoPreparationIdRef = useRef(0);
+
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -785,6 +803,10 @@ function ChatScreen() {
         recordingRef.current = null;
         stale.stopAndUnloadAsync().catch(() => {});
       }
+      imagePickerRequestIdRef.current += 1;
+      photoPreparationIdRef.current += 1;
+      pendingImageUploadRef.current?.handle.cancel();
+      pendingImageUploadRef.current = null;
       Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -815,7 +837,8 @@ function ChatScreen() {
     isMyTurn &&
     (text.trim().length > 0 || pendingMedia !== null || pendingAudio !== null) &&
     !sending &&
-    !isRecording;
+    !isRecording &&
+    !preparingPhoto;
   const charsLeft = MAX_CHARS - text.length;
 
   const todayLabel = t("chat.today");
@@ -901,30 +924,142 @@ function ChatScreen() {
       .catch(() => {});
   }, [myUid, peerUid, storeDemo]);
 
+  const cancelPendingImageUpload = useCallback(() => {
+    photoPreparationIdRef.current += 1;
+    const pendingUpload = pendingImageUploadRef.current;
+    pendingImageUploadRef.current = null;
+    pendingUpload?.handle.cancel();
+    uploadedAttachmentCacheRef.current = null;
+    setImageUploadStatus("idle");
+    setImageUploadProgress(null);
+  }, []);
+
+  const startPendingImageUpload = useCallback(
+    (localUri: string): Promise<UploadedChatDraftAttachment | null> => {
+      const current = pendingImageUploadRef.current;
+      if (current?.localUri === localUri) return current.promise;
+
+      current?.handle.cancel();
+      uploadedAttachmentCacheRef.current = null;
+      setImageUploadStatus("uploading");
+      setImageUploadProgress(null);
+
+      let uploadRecord: PendingChatImageUpload | null = null;
+      const handle = startChatMediaUpload(
+        myUid,
+        peerUid,
+        localUri,
+        (sentBytes, totalBytes) => {
+          if (
+            uploadRecord &&
+            pendingImageUploadRef.current === uploadRecord &&
+            totalBytes > 0
+          ) {
+            setImageUploadProgress(Math.min(1, sentBytes / totalBytes));
+          }
+        },
+      );
+      const promise = handle.promise
+        .then((remoteUri) => {
+          const attachment: UploadedChatDraftAttachment = {
+            localUri,
+            remoteUri,
+            mediaType: "image",
+          };
+          if (uploadRecord && pendingImageUploadRef.current === uploadRecord) {
+            uploadedAttachmentCacheRef.current = attachment;
+            setImageUploadStatus("ready");
+            setImageUploadProgress(1);
+          }
+          return attachment;
+        })
+        .catch(() => {
+          if (uploadRecord && pendingImageUploadRef.current === uploadRecord) {
+            pendingImageUploadRef.current = null;
+            setImageUploadStatus("failed");
+            setImageUploadProgress(null);
+          }
+          return null;
+        });
+
+      uploadRecord = { localUri, handle, promise };
+      pendingImageUploadRef.current = uploadRecord;
+      return promise;
+    },
+    [myUid, peerUid],
+  );
+
   const handlePickImage = useCallback(async () => {
-    if (!isMyTurn || sending) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: false,
-      quality: 0.82,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      let prepared: Awaited<ReturnType<typeof prepareChatImage>>;
-      try {
-        prepared = await prepareChatImage(asset.uri, asset.width, asset.height);
-      } catch (error) {
+    if (
+      !isMyTurn ||
+      sending ||
+      storeDemo ||
+      imagePickerInProgressRef.current
+    ) return;
+    imagePickerInProgressRef.current = true;
+    const pickerRequestId = ++imagePickerRequestIdRef.current;
+    setPreparingPhoto(true);
+    let selectionId: number | null = null;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.82,
+      });
+      if (pickerRequestId !== imagePickerRequestIdRef.current) return;
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        imagePickerInProgressRef.current = false;
+        cancelPendingImageUpload();
+        selectionId = ++photoPreparationIdRef.current;
+        setPendingMedia(asset.uri);
+        setImageUploadStatus("preparing");
+        setImageUploadProgress(null);
+        setSendError(null);
+
+        const prepared = await prepareChatImage(
+          asset.uri,
+          asset.width,
+          asset.height,
+          asset.mimeType,
+          asset.fileSize,
+        );
+        if (selectionId !== photoPreparationIdRef.current) return;
+        setPendingMedia(prepared.uri);
+        void startPendingImageUpload(prepared.uri);
+      }
+    } catch (error) {
+      if (selectionId === null || selectionId === photoPreparationIdRef.current) {
+        if (selectionId !== null) {
+          setPendingMedia(null);
+          setImageUploadStatus("idle");
+          setImageUploadProgress(null);
+        }
+
         Alert.alert(
           "Photo not ready",
           error instanceof Error ? error.message : "Could not prepare this photo.",
         );
-        return;
       }
-      uploadedAttachmentCacheRef.current = null;
-      setPendingMedia(prepared.uri);
-      setSendError(null);
+    } finally {
+      if (pickerRequestId === imagePickerRequestIdRef.current) {
+        imagePickerInProgressRef.current = false;
+        if (
+          selectionId === null ||
+          selectionId === photoPreparationIdRef.current
+        ) {
+          setPreparingPhoto(false);
+        }
+      }
+
     }
-  }, [isMyTurn, sending]);
+  }, [
+    isMyTurn,
+    sending,
+    storeDemo,
+    cancelPendingImageUpload,
+    startPendingImageUpload,
+  ]);
 
   const handleToggleRecording = useCallback(async () => {
     if (!isMyTurn || sending) return;
@@ -1029,7 +1164,7 @@ function ChatScreen() {
     const capturedAudioMs = pendingAudioMs;
     const capturedReplyTo = replyingTo;
     setText("");
-    setPendingMedia(null);
+    setPendingMedia(capturedMedia);
     setPendingAudio(null);
     setPendingAudioMs(0);
     setReplyingTo(null);
@@ -1053,17 +1188,34 @@ function ChatScreen() {
       },
       uploadedAttachmentCacheRef.current,
       {
-        uploadImage: (uri) => uploadChatMedia(myUid, peerUid, uri),
+        uploadImage: async (uri) => {
+          const attachment = await startPendingImageUpload(uri);
+          if (!attachment) throw new Error("Photo upload failed");
+          return attachment.remoteUri;
+        },
         uploadAudio: (uri) => uploadChatAudio(myUid, peerUid, uri),
-        send: (messageText, options) =>
-          sendMessage(myUid, peerUid, messageText, options),
+        send: (messageText, options) => {
+          if (capturedMedia) setImageUploadStatus("sending");
+          return sendMessage(myUid, peerUid, messageText, options);
+        },
+
       },
     );
     uploadedAttachmentCacheRef.current = result.ok
       ? null
       : result.cachedAttachment;
 
-    if (!result.ok) {
+    if (result.ok) {
+      setPendingMedia(null);
+      setPendingAudio(null);
+      setPendingAudioMs(0);
+      setReplyingTo(null);
+      pendingImageUploadRef.current = null;
+      setImageUploadStatus("idle");
+      setImageUploadProgress(null);
+    } else {
+      if (capturedMedia) setImageUploadStatus("failed");
+
       setSendError(t("chat.sendFailed"));
       setText(trimmed);
       setPendingMedia(capturedMedia);
@@ -1072,7 +1224,19 @@ function ChatScreen() {
       setReplyingTo(capturedReplyTo);
     }
     setSending(false);
-  }, [canSend, myUid, peerUid, text, pendingMedia, pendingAudio, pendingAudioMs, replyingTo, t, storeDemo]);
+  }, [
+    canSend,
+    myUid,
+    peerUid,
+    text,
+    pendingMedia,
+    pendingAudio,
+    pendingAudioMs,
+    replyingTo,
+    t,
+    storeDemo,
+    startPendingImageUpload,
+  ]);
 
   // AsyncStorage key for the 14-day frequency cap per connection.
   const reviewPromptKey = `@met/review_prompt_${peerUid ?? "unknown"}_last_date`;
@@ -1567,6 +1731,22 @@ function ChatScreen() {
 
         {/* ── Pending media preview strip ── */}
         {pendingMedia !== null ? (
+          <ChatPhotoDraftPreview
+            uri={pendingMedia}
+            status={imageUploadStatus}
+            progress={imageUploadProgress}
+            onPress={() => setViewerUri(pendingMedia)}
+            onRemove={() => {
+              cancelPendingImageUpload();
+              setPendingMedia(null);
+              setPreparingPhoto(false);
+              setSendError(null);
+            }}
+            disabled={sending}
+          />
+        ) : null}
+
+        {preparingPhoto && pendingMedia === null ? (
           <View
             style={[
               styles.mediaPreviewBar,
@@ -1575,33 +1755,19 @@ function ChatScreen() {
                 borderTopColor: colors.border,
               },
             ]}
+            accessibilityLiveRegion="polite"
+            testID="chat-image-preparing-status"
           >
-            <Pressable
-              onPress={() => setViewerUri(pendingMedia)}
-              style={styles.mediaThumbWrap}
-              accessibilityLabel={t("chat.photo")}
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text
+              style={[
+                styles.photoUploadStatusText,
+                { color: colors.mutedForeground },
+              ]}
+
             >
-              <Image
-                source={{ uri: pendingMedia }}
-                style={styles.mediaThumb}
-                contentFit="cover"
-              />
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (
-                  uploadedAttachmentCacheRef.current?.localUri === pendingMedia
-                ) {
-                  uploadedAttachmentCacheRef.current = null;
-                }
-                setPendingMedia(null);
-              }}
-              style={[styles.mediaRemoveBtn, { backgroundColor: colors.muted }]}
-              accessibilityLabel={t("chat.removePhoto")}
-              hitSlop={8}
-            >
-              <Feather name="x" size={14} color={colors.foreground} />
-            </Pressable>
+              {t("chat.preparingPhoto")}
+            </Text>
           </View>
         ) : null}
 
@@ -1620,11 +1786,16 @@ function ChatScreen() {
           {/* Photo attach button */}
           <Pressable
             onPress={handlePickImage}
-            disabled={!isMyTurn || sending}
+            disabled={!isMyTurn || sending || preparingPhoto || storeDemo}
             style={({ pressed }) => [
               styles.photoBtn,
               {
-                opacity: !isMyTurn || sending ? 0.35 : pressed ? 0.6 : 1,
+                opacity:
+                  !isMyTurn || sending || preparingPhoto || storeDemo
+                    ? 0.35
+                    : pressed
+                      ? 0.6
+                      : 1,
               },
             ]}
             accessibilityLabel={t("chat.attachPhoto")}
@@ -1699,6 +1870,7 @@ function ChatScreen() {
           <Pressable
             onPress={handleSend}
             disabled={!canSend}
+            accessibilityState={{ disabled: !canSend, busy: sending }}
             style={({ pressed }) => [
               styles.sendBtn,
               {
@@ -1708,11 +1880,15 @@ function ChatScreen() {
             ]}
             accessibilityLabel={t("common.send")}
           >
-            <Feather
-              name={sending ? "loader" : "send"}
-              size={18}
-              color={canSend ? "#ffffff" : colors.mutedForeground}
-            />
+            {sending ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Feather
+                name="send"
+                size={18}
+                color={canSend ? "#ffffff" : colors.mutedForeground}
+              />
+            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -2052,13 +2228,9 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 10,
   },
-  mediaThumbWrap: {
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  mediaThumb: {
-    width: 64,
-    height: 64,
+  photoUploadStatusText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
   },
   mediaRemoveBtn: {
     width: 28,
@@ -2068,16 +2240,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  bubbleImage: {
-    width: 210,
-    height: 210,
-    borderRadius: 15,
-  },
-  bubbleCaption: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  bubblePhotoCaption: { paddingHorizontal: 4, paddingBottom: 4 },
 
   // Fullscreen image viewer
   viewerOverlay: {

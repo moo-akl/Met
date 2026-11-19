@@ -51,6 +51,14 @@ import { normalizeVenuePlaceSearchResult, type PlaceResult, type VenuePlaceSearc
 import { createPosterExportBlob, downloadBlob } from "./lib/posterExport";
 import { VenueQrPosterEditor, type VenueQrPosterDesign as PosterDesign } from "./components/VenueQrPosterEditor";
 import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
+import {
+  countVenueEventRsvps,
+  filterVenueEventRsvps,
+  VENUE_EVENT_RSVP_FILTERS,
+  VENUE_EVENT_RSVP_LABELS,
+  type VenueEventRsvp,
+  type VenueEventRsvpFilter,
+} from "./lib/eventRsvpGroups";
 import { metAuthError, metChangePassword, metPasswordCreate, metPasswordEnroll, metPasswordSignIn, metRefreshVerification, metResetPassword, metSendVerification, metSignOut, metSocialSignIn } from "./lib/firebaseAuth";
 import type { User } from "firebase/auth";
 import "./index.css";
@@ -96,12 +104,6 @@ type VenueEventAttendee = {
   checkedInAt: string;
   checkedInByUid: string | null;
   manualReason: string | null;
-};
-type VenueEventRsvp = {
-  uid: string;
-  displayName: string;
-  photoUrl: string | null;
-  status: "going" | "maybe" | "not_going";
 };
 type VenueEventCorrection = {
   uid: string;
@@ -1514,10 +1516,10 @@ function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
     onError: (error) => setMessage(apiError(error)),
   });
   const remove = useMutation({ mutationFn: (id: number) => deleteVenueManagerEvent(business.businessId, id, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
-   return <><div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button data-testid="button-new-event" className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>{message && !editing && <div className="vm-notice success" role="status">{message}</div>}{events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small>{event.visibility === "invite_only" && <small role="status" style={{ display: "block", marginTop: 5 }}>Invitation link {event.inviteLinkEnabled ? event.isPublished ? "active" : "enabled; event is a draft" : "disabled"}</small>}</div><div className="vm-item-actions"><button data-testid={`button-event-attendance-${event.id}`} onClick={() => setAttendanceEvent(event)}><Users size={14} />Attendance</button>{event.visibility === "invite_only" && <button disabled={!event.isPublished} onClick={() => void shareEvent(event)}><Share2 size={14} />{event.inviteLinkEnabled ? "Share" : "Create link"}</button>}<button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}{editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data, shareAfterSave) => save.mutate({ id: editing === "new" ? undefined : editing.id, data, shareAfterSave })} businessId={business.businessId} csrfToken={csrfToken} />}{attendanceEvent && <EventAttendanceModal event={attendanceEvent} businessId={business.businessId} csrfToken={csrfToken} onClose={() => setAttendanceEvent(null)} />}</>;
+   return <><div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button data-testid="button-new-event" className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>{message && !editing && <div className="vm-notice success" role="status">{message}</div>}{events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small>{event.visibility === "invite_only" && <small role="status" style={{ display: "block", marginTop: 5 }}>Invitation link {event.inviteLinkEnabled ? event.isPublished ? "active" : "enabled; event is a draft" : "disabled"}</small>}</div><div className="vm-item-actions"><button data-testid={`button-event-attendance-${event.id}`} onClick={() => setAttendanceEvent(event)}><Users size={14} />RSVPs &amp; attendance</button>{event.visibility === "invite_only" && <button disabled={!event.isPublished} onClick={() => void shareEvent(event)}><Share2 size={14} />{event.inviteLinkEnabled ? "Share" : "Create link"}</button>}<button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}{editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data, shareAfterSave) => save.mutate({ id: editing === "new" ? undefined : editing.id, data, shareAfterSave })} businessId={business.businessId} csrfToken={csrfToken} />}{attendanceEvent && <EventAttendanceModal event={attendanceEvent} businessId={business.businessId} csrfToken={csrfToken} onClose={() => setAttendanceEvent(null)} />}</>;
 }
 
-function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event: VenueManagerEvent; businessId: number; csrfToken: string; onClose: () => void }) {
+export function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event: VenueManagerEvent; businessId: number; csrfToken: string; onClose: () => void }) {
   const [attendees, setAttendees] = useState<VenueEventAttendee[]>([]);
   const [rsvps, setRsvps] = useState<VenueEventRsvp[]>([]);
   const [corrections, setCorrections] = useState<VenueEventCorrection[]>([]);
@@ -1526,6 +1528,7 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
   const [posterTheme, setPosterTheme] = useState<"garden" | "studio" | "after-hours">("garden");
   const [posterMessage, setPosterMessage] = useState("Scan to check in with Met");
   const [rsvpSearch, setRsvpSearch] = useState("");
+  const [rsvpFilter, setRsvpFilter] = useState<VenueEventRsvpFilter>("all");
   const [manualTargetUid, setManualTargetUid] = useState<string | null>(null);
   const [manualReason, setManualReason] = useState("");
   const [undoTargetUid, setUndoTargetUid] = useState<string | null>(null);
@@ -1675,11 +1678,8 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
     ? "vm-checkin-poster--midnight"
     : `vm-event-checkin-poster--${posterTheme}`;
   const checkedInUids = new Set(attendees.map((attendee) => attendee.uid));
-  const visibleRsvps = rsvps.filter((rsvp) =>
-    rsvp.status !== "not_going" &&
-    !checkedInUids.has(rsvp.uid) &&
-    rsvp.displayName.toLowerCase().includes(rsvpSearch.trim().toLowerCase()),
-  );
+  const rsvpCounts = countVenueEventRsvps(rsvps);
+  const visibleRsvps = filterVenueEventRsvps(rsvps, rsvpFilter, rsvpSearch);
 
   return (
     <Modal title="Event attendance" className="vm-print-modal" onClose={onClose}>
@@ -1756,8 +1756,27 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
           {!qrUrl && <button type="button" className="vm-primary" disabled={qrPending} data-testid="button-create-event-checkin-qr" onClick={() => void loadQr(false)}>{qrPending ? "Loading…" : "Create QR code"}</button>}
         </div>
         <section>
-          <h3 style={{ marginBottom: 6 }}>RSVP guests · {rsvps.filter((rsvp) => rsvp.status !== "not_going").length}</h3>
-          <p className="vm-subtitle">Search current RSVPs to record a staff check-in. A reason is saved with each correction.</p>
+          <h3 style={{ marginBottom: 6 }}>RSVP responses · {rsvps.length}</h3>
+          <p className="vm-subtitle">View every response by status. Check-in records remain separate from RSVP choices.</p>
+          <div
+            role="group"
+            aria-label="Filter RSVP responses by status"
+            data-testid="group-event-rsvp-filters"
+            style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "12px 0" }}
+          >
+            {VENUE_EVENT_RSVP_FILTERS.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                data-testid={`button-event-rsvp-filter-${filter.value}`}
+                aria-pressed={rsvpFilter === filter.value}
+                className={rsvpFilter === filter.value ? "vm-primary compact" : "vm-secondary"}
+                onClick={() => setRsvpFilter(filter.value)}
+              >
+                {filter.label} · {rsvpCounts[filter.value]}
+              </button>
+            ))}
+          </div>
           <input
             type="search"
             aria-label="Search event RSVPs"
@@ -1769,12 +1788,17 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
           {pending ? <SectionLoading /> : visibleRsvps.length ? (
             <div className="vm-stack" style={{ marginTop: 10 }}>
               {visibleRsvps.map((rsvp) => (
-                <div key={rsvp.uid} className="vm-item-card">
+                <div key={rsvp.uid} className="vm-item-card" data-testid={`row-event-rsvp-${rsvp.uid}`}>
                   <div className="vm-item-date"><Users size={16} /></div>
                   <div style={{ flex: 1 }}>
                     <strong>{rsvp.displayName}</strong>
-                    <small style={{ display: "block" }}>{rsvp.status === "maybe" ? "Maybe" : "Going"}</small>
-                    {manualTargetUid === rsvp.uid && (
+                    <small style={{ display: "block" }}>{VENUE_EVENT_RSVP_LABELS[rsvp.status]}</small>
+                    {checkedInUids.has(rsvp.uid) && (
+                      <small className="vm-status live" role="status" data-testid={`status-event-rsvp-checked-in-${rsvp.uid}`}>
+                        Checked in
+                      </small>
+                    )}
+                    {rsvp.status !== "not_going" && !checkedInUids.has(rsvp.uid) && manualTargetUid === rsvp.uid && (
                       <div className="vm-stack" style={{ marginTop: 8 }}>
                         <label>
                           Reason for manual check-in
@@ -1801,7 +1825,7 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
                       </div>
                     )}
                   </div>
-                  {manualTargetUid !== rsvp.uid && (
+                  {rsvp.status !== "not_going" && !checkedInUids.has(rsvp.uid) && manualTargetUid !== rsvp.uid && (
                     <button
                       type="button"
                       data-testid={`button-manual-checkin-${rsvp.uid}`}
@@ -1818,7 +1842,7 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
                 </div>
               ))}
             </div>
-          ) : <p className="vm-subtitle">No un-checked-in RSVPs match this search.</p>}
+          ) : <p className="vm-subtitle">{rsvps.length ? "No RSVP responses match this search." : "No RSVP responses yet."}</p>}
         </section>
         <section>
           <h3 style={{ marginBottom: 6 }}>Checked-in attendees · {attendees.length}</h3>

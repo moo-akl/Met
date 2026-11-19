@@ -60,44 +60,80 @@ function toEpochMs(v: MaybeTimestamp): number {
  * Upload a local image URI to Firebase Storage via REST API.
  * Returns a token-bearing download URL (no auth headers needed for display).
  */
+export function startChatMediaUpload(
+  fromUid: string,
+  toUid: string,
+  localUri: string,
+  onProgress?: (sentBytes: number, totalBytes: number) => void,
+): { promise: Promise<string>; cancel: () => void } {
+  let uploadTask: ReturnType<typeof FileSystem.createUploadTask> | null = null;
+  let cancelled = false;
+  let completed = false;
+
+  const promise = (async () => {
+    const authMod = await import("@react-native-firebase/auth");
+    const idToken = await authMod.default().currentUser?.getIdToken();
+    if (!idToken) throw new Error("Not authenticated");
+    if (cancelled) throw new Error("Storage upload cancelled");
+
+    const BUCKET = "metapp-b4642.firebasestorage.app";
+    const chatId = getChatId(fromUid, toUid);
+    const storagePath = `chats/${chatId}/${Date.now()}.jpg`;
+    const encodedPath = encodeURIComponent(storagePath);
+    const uploadUrl =
+      `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o` +
+      `?uploadType=media&name=${encodedPath}`;
+
+    uploadTask = FileSystem.createUploadTask(
+      uploadUrl,
+      localUri,
+      {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "image/jpeg",
+        },
+      },
+      (progress) => onProgress?.(
+        progress.totalBytesSent,
+        progress.totalBytesExpectedToSend,
+      ),
+    );
+    const uploadResult = await uploadTask.uploadAsync();
+    completed = true;
+    if (!uploadResult) throw new Error("Storage upload cancelled");
+    if (uploadResult.status < 200 || uploadResult.status >= 300) {
+      throw new Error(`Storage upload failed (${uploadResult.status}): ${uploadResult.body}`);
+    }
+
+    const meta = JSON.parse(uploadResult.body) as { downloadTokens?: string };
+    const dlToken = meta.downloadTokens;
+    if (!dlToken) throw new Error("No download token in upload response");
+
+    return (
+      `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedPath}` +
+      `?alt=media&token=${dlToken}`
+    );
+  })();
+
+  return {
+    promise,
+    cancel: () => {
+      cancelled = true;
+      if (uploadTask && !completed) {
+        void uploadTask.cancelAsync().catch(() => {});
+      }
+    },
+  };
+}
+
 export async function uploadChatMedia(
   fromUid: string,
   toUid: string,
   localUri: string,
 ): Promise<string> {
-  const authMod = await import("@react-native-firebase/auth");
-  const idToken = await authMod.default().currentUser?.getIdToken();
-  if (!idToken) throw new Error("Not authenticated");
-
-  const BUCKET = "metapp-b4642.firebasestorage.app";
-  const chatId = getChatId(fromUid, toUid);
-  const storagePath = `chats/${chatId}/${Date.now()}.jpg`;
-  const encodedPath = encodeURIComponent(storagePath);
-  const uploadUrl =
-    `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o` +
-    `?uploadType=media&name=${encodedPath}`;
-
-  const uploadResult = await FileSystem.uploadAsync(uploadUrl, localUri, {
-    httpMethod: "POST",
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-      "Content-Type": "image/jpeg",
-    },
-  });
-
-  if (uploadResult.status < 200 || uploadResult.status >= 300) {
-    throw new Error(`Storage upload failed (${uploadResult.status}): ${uploadResult.body}`);
-  }
-
-  const meta = JSON.parse(uploadResult.body) as { downloadTokens?: string };
-  const dlToken = meta.downloadTokens;
-  if (!dlToken) throw new Error("No download token in upload response");
-
-  return (
-    `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedPath}` +
-    `?alt=media&token=${dlToken}`
-  );
+  return startChatMediaUpload(fromUid, toUid, localUri).promise;
 }
 
 /**

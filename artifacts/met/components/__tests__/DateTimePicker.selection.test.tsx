@@ -8,6 +8,14 @@ const mockUpdateCommunityEvent = jest.fn();
 const mockGetVenueEvents = jest.fn();
 const mockRouterPush = jest.fn();
 const mockOpenVenueManager = jest.fn();
+const mockGetLocationPermission = jest.fn();
+const mockRequestLocationPermission = jest.fn();
+const mockGetCurrentPosition = jest.fn();
+const mockEventLocationResults = [
+  { placeId: "far", label: "Far place", name: "Far place", latitude: 14.75, longitude: 100.5 },
+  { placeId: "near", label: "Near place", name: "Near place", latitude: 13.751, longitude: 100.5 },
+  { placeId: "middle", label: "Middle place", name: "Middle place", latitude: 13.76, longitude: 100.5 },
+];
 const mockQueryClient = {
   setQueryData: jest.fn(),
   invalidateQueries: jest.fn().mockResolvedValue(undefined),
@@ -71,16 +79,23 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 jest.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
+  useQuery: () => ({
+    data: { locations: mockEventLocationResults },
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+  }),
   useQueryClient: () => mockQueryClient,
 }));
 jest.mock("@workspace/api-client-react", () => ({
   getGetEventDetailsQueryKey: (...args: unknown[]) => ["event-details", ...args],
   getGetEventsFeedQueryKey: () => ["events-feed"],
+  getGetCommunityEventCreationUsageQueryKey: () => ["community-event-creation-usage"],
   getSearchEventLocationsQueryOptions: () => ({ queryKey: ["event-locations"] }),
   useCreateCommunityEvent: () => ({ mutate: mockCreateCommunityEvent, isPending: false }),
   useCreateCommunityEventInviteLink: () => ({ mutateAsync: jest.fn() }),
   useUpdateCommunityEvent: () => ({ mutate: mockUpdateCommunityEvent, isPending: false }),
+  useGetCommunityEventCreationUsage: () => ({ data: { remaining: 5 } }),
   useGetMyVerifiedExplorer: () => ({ data: { isVerifiedExplorer: false }, isLoading: false }),
   useCreateVenueOwnerEventInviteLink: () => ({ isPending: false, mutateAsync: jest.fn() }),
   useGetVenueOwnerMeGuests: () => ({ data: { guests: [] }, isLoading: false }),
@@ -99,8 +114,10 @@ jest.mock("@/lib/venueManagerLink", () => ({
 }));
 jest.mock("expo-image-picker", () => ({ MediaTypeOptions: { Images: "Images" } }));
 jest.mock("expo-location", () => ({
-  getForegroundPermissionsAsync: jest.fn().mockResolvedValue({ granted: false }),
-  requestForegroundPermissionsAsync: jest.fn().mockResolvedValue({ granted: false }),
+  Accuracy: { Balanced: 3 },
+  getForegroundPermissionsAsync: (...args: unknown[]) => mockGetLocationPermission(...args),
+  requestForegroundPermissionsAsync: (...args: unknown[]) => mockRequestLocationPermission(...args),
+  getCurrentPositionAsync: (...args: unknown[]) => mockGetCurrentPosition(...args),
 }));
 jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn() }));
 jest.mock("@/lib/api/client", () => ({
@@ -113,12 +130,27 @@ jest.mock("@/lib/api/client", () => ({
 
 import { DateTimePicker } from "@/components/DateTimePicker";
 import CommunityEventForm from "@/components/CommunityEventForm";
+import {
+  getInitialCommunityEventWebsiteUrl,
+  normalizeCommunityEventWebsiteUrl,
+} from "@/lib/communityEventWebsite";
 import NewVenueEventScreen from "@/app/venue-owner/events/new";
 import EditVenueEventScreen from "@/app/venue-owner/events/[id]";
 import VenueOwnerEventsScreen from "@/app/venue-owner/events";
 
 function findByTestId(root: renderer.ReactTestRenderer, testID: string) {
   return root.root.find((node) => node.props.testID === testID);
+}
+
+function locationResultTestIds(root: renderer.ReactTestRenderer) {
+  return root.root
+    .findAll((node) =>
+      node.props.accessibilityRole === "button" &&
+      typeof node.props.testID === "string" &&
+      node.props.testID.startsWith("event-location-result-") &&
+      typeof node.props.onPress === "function",
+    )
+    .map((node) => node.props.testID as string);
 }
 
 function setPlatformOS(os: "ios" | "android") {
@@ -136,6 +168,215 @@ beforeEach(() => {
   mockLocalSearchParams = {};
   mockOpenVenueManager.mockResolvedValue(undefined);
   mockGetVenueEvents.mockResolvedValue({ events: [] });
+  mockGetLocationPermission.mockResolvedValue({ granted: false });
+  mockRequestLocationPermission.mockResolvedValue({ granted: false });
+  mockGetCurrentPosition.mockReset();
+});
+
+describe("CommunityEventForm location suggestions", () => {
+  it("waits for available device coordinates, ranks nearby places, and saves the selected place", async () => {
+    setPlatformOS("ios");
+    mockGetLocationPermission.mockResolvedValue({ granted: true });
+    let resolveCurrentPosition!: (position: {
+      coords: { latitude: number; longitude: number };
+    }) => void;
+    mockGetCurrentPosition.mockImplementation(() => new Promise((resolve) => {
+      resolveCurrentPosition = resolve;
+    }));
+
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(<CommunityEventForm mode="create" />);
+    });
+    const titleInput = root.root.find(
+      (node) => node.props.placeholder === "tabs.events.eventName",
+    );
+    const locationInput = root.root.find(
+      (node) => node.props.accessibilityLabel === "tabs.events.location",
+    );
+    await act(async () => {
+      titleInput.props.onChangeText("A nearby gathering");
+      locationInput.props.onFocus();
+      locationInput.props.onChangeText("City park");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+
+    expect(mockGetLocationPermission).toHaveBeenCalledTimes(1);
+    expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(locationResultTestIds(root)).toHaveLength(0);
+    expect(
+      root.root.findAllByType(Text).some(
+        (node) => node.props.children === "tabs.events.findingLocation",
+      ),
+    ).toBe(true);
+
+    await act(async () => {
+      resolveCurrentPosition({ coords: { latitude: 13.75, longitude: 100.5 } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(locationResultTestIds(root)).toEqual([
+      "event-location-result-near",
+      "event-location-result-middle",
+      "event-location-result-far",
+    ]);
+
+    await act(async () => {
+      root.root.findByProps({ testID: "event-location-result-near" }).props.onPress();
+    });
+    const shareInviteLinkToggle = root.root.find(
+      (node) =>
+        node.props.accessibilityRole === "checkbox" &&
+        typeof node.props.onPress === "function",
+    );
+    await act(async () => {
+      shareInviteLinkToggle.props.onPress();
+    });
+    await act(async () => {
+      const submit = root.root.findAll(
+        (node) =>
+          typeof node.props.onPress === "function" &&
+          node.props.disabled !== undefined,
+      ).at(-1)!;
+      submit.props.onPress();
+    });
+    expect(mockCreateCommunityEvent).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        location: "Near place",
+        locationPlaceId: "near",
+        latitude: 13.751,
+        longitude: 100.5,
+      }),
+    });
+    act(() => root.unmount());
+  }, 15000);
+
+  it("shows provider-ordered suggestions when location permission is unavailable", async () => {
+    setPlatformOS("ios");
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(<CommunityEventForm mode="create" />);
+    });
+    const locationInput = root.root.find(
+      (node) => node.props.accessibilityLabel === "tabs.events.location",
+    );
+    await act(async () => {
+      locationInput.props.onFocus();
+      locationInput.props.onChangeText("City park");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+
+    expect(locationResultTestIds(root)).toEqual([
+      "event-location-result-far",
+      "event-location-result-near",
+      "event-location-result-middle",
+    ]);
+    expect(mockGetCurrentPosition).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  }, 15000);
+});
+
+describe("CommunityEventForm website URLs", () => {
+  it("starts a new event with the HTTPS prefix and normalizes a domain on save", async () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(<CommunityEventForm mode="create" />);
+    });
+
+    const websiteInput = findByTestId(root, "community-event-website");
+    expect(websiteInput.props.value).toBe("https://");
+    await act(async () => {
+      root.root.find((node) => node.props.placeholder === "tabs.events.eventName")
+        .props.onChangeText("Website event");
+      websiteInput.props.onChangeText("example.com/events");
+      root.root.find(
+        (node) =>
+          node.props.accessibilityRole === "checkbox" &&
+          typeof node.props.onPress === "function",
+      ).props.onPress();
+    });
+
+    await act(async () => {
+      root.root.findAll(
+        (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
+      ).at(-1)!.props.onPress();
+    });
+
+    expect(mockCreateCommunityEvent).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        websiteUrl: "https://example.com/events",
+      }),
+    });
+    act(() => root.unmount());
+  });
+
+  it("preserves an existing website while editing and saves its full URL unchanged", async () => {
+    const websiteUrl = "https://events.example.com/summer?source=invite";
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <CommunityEventForm
+          mode="edit"
+          initial={{
+            id: 42,
+            title: "Existing event",
+            description: null,
+            imageUrl: null,
+            galleryPhotos: [],
+            repeatFrequency: null,
+            recurrenceTimeZone: "UTC",
+            recurrenceEndDate: null,
+            contactPhone: null,
+            websiteUrl,
+            publicEmail: null,
+            startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            endsAt: null,
+            location: null,
+            locationPlaceId: null,
+            latitude: null,
+            longitude: null,
+            visibility: "invite_only",
+            joinApprovalRequired: false,
+            verifiedExplorersOnly: false,
+            inviteeUids: [],
+            inviteLinkEnabled: true,
+            invitePasscodeRequired: false,
+          }}
+        />,
+      );
+    });
+
+    expect(findByTestId(root, "community-event-website").props.value).toBe(websiteUrl);
+    await act(async () => {
+      root.root.findAll(
+        (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
+      ).at(-1)!.props.onPress();
+    });
+
+    expect(mockUpdateCommunityEvent).toHaveBeenCalledWith({
+      eventId: 42,
+      data: expect.objectContaining({ websiteUrl }),
+    });
+    act(() => root.unmount());
+  });
+
+  it("normalizes bare domains, preserves complete URLs, and omits an untouched prefix", () => {
+    expect(getInitialCommunityEventWebsiteUrl()).toBe("https://");
+    expect(getInitialCommunityEventWebsiteUrl(null)).toBe("https://");
+    expect(getInitialCommunityEventWebsiteUrl("https://example.com")).toBe(
+      "https://example.com",
+    );
+    expect(normalizeCommunityEventWebsiteUrl("example.com/path")).toBe(
+      "https://example.com/path",
+    );
+    expect(normalizeCommunityEventWebsiteUrl("https://example.com/path")).toBe(
+      "https://example.com/path",
+    );
+    expect(normalizeCommunityEventWebsiteUrl("https://")).toBeNull();
+  });
 });
 
 describe("DateTimePicker platform behavior", () => {
@@ -156,7 +397,10 @@ describe("DateTimePicker platform behavior", () => {
       .map((node) => node.props.children)
       .filter((child): child is string => typeof child === "string");
     expect(textLabels).toContain("tabs.events.createHangout");
-    expect(textLabels).toContain("tabs.events.addHangoutPhoto");
+    expect(
+      root.root.findByProps({ accessibilityLabel: "tabs.events.addHangoutPhoto" }),
+    ).toBeTruthy();
+    expect(textLabels).toContain("tabs.events.addPhotos");
     expect(root.root.findByProps({ testID: "button-add-hangout-cover" })).toBeTruthy();
     expect(textLabels).not.toContain("tabs.events.editEvent");
     expect(textLabels).not.toContain("tabs.events.eventName");

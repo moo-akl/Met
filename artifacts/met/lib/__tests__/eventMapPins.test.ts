@@ -1,5 +1,6 @@
 import {
   DEFAULT_EVENT_MAP_DURATION_MS,
+  EVENT_MAP_START_WINDOW_MS,
   getCurrentEventMapPins,
   type EventMapPinCandidate,
 } from "../eventMapPins";
@@ -21,6 +22,7 @@ function makeEvent(
     latitude: 13.7563,
     longitude: 100.5018,
     visibility: "public",
+    myRsvp: "going",
     joinApprovalRequired: false,
     ownerUid: "host-uid",
     myJoinRequestStatus: null,
@@ -29,20 +31,50 @@ function makeEvent(
 }
 
 describe("getCurrentEventMapPins", () => {
-  it("keeps future and in-progress events until their end time", () => {
+  it("shows Going events beginning two hours before start and removes them at end", () => {
     const events = [
-      makeEvent(1),
+      makeEvent(1, {
+        startsAt: new Date(now + EVENT_MAP_START_WINDOW_MS).toISOString(),
+      }),
       makeEvent(2, {
+        startsAt: new Date(now + EVENT_MAP_START_WINDOW_MS + 1).toISOString(),
+      }),
+      makeEvent(3, {
         startsAt: new Date(now - 60 * 60_000).toISOString(),
         endsAt: new Date(now + 60 * 60_000).toISOString(),
       }),
-      makeEvent(3, {
-        startsAt: new Date(now - 2 * 60 * 60_000).toISOString(),
-        endsAt: new Date(now - 1).toISOString(),
-      }),
+      makeEvent(4, { endsAt: new Date(now).toISOString() }),
     ];
 
-    expect(getCurrentEventMapPins(events, now).map((event) => event.id)).toEqual([1, 2]);
+    expect(getCurrentEventMapPins(events, now).map((event) => event.id)).toEqual([1, 3]);
+  });
+
+  it("shows only events with a Going RSVP", () => {
+    const events = [
+      makeEvent(1, { myRsvp: "going" }),
+      makeEvent(2, { myRsvp: "maybe" }),
+      makeEvent(3, { myRsvp: "not_going" }),
+      makeEvent(4, { myRsvp: null }),
+    ];
+
+    expect(getCurrentEventMapPins(events, now).map((event) => event.id)).toEqual([1]);
+  });
+
+  it("treats the signed-in creator of a personal Plan as going", () => {
+    const creatorPlan = makeEvent(1, {
+      ownerUid: "viewer",
+      myRsvp: null,
+      visibility: "invite_only",
+    });
+    const creatorEvent = makeEvent(2, {
+      ownerUid: "viewer",
+      myRsvp: null,
+      visibility: "public",
+      joinApprovalRequired: false,
+    });
+
+    expect(getCurrentEventMapPins([creatorPlan, creatorEvent], now, "viewer").map((event) => event.id))
+      .toEqual([1]);
   });
 
   it("uses the four-hour default when no end time is provided", () => {

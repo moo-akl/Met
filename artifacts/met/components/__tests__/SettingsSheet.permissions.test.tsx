@@ -262,6 +262,26 @@ describe("SettingsSheet — Permissions NavRow", () => {
   });
 });
 
+describe("SettingsSheet — Past Hangouts NavRow", () => {
+  it("shows Past Hangouts and opens its history after closing the sheet", async () => {
+    const onClose = jest.fn();
+    await renderSheet(onClose);
+
+    expect(screen.getByText("plans.pastHangoutsTitle")).toBeTruthy();
+    fireEvent.press(screen.getByTestId("settings-past-hangouts"));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockRouterPush).not.toHaveBeenCalled();
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledTimes(1);
+    expect(mockRouterPush).toHaveBeenCalledWith("/past-hangouts");
+  });
+});
+
 describe("SettingsSheet — optional notification controls", () => {
   it("shows separate category switches and saves only the selected choices", async () => {
     await renderSheet();

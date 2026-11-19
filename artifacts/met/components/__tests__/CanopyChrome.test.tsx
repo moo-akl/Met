@@ -5,6 +5,7 @@ import { CanopyHeader, CanopyMapCard, CanopyVisibility } from "../CanopyChrome";
 
 jest.mock("@/contexts/ThemeContext", () => ({ useTheme: () => ({ theme: "light" }) }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0 }) }));
+jest.mock("@/lib/i18n", () => ({ useT: () => ({ t: (key: string) => key }) }));
 jest.mock("expo-image", () => {
   const React = require("react");
   return { Image: (props: any) => React.createElement("View", props) };
@@ -48,5 +49,34 @@ describe("Canopy Home controls", () => {
     await fireEvent.press(screen.getByLabelText("Connection requests, 2 pending"));
     expect(onLanguage).toHaveBeenCalledTimes(1);
     expect(onRequests).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps chat unread state on Messages and general counts on Notifications", async () => {
+    const screen = await render(
+      <CanopyHeader
+        onLanguage={jest.fn()}
+        onRequests={jest.fn()}
+        hasUnreadMessages
+        notificationCount={0}
+      />,
+    );
+
+    expect(screen.getByTestId("home-messages-button").props.accessibilityHint)
+      .toBe("Unread messages");
+    expect(screen.getByTestId("home-notifications-button").props.accessibilityHint)
+      .toBeUndefined();
+
+    const notifications = await render(
+      <CanopyHeader
+        onLanguage={jest.fn()}
+        onRequests={jest.fn()}
+        hasUnreadMessages={false}
+        notificationCount={2}
+      />,
+    );
+    expect(notifications.getByTestId("home-messages-button").props.accessibilityHint)
+      .toBeUndefined();
+    expect(notifications.getByTestId("home-notifications-button").props.accessibilityHint)
+      .toBe("2 unread");
   });
 });

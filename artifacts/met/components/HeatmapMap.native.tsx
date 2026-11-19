@@ -399,7 +399,7 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
   const eventPins = useMemo(
     () =>
       authedUid
-        ? getCurrentEventMapPins(eventFeed.data?.events ?? [], mapNow)
+        ? getCurrentEventMapPins(eventFeed.data?.events ?? [], mapNow, authedUid)
         : [],
     [authedUid, eventFeed.data?.events, mapNow],
   );

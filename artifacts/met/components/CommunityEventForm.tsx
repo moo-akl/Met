@@ -29,6 +29,10 @@ import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
 import {
+  getInitialCommunityEventWebsiteUrl,
+  normalizeCommunityEventWebsiteUrl,
+} from "@/lib/communityEventWebsite";
+import {
   dateOnlyFromLocalDate,
   dateOnlyInTimeZone,
   formatDateOnly,
@@ -117,7 +121,9 @@ export default function CommunityEventForm({
     "daily" | "weekly" | "monthly" | null
   >(initial?.repeatFrequency ?? null);
   const [contactPhone, setContactPhone] = useState(initial?.contactPhone ?? "");
-  const [websiteUrl, setWebsiteUrl] = useState(initial?.websiteUrl ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(
+    getInitialCommunityEventWebsiteUrl(initial?.websiteUrl),
+  );
   const [publicEmail, setPublicEmail] = useState(initial?.publicEmail ?? "");
   const [imageUploading, setImageUploading] = useState(false);
   const [location, setLocation] = useState(initial?.location ?? "");
@@ -165,6 +171,7 @@ export default function CommunityEventForm({
   });
   const [locationQuery, setLocationQuery] = useState("");
   const [deviceLocation, setDeviceLocation] = useState<Coordinates | null>(null);
+  const [locationLookupPending, setLocationLookupPending] = useState(false);
   const locationLookupStarted = useRef(false);
   const [formError, setFormError] = useState("");
 
@@ -222,17 +229,23 @@ export default function CommunityEventForm({
   const captureLocationForNearbySuggestions = async () => {
     if (deviceLocation || locationLookupStarted.current) return;
     locationLookupStarted.current = true;
+    setLocationLookupPending(true);
     try {
       if (Platform.OS === "web") {
         if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition(
-          ({ coords }) => setDeviceLocation({
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-          }),
-          () => undefined,
-          { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
-        );
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            ({ coords }) => {
+              setDeviceLocation({
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+              });
+              resolve();
+            },
+            () => resolve(),
+            { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+          );
+        });
         return;
       }
       let permission = await Location.getForegroundPermissionsAsync();
@@ -249,6 +262,8 @@ export default function CommunityEventForm({
       });
     } catch {
       // Search remains available in provider order when location is unavailable.
+    } finally {
+      setLocationLookupPending(false);
     }
   };
 
@@ -446,9 +461,7 @@ export default function CommunityEventForm({
       recurrenceEndDate:
         !isHangout && repeatFrequency ? recurrenceEndDateValue : null,
       contactPhone: contactPhone.trim() || null,
-      websiteUrl: websiteUrl.trim()
-        ? (/^https?:\/\//i.test(websiteUrl.trim()) ? websiteUrl.trim() : `https://${websiteUrl.trim()}`)
-        : null,
+      websiteUrl: normalizeCommunityEventWebsiteUrl(websiteUrl),
       publicEmail: publicEmail.trim() || null,
       startsAt: startsAt.toISOString(),
       endsAt: initial?.endsAt ?? null,
@@ -656,6 +669,20 @@ export default function CommunityEventForm({
             </View>
           </View>
         ) : null}
+        <Text style={[styles.label, { color: colors.text }]}>
+          {t("tabs.events.websiteOptional")}
+        </Text>
+        <TextInput
+          testID="community-event-website"
+          value={websiteUrl}
+          onChangeText={setWebsiteUrl}
+          placeholder="https://example.com"
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType="url"
+          autoCapitalize="none"
+          maxLength={2000}
+          style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+        />
         {isHangout && explorerStatus.data?.isVerifiedExplorer ? (
           <View
             style={[
@@ -758,19 +785,6 @@ export default function CommunityEventForm({
           style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
         />
         <Text style={[styles.label, { color: colors.text }]}>
-          {t("tabs.events.websiteOptional")}
-        </Text>
-        <TextInput
-          value={websiteUrl}
-          onChangeText={setWebsiteUrl}
-          placeholder="https://example.com"
-          placeholderTextColor={colors.mutedForeground}
-          keyboardType="url"
-          autoCapitalize="none"
-          maxLength={2000}
-          style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-        />
-        <Text style={[styles.label, { color: colors.text }]}>
           {t("tabs.events.contactEmailOptional")}
         </Text>
         <TextInput
@@ -839,15 +853,21 @@ export default function CommunityEventForm({
               { backgroundColor: colors.card, borderColor: colors.border },
             ]}
           >
-            {locationSearch.isFetching ? (
+            {locationLookupPending || locationSearch.isFetching ? (
               <View style={styles.searchStatus}>
                 <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-                  {t("tabs.events.searchingPlaces")}
+                  {t(
+                    locationLookupPending
+                      ? "tabs.events.findingLocation"
+                      : "tabs.events.searchingPlaces",
+                  )}
                 </Text>
               </View>
             ) : null}
-            {!locationSearch.isFetching && matchingLocations.length === 0 ? (
+            {!locationLookupPending &&
+            !locationSearch.isFetching &&
+            matchingLocations.length === 0 ? (
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>
                 {t(
                   planMode
@@ -856,10 +876,11 @@ export default function CommunityEventForm({
                 )}
               </Text>
             ) : null}
-            {matchingLocations.map((place) => (
+            {!locationLookupPending && matchingLocations.map((place) => (
               <Pressable
                 key={place.placeId}
                 accessibilityRole="button"
+                testID={`event-location-result-${place.placeId}`}
                 onPress={() => {
                   setLocation(place.label);
                   setSelectedPlace(place);

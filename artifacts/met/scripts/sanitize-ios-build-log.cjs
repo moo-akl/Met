@@ -40,14 +40,38 @@ const NATIVE_DIAGNOSTICS = [
 ];
 
 const COCOAPODS_DIAGNOSTICS = [
-  [/could not find compatible versions for pod/i, "CocoaPods dependency version conflict."],
-  [/unable to find a specification for|none of your spec sources contain a spec satisfying/i, "CocoaPods could not find a required podspec."],
-  [/higher minimum deployment target|deployment target.*(?:required|higher|conflict)/i, "CocoaPods deployment target conflict."],
-  [/cannot yet be integrated as static librar(?:y|ies)|static framework.*(?:conflict|incompatib)/i, "CocoaPods static framework integration conflict."],
-  [/invalid podfile|podfile.*syntax error|syntax error.*podfile/i, "CocoaPods Podfile parsing failed."],
-  [/post_install hook.*(?:error|fail)|error.*processing.*post_install|post-install hook/i, "CocoaPods post-install hook failed."],
-  [/CDN:.*(?:couldn't|could not) be downloaded|could not connect to server|could not resolve host|connection reset|timed out|SSL_connect/i, "CocoaPods spec source or network request failed."],
-  [/\[!\]\s*Error installing\b|pod install.*(?:failed|error)/i, "CocoaPods dependency installation failed."],
+  [
+    /could not find compatible versions for pod/i,
+    "CocoaPods dependency version conflict.",
+  ],
+  [
+    /unable to find a specification for|none of your spec sources contain a spec satisfying/i,
+    "CocoaPods could not find a required podspec.",
+  ],
+  [
+    /higher minimum deployment target|deployment target.*(?:required|higher|conflict)/i,
+    "CocoaPods deployment target conflict.",
+  ],
+  [
+    /cannot yet be integrated as static librar(?:y|ies)|static framework.*(?:conflict|incompatib)/i,
+    "CocoaPods static framework integration conflict.",
+  ],
+  [
+    /invalid podfile|podfile.*syntax error|syntax error.*podfile/i,
+    "CocoaPods Podfile parsing failed.",
+  ],
+  [
+    /post_install hook.*(?:error|fail)|error.*processing.*post_install|post-install hook/i,
+    "CocoaPods post-install hook failed.",
+  ],
+  [
+    /CDN:.*(?:couldn't|could not) be downloaded|could not connect to server|could not resolve host|connection reset|timed out|SSL_connect/i,
+    "CocoaPods spec source or network request failed.",
+  ],
+  [
+    /\[!\]\s*Error installing\b|pod install.*(?:failed|error)/i,
+    "CocoaPods dependency installation failed.",
+  ],
 ];
 
 function isSensitiveFormat(line) {
@@ -74,28 +98,6 @@ function getNativeSourceLocation(line) {
   return `${match[1]}:${lineNumber}`;
 }
 
-function getSafeCompilerDetail(diagnostic) {
-  const detail = diagnostic
-    .replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (
-    !detail ||
-    detail.length > 180 ||
-    /(?:\b(?:tokens?|secrets?|passwords?|keys?|auth|credentials?|authorization|bearer|issuer|certificate|provisioning)\b|private[\s_-]*keys?|api[\s_-]*keys?)/i.test(detail) ||
-    /[A-Za-z0-9_+/=-]{40,}/.test(detail) ||
-    /(?:gh[pousr]_|github_pat_|xox[baprs]-|sk-[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]{8,}\.)/i.test(detail) ||
-    /\b[A-Z_][A-Z0-9_]{1,80}\s*=/.test(detail) ||
-    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(detail) ||
-    /https?:\/\/|(?:\/|\\)[^\s:]+(?:\/|\\)/i.test(detail) ||
-    /^\s*[\[{]/.test(detail)
-  ) {
-    return null;
-  }
-  return detail;
-}
-
 function summarizeNativeCompileError(line) {
   const diagnostic = line.replace(/^.*?\b(?:fatal\s+)?error:\s*/i, "");
   const category =
@@ -103,12 +105,57 @@ function summarizeNativeCompileError(line) {
     "other compiler diagnostic";
   const location = getNativeSourceLocation(line);
   const suffix = location ? ` (${location})` : "";
-  const detail =
-    category === "other compiler diagnostic"
-      ? getSafeCompilerDetail(diagnostic)
-      : null;
-  const detailSuffix = detail ? `: ${detail}` : "";
-  return `Native compile error: ${category}${suffix}${detailSuffix}.`;
+  return `Native compile error: ${category}${suffix}.`;
+}
+
+function sanitizeExpoProviderMarker(line) {
+  const normalizedLine = line.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+  const markerIndex = normalizedLine.lastIndexOf("[MET_EXPO_PROVIDER_CHECK]");
+  if (markerIndex < 0) return null;
+
+  const markerLine = normalizedLine.slice(markerIndex).trim();
+  const match = markerLine.match(
+    /^\[MET_EXPO_PROVIDER_CHECK\]\s+(ValidatorInstalled|ProviderGeneration|Target|ExpoModulesProvider|ExpoLinkingModule|SplashScreenModule|RuntimeRegistration)=([a-z]+)\s*$/,
+  );
+  if (!match) return null;
+
+  const [, item, status] = match;
+  if (item === "ValidatorInstalled" && status === "present") {
+    return "iOS provider check: instrumentation installed.";
+  }
+  if (item === "ValidatorInstalled" && status === "failed") {
+    return "iOS provider check: instrumentation could not be installed.";
+  }
+  if (item === "ProviderGeneration" && status === "present") {
+    return "iOS provider check: generated provider file found.";
+  }
+  if (item === "ProviderGeneration" && status === "failed") {
+    return "iOS provider check: generated provider file not found.";
+  }
+  if (item === "ProviderGeneration" && status === "unavailable") {
+    return "iOS provider check: provider capture was unavailable.";
+  }
+  if (item === "Target" && status === "matched") {
+    return "iOS provider check: expected app target matched.";
+  }
+  if (item === "Target" && status === "unexpected") {
+    return "iOS provider check: app target was unexpected.";
+  }
+  if (item === "Target" && status === "unavailable") {
+    return "iOS provider check: target could not be identified.";
+  }
+  if (
+    ["ExpoModulesProvider", "ExpoLinkingModule", "SplashScreenModule"].includes(
+      item,
+    ) &&
+    ["present", "missing"].includes(status)
+  ) {
+    return `iOS provider check: ${item} ${status}.`;
+  }
+  if (item === "RuntimeRegistration" && status === "notchecked") {
+    return "iOS provider check: runtime registration was not measured.";
+  }
+  return null;
 }
 
 function summarizeCocoaPodsError(line) {
@@ -118,59 +165,12 @@ function summarizeCocoaPodsError(line) {
 }
 
 function sanitizeLine(line) {
-  if (typeof line !== "string" || line.length > MAX_LINE_LENGTH) {
+  if (typeof line !== "string" || line.length > MAX_LINE_LENGTH || isSensitiveFormat(line)) {
     return null;
   }
 
-  // Expo/EAS may prepend terminal styling or a progress label to plugin output.
-  // Parse only the exact allowlisted marker suffix; never return the prefix.
-  const normalizedLine = line.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
-  const markerIndex = normalizedLine.lastIndexOf("[MET_EXPO_PROVIDER_CHECK]");
-  const markerLine = markerIndex >= 0 ? normalizedLine.slice(markerIndex).trim() : "";
-  const providerCheck = markerLine.match(
-    /^\[MET_EXPO_PROVIDER_CHECK\]\s+(ValidatorInstalled|ProviderGeneration|Target|ExpoModulesProvider|ExpoLinkingModule|SplashScreenModule|RuntimeRegistration)=([a-z]+)\s*$/
-  );
-  if (providerCheck) {
-    const [, item, status] = providerCheck;
-    if (item === "ValidatorInstalled" && status === "present") {
-      return "iOS provider check: instrumentation installed.";
-    }
-    if (item === "ValidatorInstalled" && status === "failed") {
-      return "iOS provider check: instrumentation could not be installed.";
-    }
-    if (item === "ProviderGeneration" && status === "present") {
-      return "iOS provider check: generated provider file found.";
-    }
-    if (item === "ProviderGeneration" && status === "failed") {
-      return "iOS provider check: generated provider file not found.";
-    }
-    if (item === "ProviderGeneration" && status === "unavailable") {
-      return "iOS provider check: provider capture was unavailable.";
-    }
-    if (item === "Target" && ["matched", "unexpected"].includes(status)) {
-      return `iOS provider check: app target ${status}.`;
-    }
-    if (item === "Target" && status === "unavailable") {
-      return "iOS provider check: target could not be identified.";
-    }
-    if (
-      ["ExpoModulesProvider", "ExpoLinkingModule", "SplashScreenModule"].includes(item) &&
-      ["present", "missing"].includes(status)
-    ) {
-      return `iOS provider check: ${item} ${status}.`;
-    }    if (item === "RuntimeRegistration" && status === "notchecked") {
-      return "iOS provider check: runtime registration was not measured.";
-    }
-  }
-  if (
-    /^\s*\[MET_EXPO_PROVIDER_CHECK\] (?:Could not locate the Expo provider generator|Expo provider generation failed|Generated provider is missing required entries|App target name is unavailable|Expo autolinking package is unavailable|Expo provider generator is unavailable)\.?$/.test(markerLine)
-  ) {
-    return "iOS provider check: validation failed.";
-  }
-
-  if (isSensitiveFormat(line)) {
-    return null;
-  }
+  const providerCheck = sanitizeExpoProviderMarker(line);
+  if (providerCheck) return providerCheck;
 
   const cocoaPodsError = summarizeCocoaPodsError(line);
   if (cocoaPodsError) return cocoaPodsError;

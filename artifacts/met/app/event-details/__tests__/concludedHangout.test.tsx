@@ -11,7 +11,8 @@ const baseEvent = {
   endsAt: "2025-04-03T14:00:00.000Z",
   title: "Coffee in the park",
   description: "This longer description should not appear in the concluded summary.",
-  imageUrl: "https://example.test/hangout.jpg",
+  imageUrl: "https://example.test/hangout.jpg" as string | null,
+  galleryPhotos: [] as string[],
   location: "Lumphini Park",
   placeId: null as string | null,
   venueName: null,
@@ -27,7 +28,9 @@ const baseEvent = {
     myRating: null,
   },
 };
-let mockEvent = { ...baseEvent };
+let mockEvent: Omit<typeof baseEvent, "myRsvp"> & {
+  myRsvp: "going" | "maybe" | "not_going" | null;
+} = { ...baseEvent };
 let mockRouteParams: { eventType: string; id: string } = {
   eventType: "member",
   id: "42",
@@ -82,6 +85,8 @@ jest.mock("@/lib/i18n", () => ({
 jest.mock("@/lib/api/client", () => ({
   api: { getCommunityStanding: jest.fn() },
   ApiError: class ApiError extends Error {},
+  getActiveVenueBusinessHeaders: () => ({}),
+  getActiveVenueBusinessId: () => null,
 }));
 jest.mock("@/lib/firestore/client", () => ({ getAppCheckToken: jest.fn() }));
 jest.mock("@/lib/eventLinks", () => ({ buildEventDetailsUrl: jest.fn() }));
@@ -104,6 +109,8 @@ jest.mock("@workspace/api-client-react", () => ({
   getGetEventReviewsQueryKey: () => ["event-reviews"],
   getGetEventDetailsQueryOptions: () => ({ queryKey: ["event-details-options"] }),
   getGetCommunityEventForEditQueryOptions: () => ({ queryKey: ["event-edit-options"] }),
+  getGetVenueOwnerMeEventQueryKey: () => ["venue-owner-event"],
+  getGetVenueOwnerMeEventQueryOptions: () => ({ queryKey: ["venue-owner-event-options"] }),
   getGetEventsFeedQueryKey: () => ["events-feed"],
   checkInEventByLocation: jest.fn(),
   useDeleteCommunityEvent: () => ({ mutate: jest.fn(), isPending: false }),
@@ -130,6 +137,7 @@ function renderScreen() {
 
 describe("event detail layouts", () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     mockEvent = { ...baseEvent };
     mockRouteParams = { eventType: "member", id: "42" };
   });
@@ -182,6 +190,102 @@ describe("event detail layouts", () => {
     act(() => root.unmount());
   });
 
+  it("limits a private Plan creator to deleting the Plan, not RSVP or edit controls", () => {
+    mockEvent = {
+      ...baseEvent,
+      ownerUid: "guest-user",
+      joinApprovalRequired: false,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      visibility: "invite_only",
+    };
+
+    const root = renderScreen();
+
+    expect(root.root.findAllByProps({ testID: "event-details-edit-button" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "button-direct-rsvp-going" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "button-direct-rsvp-maybe" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "button-direct-rsvp-not_going" })).toHaveLength(0);
+    expect(
+      root.root.findAll((node) => node.props.children === "tabs.events.rsvpHeading"),
+    ).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "event-rsvp-count" })).toBeTruthy();
+    act(() => {
+      root.root.findByProps({ testID: "button-delete-event" }).props.onPress();
+    });
+    expect(root.root.findByProps({ testID: "button-confirm-delete-event" })).toBeTruthy();
+
+    act(() => root.unmount());
+  });
+
+  it("keeps friend Plan acceptance and leaving controls for invitees", () => {
+    mockEvent = {
+      ...baseEvent,
+      ownerUid: "another-user",
+      isInvited: true,
+      joinApprovalRequired: false,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      visibility: "invite_only",
+      myRsvp: null,
+    };
+
+    const invitedRoot = renderScreen();
+    expect(invitedRoot.root.findByProps({ testID: "button-accept-plan-invitation" })).toBeTruthy();
+    act(() => invitedRoot.unmount());
+
+    mockEvent = { ...mockEvent, myRsvp: "going" };
+    const acceptedRoot = renderScreen();
+    expect(acceptedRoot.root.findByProps({ testID: "button-leave-friend-plan" })).toBeTruthy();
+    act(() => acceptedRoot.unmount());
+  });
+
+  it("keeps RSVP choices visible to a non-owner viewing a community event", () => {
+    mockEvent = {
+      ...baseEvent,
+      ownerUid: "another-user",
+      joinApprovalRequired: false,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      visibility: "public",
+      myRsvp: null,
+    };
+
+    const root = renderScreen();
+    expect(
+      root.root.findAll(
+        (node) =>
+          node.props.accessibilityRole === "header" &&
+          node.props.children === "tabs.events.rsvpHeading",
+      ),
+    ).not.toHaveLength(0);
+    expect(root.root.findByProps({ testID: "button-direct-rsvp-going" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "button-direct-rsvp-maybe" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "button-direct-rsvp-not_going" })).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it("keeps direct RSVP controls for guests of venue events", () => {
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      ownerUid: "venue-owner",
+      joinApprovalRequired: false,
+      placeId: "venue-place",
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      visibility: "public",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+
+    expect(root.root.findByProps({ testID: "button-direct-rsvp-going" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "button-direct-rsvp-maybe" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "button-direct-rsvp-not_going" })).toBeTruthy();
+    act(() => root.unmount());
+  });
+
   it("keeps venue Event details on the standard event layout", () => {
     mockEvent = {
       ...baseEvent,
@@ -199,6 +303,78 @@ describe("event detail layouts", () => {
     expect(root.root.findAllByProps({ testID: "event-detail-hangout-hero" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
     act(() => root.unmount());
+  });
+
+  it("shows the first of all uploaded photos in the standard event gallery", () => {
+    const photos = [
+      "https://example.test/event-1.jpg",
+      "https://example.test/event-2.jpg",
+      "https://example.test/event-3.jpg",
+      "https://example.test/event-4.jpg",
+    ];
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      joinApprovalRequired: false,
+      visibility: "public",
+      galleryPhotos: photos,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+    expect(
+      root.root.findByProps({ testID: "event-detail-standard-hero-image" }).props,
+    ).toMatchObject({
+      source: { uri: photos[0] },
+      accessibilityLabel: "tabs.events.planPhotos, 1 of 4",
+    });
+    expect(
+      root.root.findByProps({ testID: "event-detail-standard-hero-indicator" }),
+    ).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it("keeps a single photo usable and shows the standard placeholder with no photos", () => {
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      joinApprovalRequired: false,
+      visibility: "public",
+      galleryPhotos: [],
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const singlePhotoRoot = renderScreen();
+    const singlePhotoCarousel = singlePhotoRoot.root.findByProps({
+      testID: "event-detail-standard-hero",
+    });
+    expect(
+      singlePhotoCarousel.findByProps({
+        testID: "event-detail-standard-hero-image",
+      }).props.source.uri,
+    ).toBe(baseEvent.imageUrl);
+    expect(
+      singlePhotoCarousel.findAllByProps({
+        testID: "event-detail-standard-hero-indicator",
+      }),
+    ).toHaveLength(0);
+    act(() => singlePhotoRoot.unmount());
+
+    mockEvent = { ...mockEvent, imageUrl: null };
+    const noPhotoRoot = renderScreen();
+    expect(
+      noPhotoRoot.root.findByProps({
+        testID: "event-detail-standard-hero-placeholder",
+      }),
+    ).toBeTruthy();
+    expect(
+      noPhotoRoot.root.findAllByProps({ testID: "event-detail-standard-hero" }),
+    ).toHaveLength(0);
+    act(() => noPhotoRoot.unmount());
   });
 
   it("opens venue-event editing through the venue manager", () => {

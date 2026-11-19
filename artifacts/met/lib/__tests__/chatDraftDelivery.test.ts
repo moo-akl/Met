@@ -14,6 +14,37 @@ function makeDependencies(send: ChatDraftDeliveryDependencies["send"]) {
 }
 
 describe("attemptChatDraftDelivery", () => {
+  it("sends an image that finished uploading while the user composed the message", async () => {
+    const send = jest.fn<Promise<string | null>, [string, SendMessageOpts]>().mockResolvedValue(null);
+    const dependencies = makeDependencies(send);
+    const draft: ChatDraftToSend = {
+      text: "Here it is",
+      mediaUri: "file:///photo.jpg",
+      audioUri: null,
+      audioDurationMs: 0,
+      replyTo: null,
+    };
+
+    const result = await attemptChatDraftDelivery(
+      draft,
+      {
+        localUri: draft.mediaUri!,
+        remoteUri: "https://files.example/preuploaded-photo.jpg",
+        mediaType: "image",
+      },
+      dependencies,
+    );
+
+    expect(result).toEqual({ ok: true, cachedAttachment: null });
+    expect(dependencies.uploadImage).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledWith("Here it is", {
+      mediaUri: "https://files.example/preuploaded-photo.jpg",
+      audioUri: undefined,
+      audioDurationMs: undefined,
+      replyTo: undefined,
+    });
+  });
+
   it("reuses an uploaded photo when sending the preserved draft is retried", async () => {
     const send = jest
       .fn<Promise<string | null>, [string, SendMessageOpts]>()

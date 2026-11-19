@@ -1,5 +1,17 @@
 import { Router } from "express";
-import { and, count, desc, eq, isNull, lt, lte } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  not,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   db,
   notificationInboxTable,
@@ -19,6 +31,14 @@ import { requireUid } from "../middlewares/requireUid";
 
 const router = Router();
 
+function excludeChatNotifications() {
+  const type = sql<string>`${notificationInboxTable.data}->>'type'`;
+  return or(
+    isNull(type),
+    not(inArray(type, ["chat_message", "event_plan_message"])),
+  );
+}
+
 async function getUnreadCount(uid: string): Promise<number> {
   const [result] = await db
     .select({ value: count() })
@@ -26,7 +46,8 @@ async function getUnreadCount(uid: string): Promise<number> {
     .where(and(
       eq(notificationInboxTable.uid, uid),
       isNull(notificationInboxTable.readAt),
-        lte(notificationInboxTable.createdAt, new Date()),
+      lte(notificationInboxTable.createdAt, new Date()),
+      excludeChatNotifications(),
     ));
   return Number(result?.value ?? 0);
 }
@@ -48,6 +69,7 @@ router.get("/notifications", requireUid, async (req, res): Promise<void> => {
         eq(notificationInboxTable.uid, uid),
         beforeId ? lt(notificationInboxTable.id, beforeId) : undefined,
         lte(notificationInboxTable.createdAt, new Date()),
+        excludeChatNotifications(),
       ))
       .orderBy(desc(notificationInboxTable.id))
       .limit(parsed.data.limit + 1),
@@ -87,6 +109,7 @@ router.patch(
       .where(and(
         eq(notificationInboxTable.id, parsed.data.notificationId),
         eq(notificationInboxTable.uid, uid),
+        excludeChatNotifications(),
       ))
       .limit(1);
     if (!notification) {
@@ -101,6 +124,7 @@ router.patch(
         eq(notificationInboxTable.id, parsed.data.notificationId),
         eq(notificationInboxTable.uid, uid),
         isNull(notificationInboxTable.readAt),
+        excludeChatNotifications(),
       ));
 
     res.json(MarkNotificationReadResponse.parse({
@@ -120,6 +144,7 @@ router.post(
       .where(and(
         eq(notificationInboxTable.uid, req.uid!),
         isNull(notificationInboxTable.readAt),
+        excludeChatNotifications(),
       ))
       .returning({ id: notificationInboxTable.id });
 
