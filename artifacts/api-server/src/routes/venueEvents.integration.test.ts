@@ -75,6 +75,11 @@ const CUSTOM_WELCOME_NOTE_STYLE = {
   color: "forest",
   card: "garden",
 };
+const GUESTBOOK_WELCOME_NOTE_STYLE = {
+  font: "handwritten",
+  color: "ink",
+  card: "guestbook",
+};
 
 async function cleanup() {
   // Clean up events and RSVPs for test-owned places.
@@ -806,6 +811,49 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(events[0]!.capacityLimit).toBe(100);
   });
 
+  it("returns the ordered venue photo gallery on guest event details", async () => {
+    const { agent, csrf, business } = await claimOwner("event-gallery-details");
+    const galleryPhotos = [
+      "https://example.test/venue-event-1.jpg",
+      "https://example.test/venue-event-2.jpg",
+      "https://example.test/venue-event-3.jpg",
+    ];
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "Venue gallery detail",
+        startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        galleryPhotos,
+        isPublished: true,
+      });
+    expect(created.status).toBe(201);
+    const eventId = Number(created.body.event.id);
+
+    const reorderedPhotos = [
+      galleryPhotos[2]!,
+      galleryPhotos[0]!,
+      galleryPhotos[1]!,
+    ];
+    const updated = await agent
+      .patch(`/api/venue-manager/businesses/${business.id}/events/${eventId}`)
+      .set("x-csrf-token", csrf)
+      .send({ galleryPhotos: reorderedPhotos });
+    expect(updated.status).toBe(200);
+    expect(updated.body.event.galleryPhotos).toEqual(reorderedPhotos);
+
+    const guestDetails = await api()
+      .get(`/api/events/venue/${eventId}`)
+      .set("x-test-uid", GUEST_UID);
+    expect(guestDetails.status).toBe(200);
+    expect(guestDetails.body).toMatchObject({
+      eventType: "venue",
+      id: eventId,
+      imageUrl: reorderedPhotos[0],
+      galleryPhotos: reorderedPhotos,
+    });
+  });
+
   it("keeps venue welcome notes private and claims them once after a guest RSVPs", async () => {
     const { agent, csrf, business, profile } = await claimOwner("welcome-note");
     const created = await agent
@@ -815,11 +863,12 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
         title: "Welcome note test",
         startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         welcomeNote: "  Glad you can join us.  ",
+        welcomeNoteStyle: GUESTBOOK_WELCOME_NOTE_STYLE,
         isPublished: true,
       });
     expect(created.status).toBe(201);
     expect(created.body.event.welcomeNote).toBe("Glad you can join us.");
-    expect(created.body.event.welcomeNoteStyle).toEqual(DEFAULT_WELCOME_NOTE_STYLE);
+    expect(created.body.event.welcomeNoteStyle).toEqual(GUESTBOOK_WELCOME_NOTE_STYLE);
     const eventId = Number(created.body.event.id);
 
     const updated = await agent
@@ -832,6 +881,13 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(updated.status).toBe(200);
     expect(updated.body.event.welcomeNote).toBe("The updated welcome.");
     expect(updated.body.event.welcomeNoteStyle).toEqual(CUSTOM_WELCOME_NOTE_STYLE);
+
+    const guestbookUpdated = await agent
+      .patch(`/api/venue-manager/businesses/${business.id}/events/${eventId}`)
+      .set("x-csrf-token", csrf)
+      .send({ welcomeNoteStyle: GUESTBOOK_WELCOME_NOTE_STYLE });
+    expect(guestbookUpdated.status).toBe(200);
+    expect(guestbookUpdated.body.event.welcomeNoteStyle).toEqual(GUESTBOOK_WELCOME_NOTE_STYLE);
 
     const guestBeforeJoining = await api()
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
@@ -864,7 +920,7 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(claimed.status).toBe(200);
     expect(claimed.body).toEqual({
       welcomeNote: "The updated welcome.",
-      welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
+      welcomeNoteStyle: GUESTBOOK_WELCOME_NOTE_STYLE,
     });
 
     const repeatedClaim = await api()
@@ -873,7 +929,7 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(repeatedClaim.status).toBe(200);
     expect(repeatedClaim.body).toEqual({
       welcomeNote: "The updated welcome.",
-      welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
+      welcomeNoteStyle: GUESTBOOK_WELCOME_NOTE_STYLE,
     });
 
     const acknowledged = await api()

@@ -17,3 +17,13 @@ implicitly authorized.
 processing, including a first-party install handoff. Evaluate current platform
 limits and service costs first. See `docs/hotspot-deferred-install-proposal.md`
 for the dated research; recheck vendor terms before any purchase.
+
+Prioritize people who do not have Met installed. The user wants them led straight
+to the App Store or Play Store rather than through a website that might confuse
+them.
+
+**Why:** The user stated that Met is a new app and this is its most important
+user route.
+
+**How to apply:** Favor a direct-to-store acquisition flow, while preserving
+installed-app links and the installation-recovery privacy boundaries above.

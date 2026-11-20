@@ -20,3 +20,9 @@ Preserve App Store compliance when simplifying registration.
 **Why:** The user explicitly requested not to change anything that could cause App Store rejection.
 
 **How to apply:** Preserve Apple sign-in, consent/age safeguards, moderation, report/block/account deletion, and privacy controls. Do not describe a private visit account as anonymous social access or promise App Review approval.
+
+Registered venues need an owner-selected check-in mode: open check-in by verified location or QR-only. Open-mode check-ins receive the same leaderboard and reward credit as QR check-ins and unlock guestbook notes and photos.
+
+**Why:** The user confirmed this policy on November 2, 2026.
+
+**How to apply:** Enforce the mode and credit/guestbook eligibility on the server. Keep venue QR design available in both modes, and preserve QR-only behavior unless the venue is explicitly set to open.

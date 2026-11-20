@@ -689,20 +689,6 @@ export default function CommunityEventForm({
             </View>
           </View>
         ) : null}
-        <Text style={[styles.label, { color: colors.text }]}>
-          {t("tabs.events.websiteOptional")}
-        </Text>
-        <TextInput
-          testID="community-event-website"
-          value={websiteUrl}
-          onChangeText={setWebsiteUrl}
-          placeholder="https://example.com"
-          placeholderTextColor={colors.mutedForeground}
-          keyboardType="url"
-          autoCapitalize="none"
-          maxLength={2000}
-          style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-        />
         {isHangout && explorerStatus.data?.isVerifiedExplorer ? (
           <View
             style={[

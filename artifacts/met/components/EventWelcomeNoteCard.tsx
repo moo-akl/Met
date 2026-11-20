@@ -1,11 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import type { NativeSyntheticEvent, TextLayoutEventData } from "react-native";
 
 import { useT } from "@/lib/i18n";
 import {
   DEFAULT_EVENT_WELCOME_NOTE_STYLE,
 } from "@/lib/eventWelcomeNoteStyle";
+import { VENUE_GUESTBOOK_THEME } from "@/lib/venueGuestbookTheme";
 import type { EventWelcomeNoteStyle } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 
@@ -35,19 +37,47 @@ export function EventWelcomeNoteCard({
   const { t } = useT();
   const style = noteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE;
   const card = cardStyles(style.card, colors);
+  const isGuestbook = style.card === "guestbook";
   const textColor = style.color === "forest"
     ? colors.secondaryForeground
     : style.color === "soft"
       ? colors.mutedForeground
-      : colors.foreground;
+      : isGuestbook
+        ? VENUE_GUESTBOOK_THEME.ink
+        : colors.foreground;
   const fontFamily = style.font === "handwritten"
-    ? "Caveat_500Medium"
+    ? isGuestbook
+      ? VENUE_GUESTBOOK_THEME.handFont
+      : "Caveat_500Medium"
     : style.font === "serif"
       ? "PlayfairDisplay_400Regular"
       : "Inter_400Regular";
-  const isGuestbook = style.card === "guestbook";
-  const [bodyHeight, setBodyHeight] = useState(54);
-  const ruleCount = Math.max(2, Math.ceil(bodyHeight / 27));
+  const [guestbookLayout, setGuestbookLayout] = useState({
+    ruleOffsets: [27, 54],
+    minHeight: 54,
+  });
+  const handleGuestbookTextLayout = (
+    event: NativeSyntheticEvent<TextLayoutEventData>,
+  ) => {
+    const lines = event.nativeEvent.lines;
+    if (lines.length === 0) return;
+
+    const ruleOffsets = lines.map((line) =>
+      Math.round(line.y + line.height),
+    );
+    if (ruleOffsets.length < 2) {
+      const lastLine = lines[lines.length - 1];
+      ruleOffsets.push(Math.round(lastLine.y + lastLine.height * 2));
+    }
+    const minHeight = Math.max(54, ruleOffsets[ruleOffsets.length - 1] ?? 54);
+
+    setGuestbookLayout((current) => {
+      const unchanged = current.minHeight === minHeight
+        && current.ruleOffsets.length === ruleOffsets.length
+        && current.ruleOffsets.every((offset, index) => offset === ruleOffsets[index]);
+      return unchanged ? current : { ruleOffsets, minHeight };
+    });
+  };
 
   return (
     <View
@@ -60,6 +90,7 @@ export function EventWelcomeNoteCard({
           borderRadius: card.borderRadius,
           borderWidth: card.borderWidth,
         },
+        isGuestbook ? styles.guestbookShadow : null,
       ]}
     >
       <View style={styles.headingRow}>
@@ -67,60 +98,62 @@ export function EventWelcomeNoteCard({
           <Feather
             name={isGuestbook ? "book-open" : "message-circle"}
             size={18}
-            color={colors.primary}
+            color={isGuestbook ? VENUE_GUESTBOOK_THEME.accent : colors.primary}
           />
         </View>
-        <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
+        <Text accessibilityRole="header" style={[styles.title, { color: isGuestbook ? VENUE_GUESTBOOK_THEME.ink : colors.text }]}>
           {title}
         </Text>
+        {isGuestbook ? (
+          <View
+            accessible={false}
+            importantForAccessibility="no"
+            testID={testID ? `${testID}-heart` : undefined}
+            style={styles.guestbookDecoration}
+          >
+            <Feather name="heart" size={14} color={VENUE_GUESTBOOK_THEME.accent} />
+          </View>
+        ) : null}
       </View>
       <View
         style={styles.bodyWrap}
-        onLayout={
-          isGuestbook
-            ? (event) => {
-                const nextHeight = event.nativeEvent.layout.height;
-                setBodyHeight((current) =>
-                  Math.abs(current - nextHeight) > 1 ? nextHeight : current,
-                );
-              }
-            : undefined
-        }
       >
         {isGuestbook ? (
           <View
             pointerEvents="none"
             testID={testID ? `${testID}-rules` : undefined}
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, styles.guestbookRules]}
           >
-            {Array.from({ length: ruleCount }, (_, index) => (
+            {guestbookLayout.ruleOffsets.map((offset, index) => (
               <View
-                key={index}
-                style={[
-                  styles.guestbookRule,
-                  { top: (index + 1) * 27, backgroundColor: colors.border },
-                ]}
+                key={`${index}-${offset}`}
+                style={[styles.guestbookRule, { top: offset }]}
               />
             ))}
           </View>
         ) : null}
+        {isGuestbook ? (
+          <View
+            pointerEvents="none"
+            testID={testID ? `${testID}-margin` : undefined}
+            style={styles.guestbookMargin}
+          />
+        ) : null}
         <Text
           testID={bodyTestID}
+          allowFontScaling
+          onTextLayout={isGuestbook ? handleGuestbookTextLayout : undefined}
           style={[
             styles.body,
             {
               color: textColor,
               fontFamily,
-              fontSize: style.font === "handwritten" ? 21 : 15,
+              fontSize: style.font === "handwritten" ? (isGuestbook ? 18 : 21) : 15,
               lineHeight: style.font === "handwritten" ? 27 : 23,
-              ...(isGuestbook
-                ? {
-                    borderLeftColor: colors.border,
-                    borderLeftWidth: 1,
-                    paddingLeft: 12,
-                  }
-                : {}),
             },
+            isGuestbook
+              ? [styles.guestbookBody, { minHeight: guestbookLayout.minHeight }]
+              : null,
           ]}
         >
           {note}
@@ -188,11 +221,11 @@ function cardStyles(
   }
   if (card === "guestbook") {
     return {
-      backgroundColor: colors.card,
-      borderColor: colors.secondaryForeground,
-      borderRadius: 13,
+      backgroundColor: VENUE_GUESTBOOK_THEME.paper,
+      borderColor: VENUE_GUESTBOOK_THEME.rule,
+      borderRadius: 4,
       borderWidth: 1,
-      iconBackground: colors.primarySoft,
+      iconBackground: VENUE_GUESTBOOK_THEME.paperAlt,
     };
   }
   return {
@@ -235,12 +268,46 @@ const styles = StyleSheet.create({
   },
   bodyWrap: {
     position: "relative",
+    width: "100%",
+  },
+  guestbookShadow: {
+    shadowColor: VENUE_GUESTBOOK_THEME.shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  guestbookDecoration: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guestbookRules: {
+    left: 24,
+    right: 0,
   },
   guestbookRule: {
     position: "absolute",
     left: 0,
     right: 0,
     height: 1,
+    backgroundColor: VENUE_GUESTBOOK_THEME.rule,
+  },
+  guestbookMargin: {
+    position: "absolute",
+    left: 18,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: `${VENUE_GUESTBOOK_THEME.accent}88`,
+  },
+  guestbookBody: {
+    minHeight: 54,
+    marginLeft: 30,
+    paddingLeft: 0,
+    paddingRight: 8,
+    flexShrink: 1,
   },
   dismiss: {
     minHeight: 46,

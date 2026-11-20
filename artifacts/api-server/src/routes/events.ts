@@ -1622,6 +1622,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
       title: row.event.title,
       description: row.event.description,
       imageUrl: row.event.imageUrl,
+      galleryPhotos: row.event.galleryPhotos,
       contactPhone: row.event.contactPhone,
       websiteUrl: row.event.websiteUrl,
       publicEmail: row.event.publicEmail,

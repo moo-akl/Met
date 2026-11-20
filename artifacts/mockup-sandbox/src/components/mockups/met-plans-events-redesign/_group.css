@@ -1,0 +1,41 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+.met-plans-events {
+  --met-text: #19351f;
+  --met-background: #fbfcf8;
+  --met-card: #ffffff;
+  --met-primary: #3dcc44;
+  --met-primary-foreground: #19351f;
+  --met-primary-soft: #e8f5e5;
+  --met-muted-foreground: #68776c;
+  --met-border: #e2eae0;
+  --met-destructive: #ef4444;
+  min-height: 100vh;
+  color: var(--met-text);
+  background: var(--met-background);
+  font-family: Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.met-plans-events[data-theme="dark"] {
+  --met-text: #f9fafb;
+  --met-background: #101912;
+  --met-card: #17221a;
+  --met-primary: #3dcc44;
+  --met-primary-foreground: #19351f;
+  --met-primary-soft: #193c24;
+  --met-muted-foreground: #a3b1a5;
+  --met-border: #2a3b2d;
+  --met-destructive: #ef4444;
+}
+
+.met-plans-events *,
+.met-plans-events *::before,
+.met-plans-events *::after {
+  box-sizing: border-box;
+}
+
+.met-plans-events button {
+  color: inherit;
+  font: inherit;
+}

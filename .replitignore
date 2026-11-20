@@ -6,3 +6,11 @@
 
 # Never include uploaded Firebase Admin private keys in published images.
 attached_assets/*firebase-adminsdk*.json
+
+# Research evidence is not part of the running application.
+research/sources/
+research/notes.md
+research/venue-prospects-new-100.json
+
+# Generated deliverables should not be included in published app images.
+generated-artifacts/

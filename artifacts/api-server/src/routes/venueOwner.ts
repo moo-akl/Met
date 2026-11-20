@@ -290,7 +290,7 @@ const router: IRouter = Router();
 const eventWelcomeNoteStyleSchema = z.object({
   font: z.enum(["classic", "handwritten", "serif"]),
   color: z.enum(["ink", "forest", "soft"]),
-  card: z.enum(["paper", "garden", "postcard"]),
+  card: z.enum(["paper", "garden", "postcard", "guestbook"]),
 }).strict();
 const ADMIN_SESSION_COOKIE = "met_venue_admin";
 const ADMIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;

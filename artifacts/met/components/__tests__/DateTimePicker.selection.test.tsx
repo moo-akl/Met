@@ -279,41 +279,26 @@ describe("CommunityEventForm location suggestions", () => {
   }, 15000);
 });
 
-describe("CommunityEventForm website URLs", () => {
-  it("starts a new event with the HTTPS prefix and normalizes a domain on save", async () => {
-    let root!: renderer.ReactTestRenderer;
+describe("CommunityEventForm website visibility", () => {
+  it("does not ask for a website when creating a Plan or Hangout", () => {
+    let planRoot!: renderer.ReactTestRenderer;
     act(() => {
-      root = renderer.create(<CommunityEventForm mode="create" />);
+      planRoot = renderer.create(<CommunityEventForm mode="create" />);
     });
+    expect(planRoot.root.findAllByProps({ testID: "community-event-website" })).toHaveLength(0);
+    act(() => planRoot.unmount());
 
-    const websiteInput = findByTestId(root, "community-event-website");
-    expect(websiteInput.props.value).toBe("https://");
-    await act(async () => {
-      root.root.find((node) => node.props.placeholder === "tabs.events.eventName")
-        .props.onChangeText("Website event");
-      websiteInput.props.onChangeText("example.com/events");
-      root.root.find(
-        (node) =>
-          node.props.accessibilityRole === "checkbox" &&
-          typeof node.props.onPress === "function",
-      ).props.onPress();
+    let hangoutRoot!: renderer.ReactTestRenderer;
+    act(() => {
+      hangoutRoot = renderer.create(
+        <CommunityEventForm mode="create" planKind="hangout" />,
+      );
     });
-
-    await act(async () => {
-      root.root.findAll(
-        (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
-      ).at(-1)!.props.onPress();
-    });
-
-    expect(mockCreateCommunityEvent).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        websiteUrl: "https://example.com/events",
-      }),
-    });
-    act(() => root.unmount());
+    expect(hangoutRoot.root.findAllByProps({ testID: "community-event-website" })).toHaveLength(0);
+    act(() => hangoutRoot.unmount());
   });
 
-  it("preserves an existing website while editing and saves its full URL unchanged", async () => {
+  it("keeps a legacy Plan website hidden and unchanged while editing", async () => {
     const websiteUrl = "https://events.example.com/summer?source=invite";
     let root!: renderer.ReactTestRenderer;
     act(() => {
@@ -349,7 +334,7 @@ describe("CommunityEventForm website URLs", () => {
       );
     });
 
-    expect(findByTestId(root, "community-event-website").props.value).toBe(websiteUrl);
+    expect(root.root.findAllByProps({ testID: "community-event-website" })).toHaveLength(0);
     await act(async () => {
       root.root.findAll(
         (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,

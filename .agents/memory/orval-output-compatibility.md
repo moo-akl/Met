@@ -43,3 +43,15 @@ Node CLI test passed while the public package-script test failed before Orval ra
 fixtures, and verify the expected generator diagnostic, not just a nonzero exit.
 This is fixture-only; real destination-checkout verification still requires its
 own installed dependencies and internal workspace links.
+
+For server-side response validation, use the operation-specific Zod parser
+exported from `generated/api.ts`. A component schema name generates a TypeScript
+interface in `generated/types`, which is not a runtime parser; avoid component
+names that collide with an operation's generated response parser.
+
+**Why:** Orval generates operation response validators and component interfaces
+in separate outputs. Importing the interface as a value fails at runtime, and
+using the operation response name for a component can create duplicate exports.
+
+**How to apply:** Give component schemas distinct result-oriented names, then
+validate server responses with the parser named after the OpenAPI operation.

@@ -1,8 +1,9 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { Image, Modal, StyleSheet } from "react-native";
+import { Image, Modal, StyleSheet, View } from "react-native";
 import { waitFor } from "@testing-library/react-native";
 import type { EventWelcomeNoteStyle } from "@workspace/api-client-react";
+import { VENUE_GUESTBOOK_THEME } from "@/lib/venueGuestbookTheme";
 
 const baseEvent = {
   id: 42,
@@ -22,6 +23,9 @@ const baseEvent = {
   isInvited: false,
   myRsvp: null,
   myJoinRequestStatus: "accepted",
+  contactPhone: null as string | null,
+  websiteUrl: null as string | null,
+  publicEmail: null as string | null,
   creatorName: "Host Name",
   creatorPhotoUrl: null,
   meetingHostRating: {
@@ -278,6 +282,48 @@ describe("event detail layouts", () => {
     act(() => root.unmount());
   });
 
+  it("renders the guestbook treatment on the recipient welcome note", async () => {
+    mockClaimEventWelcomeNote.mockResolvedValue({
+      welcomeNote: "Thank you for joining us. ".repeat(8),
+      welcomeNoteStyle: {
+        font: "handwritten",
+        color: "ink",
+        card: "guestbook",
+      },
+    });
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventDetailsScreen />);
+      await Promise.resolve();
+    });
+
+    const card = root.root.findByProps({ testID: "event-welcome-note-style-card" });
+    expect(card.findByProps({ testID: "event-welcome-note-style-card-rules" })).toBeTruthy();
+    expect(card.findByProps({ testID: "event-welcome-note-style-card-margin" })).toBeTruthy();
+    expect(card.findByProps({ testID: "event-welcome-note-style-card-heart" })).toBeTruthy();
+    const renderedCard = card.findByType(View);
+    expect(StyleSheet.flatten(renderedCard.props.style)).toMatchObject({
+      backgroundColor: VENUE_GUESTBOOK_THEME.paper,
+      borderColor: VENUE_GUESTBOOK_THEME.rule,
+      borderRadius: 4,
+    });
+    expect(
+      StyleSheet.flatten(
+        card.findByProps({ testID: "event-welcome-note-body" }).props.style,
+      ),
+    ).toMatchObject({
+      color: VENUE_GUESTBOOK_THEME.ink,
+      fontFamily: VENUE_GUESTBOOK_THEME.handFont,
+      fontSize: 18,
+      lineHeight: 27,
+      marginLeft: 30,
+    });
+    const body = card.findByProps({ testID: "event-welcome-note-body" });
+    expect(body.props.allowFontScaling).toBe(true);
+    expect(body.props.children).toBe("Thank you for joining us. ".repeat(8));
+    act(() => root.unmount());
+  });
+
   it("does not show a note again when the same participant reopens the event", async () => {
     mockWelcomeNoteStorage.set(
       "met:eventWelcomeNoteSeen:v1:guest-user:member:42",
@@ -490,6 +536,59 @@ describe("event detail layouts", () => {
     expect(root.root.findByProps({ testID: "button-direct-rsvp-going" })).toBeTruthy();
     expect(root.root.findByProps({ testID: "button-direct-rsvp-maybe" })).toBeTruthy();
     expect(root.root.findByProps({ testID: "button-direct-rsvp-not_going" })).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it("hides legacy websites on Plans and Hangouts but keeps Event and venue websites", () => {
+    const legacyWebsite = "https://example.test/legacy";
+    const futureSchedule = {
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      websiteUrl: legacyWebsite,
+    };
+
+    mockEvent = {
+      ...baseEvent,
+      ...futureSchedule,
+      joinApprovalRequired: true,
+      visibility: "public",
+    };
+    let root = renderScreen();
+    expect(root.root.findAllByProps({ testID: "event-website-link" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "event-contact-section" })).toHaveLength(0);
+    act(() => root.unmount());
+
+    mockEvent = {
+      ...baseEvent,
+      ...futureSchedule,
+      joinApprovalRequired: false,
+      visibility: "invite_only",
+    };
+    root = renderScreen();
+    expect(root.root.findAllByProps({ testID: "event-website-link" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "event-contact-section" })).toHaveLength(0);
+    act(() => root.unmount());
+
+    mockEvent = {
+      ...baseEvent,
+      ...futureSchedule,
+      joinApprovalRequired: false,
+      visibility: "public",
+    };
+    root = renderScreen();
+    expect(root.root.findByProps({ testID: "event-website-link" })).toBeTruthy();
+    act(() => root.unmount());
+
+    mockRouteParams = { eventType: "venue", id: "42" };
+    mockEvent = {
+      ...baseEvent,
+      ...futureSchedule,
+      eventType: "venue",
+      joinApprovalRequired: false,
+      visibility: "public",
+    };
+    root = renderScreen();
+    expect(root.root.findByProps({ testID: "event-website-link" })).toBeTruthy();
     act(() => root.unmount());
   });
 

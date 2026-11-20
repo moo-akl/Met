@@ -38,14 +38,15 @@ import {
 import { isLegacyUserId } from "@/lib/auth";
 import { COMPLETE_PROFILE_HREF } from "@/lib/profileCompletion";
 import themeColors from "@/constants/colors";
+import { VENUE_GUESTBOOK_THEME } from "@/lib/venueGuestbookTheme";
 
 // ─── Canopy palette; retain the guestbook's handwritten paper treatment ──────
-const CORAL = themeColors.light.brandPanel;
-const INK = "#2B2A4C"; // blue-black fountain ink
-const INK_SOFT = "#5A5876";
-const PAPER = "#FFF9EE";
-const PAPER_ALT = "#FBF3E4";
-const RULE = "#EADFCB";
+const CORAL = VENUE_GUESTBOOK_THEME.accent;
+const INK = VENUE_GUESTBOOK_THEME.ink;
+const INK_SOFT = VENUE_GUESTBOOK_THEME.inkSoft;
+const PAPER = VENUE_GUESTBOOK_THEME.paper;
+const PAPER_ALT = VENUE_GUESTBOOK_THEME.paperAlt;
+const RULE = VENUE_GUESTBOOK_THEME.rule;
 const TAPE = "rgba(255, 214, 170, 0.78)";
 const TEXT = themeColors.light.text;
 const TEXT2 = themeColors.light.mutedForeground;
@@ -53,8 +54,8 @@ const MUTED = "#9CA3AF";
 const CARD = "#FFFFFF";
 const BORDER = "#F0F0F0";
 
-const HAND = Platform.select({ ios: "Noteworthy", android: "cursive", default: "cursive" });
-const HAND_BOLD = Platform.select({ ios: "Noteworthy-Bold", android: "cursive", default: "cursive" });
+const HAND = VENUE_GUESTBOOK_THEME.handFont;
+const HAND_BOLD = VENUE_GUESTBOOK_THEME.handBoldFont;
 
 const MAX_NOTE = 500;
 const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
@@ -953,7 +954,7 @@ const s = StyleSheet.create({
   note: {
     backgroundColor: PAPER, borderRadius: 4, paddingVertical: 16, paddingRight: 16, paddingLeft: 30,
     borderWidth: 1, borderColor: RULE,
-    shadowColor: "#7A5A2E", shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    shadowColor: VENUE_GUESTBOOK_THEME.shadow, shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   margin: { position: "absolute", left: 18, top: 0, bottom: 0, width: 1, backgroundColor: `${CORAL}55` },
   noteText: { fontSize: 18, lineHeight: 27, fontFamily: HAND, color: INK },

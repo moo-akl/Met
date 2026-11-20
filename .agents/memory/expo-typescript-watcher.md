@@ -3,6 +3,16 @@ name: Expo watcher compatibility
 description: Security-pinned Metro uses a newer watcher payload that SDK 54 Expo CLI cannot consume directly.
 ---
 
+When TypeScript bootstrap is disabled, restarting Metro may leave typed-route
+declarations stale after adding a route. Regenerate them with Expo Router's
+declaration generator instead of bypassing route checking with casts.
+
+**Why:** The new route can work at runtime while the ignored generated route
+union still rejects it during type checking; a restart alone does not repair it.
+
+**How to apply:** Check generated route freshness when a new real route is
+rejected by TypeScript in this workspace. Keep the observer workaround intact.
+
 Keep Metro security overrides when Expo CLI crashes on `eventsQueue is not iterable`.
 Use an adapter scoped to Expo's observer subscriptions, never a global rewrite
 of Metro's event emitter or shared payload. Apply it to every Expo Metro server

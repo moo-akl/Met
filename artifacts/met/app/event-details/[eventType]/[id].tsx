@@ -329,6 +329,7 @@ export default function EventDetailsScreen() {
       !event?.joinApprovalRequired &&
       event?.visibility === "invite_only",
   );
+  const showWebsite = !isHangout && !isFriendPlan;
   const recurrenceTimeZone = event?.repeatFrequency
     ? event.recurrenceTimeZone ?? "UTC"
     : undefined;
@@ -1047,8 +1048,8 @@ export default function EventDetailsScreen() {
               </View>
             </View>
             ) : null}
-            {event.contactPhone || event.websiteUrl || event.publicEmail ? (
-              <View style={{ gap: 10, marginTop: 4 }}>
+            {event.contactPhone || (showWebsite && event.websiteUrl) || event.publicEmail ? (
+              <View testID="event-contact-section" style={{ gap: 10, marginTop: 4 }}>
                 <Text accessibilityRole="header" style={[styles.contactHeading, { color: colors.text }]}>
                   {t("tabs.events.contactHeading")}
                 </Text>
@@ -1062,9 +1063,10 @@ export default function EventDetailsScreen() {
                     <Text style={{ color: colors.text, fontSize: 14 }}>{event.contactPhone}</Text>
                   </Pressable>
                 ) : null}
-                {event.websiteUrl ? (
+                {showWebsite && event.websiteUrl ? (
                   <Pressable
                     accessibilityRole="link"
+                    testID="event-website-link"
                     onPress={() => void Linking.openURL(
                       /^https?:\/\//i.test(event.websiteUrl!) ? event.websiteUrl! : `https://${event.websiteUrl}`,
                     )}

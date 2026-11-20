@@ -61,7 +61,7 @@ const router: IRouter = Router();
 const eventWelcomeNoteStyleSchema = z.object({
   font: z.enum(["classic", "handwritten", "serif"]),
   color: z.enum(["ink", "forest", "soft"]),
-  card: z.enum(["paper", "garden", "postcard"]),
+  card: z.enum(["paper", "garden", "postcard", "guestbook"]),
 }).strict();
 const COOKIE = "met_venue_manager";
 const CSRF_HEADER = "x-csrf-token";

@@ -1,16 +1,16 @@
 - [Chat features data model](chat-features.md) — reactions/replyTo/deleted on ChatMessage; clearedAt on ChatMeta; FieldValue pattern for arrayUnion/arrayRemove
 - [inArray vs sql ANY](inarray-vs-sql-any.md) — always use Drizzle inArray() for IN-list queries, not sql`col = ANY(arr)`
-- [api-client-react initialization](api-client-react-init.md) — setBaseUrl/setAuthTokenGetter must be called at app startup; omitting them silently breaks all hooks/functions from that package.
+- [api-client-react initialization](api-client-react-init.md) — preserve custom-fetch exports across Orval generation; initialize base URL and auth getter before using client hooks.
 - [Orval output compatibility](orval-output-compatibility.md) — explicitly target the workspace's Zod 3 and React Query 5 versions during API code generation.
 - [ApiOptions and auth pattern](api-options-auth.md) — ApiOptions is {uid: string, signal?}; no token field. The client auto-fetches Firebase ID token via getCurrentIdToken(). Pass {uid: authedUid ?? ""}. AppContext exposes `authedUid` (Firebase Auth UID) and `profile`; use authedUid for Firestore paths, NOT profile.id.
 - [authedUid vs profile.id](authed-uid-vs-profile-id.md) — Always use authedUid from AppContext for Firestore document paths/chatIds. profile.id can be a "local-" string if onboarding ran before Firebase Auth initialized; using it in callerInChatId() causes permanent PERMISSION_DENIED.
 - [Orval hook options — enabled flag](orval-enabled-flag.md) — generated hooks pass UseQueryOptions with required queryKey; to add `enabled` without providing queryKey, spread the helper: useQuery({...getXxxQueryOptions(id), enabled: flag}).
 - [regenerateNetworkCode id type](regen-network-code-id.md) — useRegenerateNetworkCode mutation expects id as string, not number. Use String(networkId).
-- [Jest mock isDevice in expo-met tests](jest-expo-device-mock.md) — expo-device isDevice cannot be mutated via Object.defineProperty or direct assignment; use var mockIsDevice + getter in jest.mock factory. Dynamic import() in source files cannot be mocked in jest-expo CJS mode; use dependency injection (_uploadOverride param) instead.
+- [Jest Expo native API mocks](jest-expo-device-mock.md) — use getter mocks for Expo APIs, stable query-key results, and direct Platform.OS overrides; inject dependencies around dynamic imports.
 - [expo-camera mic permission removal](expo-camera-mic-permission-removal.md) — microphonePermission:false in expo-camera plugin DELETES NSMicrophoneUsageDescription from Info.plist (overrides infoPlist too), crashing app on any audio API call with no dialog shown.
 - [Firestore App Check boundary](app-check-enforcement.md) — enforcement is service-level; rules cannot inspect request.app_check_token. Check current settings instead of assuming historical state.
 - [pnpm stale package causes Metro ENOENT](pnpm-stale-metro.md) — when pnpm overwrites a package with a lower version, the old version dir remains in .pnpm and causes Metro watcher ENOENT crashes. Fix: rm -rf the old version directory then restart expo.
-- [GitHub submission safety](github-push-auth.md) — use the connected GitHub API for narrow file updates; local main may be far ahead while remote has newer release metadata, so never push blindly.
+- [GitHub submission safety](github-push-auth.md) — preserve remote release metadata and verify new imports, manifests, and lockfile against the exact destination branch.
 - [Merge setup safety](merge-setup-safety.md) — setup must not force-push GitHub or mutate schemas; pnpm overrides can cause lock mismatches despite matching manifest text.
 - [EAS local-build profile freshness](eas-local-profile-freshness.md) — `eas build --local` on GitHub still reuses EAS-managed signing profiles; Apple App ID capability changes do not refresh an existing profile.
 - [EAS failure log safety](eas-local-failure-log-safety.md) — failed local builds can print encoded signing credentials; filter before showing logs and never reproduce the payload.
@@ -30,8 +30,7 @@
 - [Android Maps API key — react-native-maps plugin](android-maps-api-key.md) — plugin without androidGoogleMapsApiKey REMOVES the key from manifest; Google Maps SDK crashes fatally on Android with no key present.
 - [Android Play target API](android-play-target-api.md) — compileSdk alone is insufficient; keep the explicit targetSdk at Play's required level and inspect the generated manifest before rebuilding.
 - [reviews.context column — per-context limit](reviews-context-column.md) — reviews table has context TEXT NOT NULL DEFAULT 'chat'; unique index is (reviewer, receiver, context) not (reviewer, receiver); db:push run via pnpm --filter @workspace/db run push.
-- [pioneer score realtime — incremental recalc](pioneer-score-realtime.md) — formula: referral_count×20 + hub_checkins×2 + chat_connections×5; all three triggers must use COALESCE(…)*2 for checkins; missing *2 was the silent bug.
-- [VerificationBadge — 3-tier peer badge](verification-badge.md) — components/VerificationBadge.tsx; gold★=isPioneer, green✓=trustScore≥250, blue✓=isSubscriber; data comes from getCommunityStanding which now also returns isSubscriber (Plus/Pro active).
+- [Pioneer display policy](pioneer-display-policy.md) — Keep scoring and stored data active while hiding Pioneer UI until the user changes scope.
 - [encounter/connection verified+rating](encounter-verified-rating.md) — verified = photoUri non-empty; averageRating from getCommunityStanding (useQuery, staleTime 5 min, only shown when hasEnough=true); no new DB columns needed.
 - [Lifecycle terminal states vs unique indexes](lifecycle-status-vs-unique-index.md) — soft-terminal statuses that "release" a claim need a PARTIAL unique index, or reclaim fails with 23505; Drizzle puts the code on error.cause
 - [Secret-free e2e admin login](e2e-secret-free-admin-login.md) — have the testing subagent restart the workflow with a throwaway secret override; never pass real secret values into test plans.
@@ -41,7 +40,8 @@
 - [useEffect before query decl](useeffect-before-query.md) — adding useEffect that references a react-query result (selectedApp) before the query hook is declared causes TS2448; always place effects after the query declarations, not alongside handler functions.
 - [Venue owner and branch lifecycles](venue-owner-lifecycle-guard.md) — additional-venue applications must not reopen or downgrade an existing owner's approved lifecycle.
 - [formSheet detent API](formsheet-detent-api.md) — SDK 54 / Expo Router 6 / RN native-stack 7: sheetAllowedDetents: number[] (0-1 fractions), sheetInitialDetentIndex: number, sheetGrabberVisible: bool, sheetExpandsWhenScrolledToEdge: bool. Works on formSheet presentation only.
-- [iOS SIGABRT — EAS Xcode image update](ios-sigabrt-xcode-image.md) — same code, different build, silent crash = EAS updated Xcode image triggering RN TurboModule NSException bug; fix is RCTTurboModule.mm patch via withDangerousMod plugin (NOT patchedDependencies).
+- [Venue presentation consistency](formsheet-header-layout.md) — use the same full-screen QR-style venue page for every entry path; do not restore map-only sheets.
+- [iOS startup SIGABRT causes](ios-sigabrt-xcode-image.md) — distinguish Xcode/TurboModule crashes from Expo Updates ErrorRecovery; compare native dependencies with the last working build.
 - [pnpm patchedDependencies breaks Android prefab CLI](pnpm-patch-hash-prefab-crash.md) — patch_hash= in pnpm paths causes prefab CLI v2.1.0 to abort "no such option"; use withDangerousMod config plugins for RN patches instead.
 - [Apple Sign in button compliance](apple-signin-button.md) — use Expo's native AppleAuthenticationButton; a custom Apple icon/text Pressable can fail App Review Guideline 4.
 - [Venue registration email transport](venue-registration-email.md) — registration links use connected Gmail instead of SMTP; do not fall back to SMTP after an ambiguous send failure.
@@ -60,7 +60,37 @@
 - [Venue QR poster safety](venue-qr-poster.md) — Keep poster styling separate from its check-in URL; preserve the white QR quiet zone and strong contrast.
 - [Venue map category policy](venue-map-category-policy.md) — Google suggests normalized venue types; owner/admin corrections take precedence, and reward/event badges stay separate.
 - [Duplicate React type versions under pnpm](react-types-pnpm.md) — pin app-local React type packages to the versions resolved by third-party declaration files when refs become nominally incompatible.
-- [Hotspot QR strategy](hotspot-qr-strategy.md) — Tourist attractions and city hotspots are QR acquisition locations; prioritize fast check-in across login and installation.
-- [Hotspot install privacy](hotspot-install-privacy.md) — Deferred-install recovery needs approval; preserve printed links/fallback, avoid clipboard/fingerprinting and never guarantee iOS recovery.
+- [Hotspot QR strategy](hotspot-qr-strategy.md) — Support hotspot discovery plus venue-selected open or QR-only check-in rules.
+- [Venue guestbook policy](venue-guestbook-policy.md) — Lasting handwritten notes and visit photos; no expiry, but deletion/moderation still apply and photo checks fail closed.
+- [Verified Explorer eligibility](verified-explorer-policy.md) — Cumulative venue check-ins and positive meeting feedback; QR counts but is not required, and there is no weekly gate.
 - [Event invitation privacy](event-invitation-privacy.md) — Keep invite-only venue links shareable without exposing event details in public previews.
+- [Local reminder inbox timing](local-reminder-inbox.md) — Persist scheduled event reminders ahead of time, but hide them from the inbox until their fire time.
+- [Member activity creation quotas](member-activity-creation-quotas.md) — Free gets 5, Plus 20, and Pro unlimited combined member Plans, Hangouts, and Events monthly; joining stays unlimited.
+- [Event plan conversations](event-plan-conversations.md) — Keep group conversations scoped to community events and separate from Firestore one-to-one chats.
 - [Hangout plan visibility](hangout-plan-visibility.md) — Separate private friend plans from public Hangouts; share private links through the native share sheet, not social APIs.
+- [Event map pin visibility](event-map-pins.md) — show public items broadly, private items only to authorized viewers, and expire pins at the event end.
+- [Expo route typing](expo-route-typing.md) — If new file-based routes remain absent from generated typings, inspect the route union and localize any required navigation cast.
+- [Credential refresh verification](credential-refresh-verification.md) — A confirmed secret or restarted workflow may still expose an old key; validate replacements separately before requesting rotation.
+- [Hotspot install privacy](hotspot-install-privacy.md) — Deferred-install recovery needs approval; preserve printed links/fallback, avoid clipboard/fingerprinting and never guarantee iOS recovery.
+- [Venue outreach usability](venue-outreach-usability.md) — Keep venue worklists simple; separate no-history bounces and require safe manual resolution for ambiguous matches.
+- [Met visual direction](met-visual-direction.md) — Combine Canopy and Apple-inspired with logo-green primary; retain a recognizable, optionally expandable Home map.
+- [Mockup screenshot captures](mockup-screenshot-capture.md) — Use the screenshot endpoint relative to the sandbox preview base for clean, high-resolution exports.
+- [Expo web screenshot capture](expo-web-screenshot-capture.md) — Warm the root demo before routing to a tab and wait for fonts before high-resolution Expo captures.
+- [Canonical privacy policy](privacy-policy-canonical.md) — Serve the public policy from `met-app.org/privacy`; keep app/store links on that route rather than an outdated third-party copy.
+- [PTC callback recovery](ptc-callback-replay.md) — Reissue incomplete callback sequences and keep large transfer batches within PTC memory limits.
+- [PTC network timeout limitation](ptc-network-timeout.md) — CodeExecution may omit AbortSignal; Promise.race timeouts limit waiting but do not cancel a fetch.
+- [Venue outreach deck standard](venue-outreach-deck.md) — Lead with real visitors and repeat visits; tailor the full deck and export at 1920×1080.
+- [Venue prospect source verification](venue-prospect-source-verification.md) — Verify each candidate's official contact and fit evidence independently; host grouping and batch drafts can misassign sources.
+- [Venue outreach retry lineage](venue-outreach-retry-lineage.md) — Auto-clear only explicit retry chains; preserve Gmail notice IDs after removing repeat-bounce rows.
+- [Manual outreach reply audit](manual-reply-audit.md) — Keep admin-confirmed reply events append-only and separate from Gmail reply metadata.
+- [Gmail bounce reconciliation](gmail-bounce-reconciliation.md) — A larger source pool may yield exactly 136 verified matches; keep token size limits aligned across sync and preview.
+- [Large venue campaign reviews](venue-prospect-large-review.md) — Avoid opening review with hundreds selected in browser tests; each prospect mounts an email-preview iframe and can exceed the default test timeout.
+- [Venue reply classification](venue-reply-classification.md) — Classify only matched outreach replies; keep bodies ephemeral and surface unclear replies without forcing intent.
+- [Mockup viewport sizing](mockup-preview-width.md) — Constrain mockup roots and hero grids; intrinsic child width can clip responsive previews.
+- [OpenStreetMap discovery fallback](osm-attraction-fallback.md) — Nationwide Overpass can time out; Nominatim is not a bulk-query substitute, so keep a curated OSM-backed fallback.
+- [Met travel-guide copy](met-travel-guide-copy.md) — Avoid “forever” in destination-guide copy, including headings and snippets.
+- [Hangout host ratings](hangout-host-ratings.md) — Keep feedback event-linked, accepted-guest-only, and aggregate-only; never mix it with community ratings.
+- [Wikimedia Commons image sourcing](wikimedia-image-sourcing.md) — If Commons metadata rate-limits, stop retries; localize known images and retain source, creator, and license credits.
+- [PTC shell command quoting](ptc-shell-command-quoting.md) — Split composite shell commands into simple CodeExecution steps and use ShellExec for local Git work.
+- [React Native mockup layout](rn-dom-adapter-layout.md) — Merge style arrays before applying flex defaults, and convert numeric React Native line heights to CSS pixels.
+- [Expo API codegen and Metro](expo-codegen-metro.md) — If Metro reports a missing generated API module during codegen, restart Expo after generation finishes.

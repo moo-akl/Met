@@ -33,6 +33,37 @@ feature-only patch, use GitHub's Git Data API to create a tree based on current
 `main`, a single commit parented to that head, and a non-forced ref update;
 verify the resulting ref and changed-file list.
 
+For an explicitly authorized broad application-source sync, local and GitHub
+commit IDs may intentionally remain different: publish the reviewed source tree
+as a commit parented to the current remote head rather than uploading local
+checkpoint history. Preserve newer remote release numbers and workflow settings.
+
+**Why:** Local history includes unrelated uploads, generated bundles, and store
+exports. A blind full-history push can publish those files or revert direct
+GitHub release edits even when the application source is ready.
+
+**How to apply:** Review the outgoing path list, exclude local-only exports and
+unrelated artifacts, validate the exact outgoing source, and use a non-forced
+branch update. Compare file trees, not just ahead/behind counts, on later syncs.
+
+When a source-only sync preserves remote package manifests, verify that every
+new external import is declared in the destination package's `package.json`, as
+well as checking the manifest against its `pnpm-lock.yaml` importer. Add only
+required direct dependencies at versions compatible with the destination SDK.
+Keep package snapshots when another importer still uses them.
+
+**Why:** A source-only overlay can introduce an import such as `expo-updates`
+while preserving a newer remote manifest that does not declare it. Local
+typechecking can pass while the GitHub build fails with TS2307. Replacing the
+whole remote lock with the local lock can also introduce unrelated dependency
+updates.
+
+**How to apply:** Review new external imports against the exact destination
+manifest. In a temporary tree of the current remote workspace manifests and
+lockfile, add the required dependency and regenerate only the affected importer.
+Run a filtered frozen-lockfile validation and compare the final tree to ensure
+other importers and release settings remain unchanged before updating `main`.
+
 For native-build verification without release approval, use an isolated branch
 based on current GitHub `main` and dispatch the existing workflow with submission
 explicitly disabled. Regenerate its lockfile against that branch's manifests,
@@ -108,7 +139,9 @@ unpublished local changes rather than the exact code being sent to GitHub.
 
 **How to apply:** Regenerate API libraries from the isolated checkout's own
 specification, build them there, and verify every `@workspace` link resolves
-inside that checkout before testing the outgoing patch.
+inside that checkout before testing the outgoing patch. Use remote-branch
+versions of unchanged imported modules too; local copies may be newer than or
+absent from the target tree.
 
 Audit the outgoing specification diff before accepting regenerated API output.
 For files edited after the original feature commit, compare against that commit
@@ -168,3 +201,65 @@ base64 succeeded with the existing healthy connection.
 **How to apply:** Verify each returned blob SHA against its Git blob hash, then
 create a tree based on the current remote tree and update the ref without force.
 Do not assume a content-dependent rejection means the credential is expired.
+
+Do not mistake GitHub's dynamic `Push on main` CodeQL run for a mobile build or
+deployment. A commit's `[skip ci]` marker can still leave this scan running.
+
+**Why:** A source-only sync triggered default CodeQL analysis despite the skip
+marker; its jobs analyzed Actions and JavaScript/TypeScript, not native apps.
+
+**How to apply:** Inspect the run path and job names before cancelling automatic
+checks. Preserve security scans unless the user also requested no checks; keep
+native build dispatches, build tags, submissions and publishing disabled when
+the user authorized source synchronization only.
+
+Serialize GitHub Contents API reads when downloading many files through the
+connector. Parallel reads can trigger secondary-rate-limit 429 responses even
+when the primary API quota is nearly full; this is not a credential failure.
+
+**Why:** A parallel batch of file reads returned 429 despite thousands of
+remaining core requests, while serial reads with brief pauses succeeded.
+
+**How to apply:** Fetch the branch and tree once, download divergent file blobs
+serially with short backoff, and verify each blob hash against the tree entry.
+
+For larger Git Data API commits, the commit endpoint's `files` list may be
+incomplete through the connector; verify the final recursive tree against the
+outgoing path/SHA manifest before updating a ref.
+
+**Why:** A prepared commit's summary returned fewer changed-file records than
+its recursive tree, even though every outgoing blob was present.
+
+**How to apply:** Compare the recursive tree with the outgoing manifest and
+confirm the branch still points to the expected parent before a non-forced
+ref update.
+
+For large feature-only overlays, do not batch all Git blob contents into one
+shell output or embed large base64 payloads in command arguments.
+
+**Why:** Shell output truncation can silently corrupt later blobs, and large
+command arguments can exceed the process argument-size limit.
+
+**How to apply:** Read Git blobs as binary buffers inside the isolated push
+routine, use temporary files for merges, and upload each verified blob
+sequentially through Git Data API.
+
+When an isolated checkout is needed for validation, use a plain archive of the
+remote ref if `git worktree add` is blocked by Replit's Git safety guard. Do not
+bypass the guard to modify `.git` metadata.
+
+**Why:** Worktree setup changes repository metadata; an archive-based temporary
+tree allows exact-target validation without altering the user's Git state.
+
+**How to apply:** Extract `git archive <remote-ref>` under `/tmp`, overlay the
+reviewed files, install from its frozen lockfile, and run focused checks there.
+
+When comparing recursive Git trees, count changed blob paths separately from
+changed tree objects. A single file edit also changes hashes for each ancestor
+directory.
+
+**Why:** Recursive tree responses include both blobs and directory tree entries,
+so a raw path comparison overcounts changed files.
+
+**How to apply:** Filter both trees to `type: "blob"` before checking the exact
+outgoing file manifest.

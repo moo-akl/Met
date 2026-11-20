@@ -8,3 +8,9 @@ Use a compact set of normalized venue categories suggested by Google Places, wit
 **Why:** The user chose the hybrid approach rather than either Google-only classification or wholly manual classification.
 
 **How to apply:** Keep category symbols distinct from reward/event badges and preserve Met's marker treatment. Existing venues should receive saved suggestions without repeated Places calls on every map load; never replace a manual correction automatically.
+
+Other or uncategorized venues should appear as gold stars, not generic pins. Keep recognized venue-category symbols such as cafés, bars, and restaurants.
+
+**Why:** The user requested gold stars for the other venues on the map, while distinguishing them from the named categories.
+
+**How to apply:** Apply the star treatment to the fallback category, including missing or unrecognized categories; keep navigation and reward/event badges intact.

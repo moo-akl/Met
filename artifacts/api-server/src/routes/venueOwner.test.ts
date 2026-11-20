@@ -734,6 +734,11 @@ describe("membership revocation gates — event, reward, and announcement writes
       card: "postcard",
     },
   };
+  const guestbookStyle = {
+    font: "handwritten",
+    color: "ink",
+    card: "guestbook",
+  } as const;
 
   const validReward = {
     title: "Free Drink",
@@ -832,7 +837,7 @@ describe("membership revocation gates — event, reward, and announcement writes
 
     const response = await request(app)
       .post("/api/venue-owner/me/events")
-      .send(validEvent);
+      .send({ ...validEvent, welcomeNoteStyle: guestbookStyle });
 
     expect(response.status).toBe(201);
     expect(response.body.event).not.toHaveProperty("welcomeNote");
@@ -842,7 +847,7 @@ describe("membership revocation gates — event, reward, and announcement writes
       placeId: "place-1",
       title: validEvent.title,
       welcomeNote: validEvent.welcomeNote,
-      welcomeNoteStyle: validEvent.welcomeNoteStyle,
+      welcomeNoteStyle: guestbookStyle,
       reminderOffsetsHours: [24, 2],
       isPublished: true,
     }));
@@ -884,8 +889,14 @@ describe("membership revocation gates — event, reward, and announcement writes
 
     const update = await request(app)
       .put("/api/venue-owner/me/events/42")
-      .send({ title: validEvent.title });
+      .send({
+        title: validEvent.title,
+        welcomeNoteStyle: guestbookStyle,
+      });
     expect(update.status).toBe(200);
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ welcomeNoteStyle: guestbookStyle }),
+    );
 
     vi.clearAllMocks();
     dbMocks.chain.select.mockReturnThis();
