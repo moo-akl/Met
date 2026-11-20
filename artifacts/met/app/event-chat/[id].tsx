@@ -25,6 +25,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { ChatPhotoBubble } from "@/components/ChatPhotoBubble";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
@@ -1005,58 +1006,54 @@ export default function EventChatScreen() {
                             {item.senderName}
                           </Text>
                         ) : null}
-                        <View
-                          style={[
-                            styles.messageBubble,
-                            item.mediaType === "image" ? styles.messageBubbleImage : null,
-                            {
-                              backgroundColor: isMine ? colors.primary : colors.card,
-                              borderColor: isMine ? colors.primary : colors.border,
-                            },
-                          ]}
-                        >
-                          {item.mediaType === "image" && item.mediaUrl ? (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={t("tabs.events.planChatChoosePhoto")}
-                              onPress={() => setViewerUri(item.mediaUrl)}
-                            >
-                              <Image
-                                source={{ uri: item.mediaUrl }}
-                                contentFit="cover"
-                                style={styles.messageImage}
+                        {item.mediaType === "image" && item.mediaUrl ? (
+                          <ChatPhotoBubble
+                            uri={item.mediaUrl}
+                            caption={item.text || undefined}
+                            accessibilityLabel={t("tabs.events.planChatChoosePhoto")}
+                            imageStyle={styles.messageImage}
+                            onPress={() => setViewerUri(item.mediaUrl)}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.messageBubble,
+                              {
+                                backgroundColor: isMine ? colors.primary : colors.card,
+                                borderColor: isMine ? colors.primary : colors.border,
+                              },
+                            ]}
+                          >
+                            {item.mediaType === "voice" && item.mediaUrl ? (
+                              <VoiceMessagePlayer
+                                uri={item.mediaUrl}
+                                durationMs={item.audioDurationMs}
+                                isMine={isMine}
+                                colors={colors}
                               />
-                            </Pressable>
-                          ) : null}
-                          {item.mediaType === "voice" && item.mediaUrl ? (
-                            <VoiceMessagePlayer
-                              uri={item.mediaUrl}
-                              durationMs={item.audioDurationMs}
-                              isMine={isMine}
-                              colors={colors}
-                            />
-                          ) : null}
-                          {item.mediaType && !item.mediaUrl ? (
-                            <Text
-                              style={[
-                                styles.messageText,
-                                { color: isMine ? colors.primaryForeground : colors.text },
-                              ]}
-                            >
-                              {t("tabs.events.planChatMediaUnavailable")}
-                            </Text>
-                          ) : null}
-                          {item.text ? (
-                            <Text
-                              style={[
-                                styles.messageText,
-                                { color: isMine ? colors.primaryForeground : colors.text },
-                              ]}
-                            >
-                              {item.text}
-                            </Text>
-                          ) : null}
-                        </View>
+                            ) : null}
+                            {item.mediaType && !item.mediaUrl ? (
+                              <Text
+                                style={[
+                                  styles.messageText,
+                                  { color: isMine ? colors.primaryForeground : colors.text },
+                                ]}
+                              >
+                                {t("tabs.events.planChatMediaUnavailable")}
+                              </Text>
+                            ) : null}
+                            {item.text ? (
+                              <Text
+                                style={[
+                                  styles.messageText,
+                                  { color: isMine ? colors.primaryForeground : colors.text },
+                                ]}
+                              >
+                                {item.text}
+                              </Text>
+                            ) : null}
+                          </View>
+                        )}
                         <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
                           {formatMessageTime(item.createdAt)}
                         </Text>
@@ -1326,7 +1323,6 @@ const styles = StyleSheet.create({
   messageContentMine: { alignItems: "flex-end" },
   senderName: { fontSize: 11, marginLeft: 4 },
   messageBubble: { borderWidth: 1, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  messageBubbleImage: { padding: 4, overflow: "hidden" },
   messageImage: { width: 220, height: 190, borderRadius: 13 },
   messageText: { fontSize: 14, lineHeight: 19 },
   voicePlayer: { minWidth: 190, flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 2 },

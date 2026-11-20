@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet } from "react-native";
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 import {
   ChatPhotoBubble,
   ChatPhotoDraftPreview,
@@ -68,8 +68,55 @@ describe("chat photo rendering", () => {
         screen.getByTestId("chat-photo-message-bubble").props.style,
       ).backgroundColor,
     ).toBe("transparent");
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId("chat-photo-message-bubble").props.style,
+      ).borderWidth,
+    ).toBe(0);
     expect(screen.getByTestId("chat-photo-image").props.source)
       .toEqual({ uri: "file:///photo.jpg" });
+  });
+
+  it("uses event-chat photo sizing without adding a colored message frame", async () => {
+    const screen = await render(
+      <ChatPhotoBubble
+        uri="https://example.com/event-photo.jpg"
+        imageStyle={{ width: 220, height: 190, borderRadius: 13 }}
+        accessibilityLabel="Open event photo"
+        onPress={jest.fn()}
+      />,
+    );
+
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId("chat-photo-message-bubble").props.style,
+      ),
+    ).toMatchObject({ backgroundColor: "transparent", borderWidth: 0 });
+    expect(
+      StyleSheet.flatten(screen.getByTestId("chat-photo-image").props.style),
+    ).toMatchObject({ width: 220, height: 190, borderRadius: 13 });
+    expect(
+      screen.getByTestId("chat-photo-message-bubble").props.accessibilityLabel,
+    ).toBe("Open event photo");
+  });
+
+  it("keeps photo tap and long-press actions available", async () => {
+    const onPress = jest.fn();
+    const onLongPress = jest.fn();
+    const screen = await render(
+      <ChatPhotoBubble
+        uri="file:///photo.jpg"
+        onPress={onPress}
+        onLongPress={onLongPress}
+      />,
+    );
+    const bubble = screen.getByTestId("chat-photo-message-bubble");
+
+    await fireEvent.press(bubble);
+    await fireEvent(bubble, "longPress");
+
+    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onLongPress).toHaveBeenCalledTimes(1);
   });
 
   it("uses the card surface for a photo caption, not the green message bubble", async () => {

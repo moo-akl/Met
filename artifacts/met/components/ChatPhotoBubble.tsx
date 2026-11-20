@@ -3,9 +3,11 @@ import { Image } from "expo-image";
 import React from "react";
 import {
   ActivityIndicator,
+  type ImageStyle,
   Pressable,
   StyleSheet,
   Text,
+  type StyleProp,
   View,
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
@@ -24,25 +26,32 @@ export function ChatPhotoBubble({
   caption,
   onPress,
   onLongPress,
+  imageStyle,
+  accessibilityLabel,
 }: {
   uri: string;
   caption?: string;
   onPress: () => void;
-  onLongPress: () => void;
+  onLongPress?: () => void;
+  imageStyle?: StyleProp<ImageStyle>;
+  accessibilityLabel?: string;
 }) {
   const colors = useColors();
+  const { t } = useT();
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? t("chat.photo")}
       onPress={onPress}
       onLongPress={onLongPress}
-      delayLongPress={300}
+      delayLongPress={onLongPress ? 300 : undefined}
       style={styles.photoBubble}
       testID="chat-photo-message-bubble"
     >
       <Image
         source={{ uri }}
-        style={styles.bubbleImage}
+        style={[styles.bubbleImage, imageStyle]}
         contentFit="cover"
         cachePolicy="memory-disk"
         testID="chat-photo-image"
@@ -169,6 +178,7 @@ const styles = StyleSheet.create({
     padding: 0,
     marginBottom: 3,
     backgroundColor: "transparent",
+    borderWidth: 0,
     borderRadius: 16,
     overflow: "hidden",
   },
