@@ -76,7 +76,7 @@ export type VenueCheckinMode = "open" | "qr_only";
 export type EventWelcomeNoteStyle = {
   font: "classic" | "handwritten" | "serif";
   color: "ink" | "forest" | "soft";
-  card: "paper" | "garden" | "postcard";
+  card: "paper" | "garden" | "postcard" | "guestbook";
 };
 
 export const venueOwnerProfilesTable = pgTable(

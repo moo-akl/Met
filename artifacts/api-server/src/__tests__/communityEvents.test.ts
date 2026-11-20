@@ -69,6 +69,11 @@ const CUSTOM_WELCOME_NOTE_STYLE = {
   color: "forest",
   card: "garden",
 };
+const GUESTBOOK_WELCOME_NOTE_STYLE = {
+  font: "handwritten",
+  color: "ink",
+  card: "guestbook",
+};
 const app = express();
 app.use(express.json());
 app.use("/api", eventsRouter);
@@ -882,6 +887,146 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .delete(`/api/community-events/${eventId}/join-requests`)
       .set(uidHeader(OTHER_UID))
       .expect(409);
+  });
+
+  it("queues accepted welcome notes only for active recipients until acknowledged", async () => {
+    const createHangout = async (
+      title: string,
+      welcomeNote: string,
+      placeId: string,
+      welcomeNoteStyle?: typeof GUESTBOOK_WELCOME_NOTE_STYLE,
+    ) => {
+      const created = await request(app)
+        .post("/api/events")
+        .set(uidHeader(OWNER_UID))
+        .send({
+          title,
+          welcomeNote,
+          welcomeNoteStyle,
+          startsAt: new Date(Date.now() + 48 * 60 * 60_000).toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: placeId,
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+          inviteeUids: [],
+        })
+        .expect(201);
+      return created.body.id as number;
+    };
+    const firstEventId = await createHangout(
+      "First accepted Hangout",
+      "The guestbook is by the entrance.",
+      "welcome-queue-first",
+      GUESTBOOK_WELCOME_NOTE_STYLE,
+    );
+    const secondEventId = await createHangout(
+      "Second accepted Hangout",
+      "The garden gate is open.",
+      "welcome-queue-second",
+    );
+
+    const firstRequest = await request(app)
+      .post(`/api/community-events/${firstEventId}/join-requests`)
+      .set(uidHeader(OTHER_UID))
+      .expect(201);
+    const declinedRequest = await request(app)
+      .post(`/api/community-events/${firstEventId}/join-requests`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(201);
+    await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNotes: [] });
+    await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(INVITEE_UID))
+      .expect(200, { welcomeNotes: [] });
+
+    const secondRequest = await request(app)
+      .post(`/api/community-events/${secondEventId}/join-requests`)
+      .set(uidHeader(OTHER_UID))
+      .expect(201);
+    await request(app)
+      .patch(
+        `/api/community-events/${firstEventId}/join-requests/${firstRequest.body.requestId}`,
+      )
+      .set(uidHeader(OWNER_UID))
+      .send({ status: "accepted" })
+      .expect(200);
+    await request(app)
+      .patch(
+        `/api/community-events/${secondEventId}/join-requests/${secondRequest.body.requestId}`,
+      )
+      .set(uidHeader(OWNER_UID))
+      .send({ status: "accepted" })
+      .expect(200);
+    await request(app)
+      .patch(
+        `/api/community-events/${firstEventId}/join-requests/${declinedRequest.body.requestId}`,
+      )
+      .set(uidHeader(OWNER_UID))
+      .send({ status: "declined" })
+      .expect(200);
+
+    const acceptedNotes = await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    expect(acceptedNotes.body.welcomeNotes).toEqual([
+      expect.objectContaining({
+        eventId: firstEventId,
+        eventTitle: "First accepted Hangout",
+        welcomeNote: "The guestbook is by the entrance.",
+        welcomeNoteStyle: GUESTBOOK_WELCOME_NOTE_STYLE,
+        createdAt: expect.any(String),
+      }),
+      expect.objectContaining({
+        eventId: secondEventId,
+        eventTitle: "Second accepted Hangout",
+        welcomeNote: "The garden gate is open.",
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+        createdAt: expect.any(String),
+      }),
+    ]);
+    await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(OWNER_UID))
+      .expect(200, { welcomeNotes: [] });
+    await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(INVITEE_UID))
+      .expect(200, { welcomeNotes: [] });
+    await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(MUTED_UID))
+      .expect(200, { welcomeNotes: [] });
+
+    await request(app)
+      .post(`/api/events/member/${firstEventId}/welcome-note/acknowledge`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { success: true });
+    await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(OTHER_UID))
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.welcomeNotes).toEqual([
+          expect.objectContaining({
+            eventId: secondEventId,
+            welcomeNote: "The garden gate is open.",
+          }),
+        ]);
+      });
+    await request(app)
+      .post(`/api/events/member/${secondEventId}/welcome-note/acknowledge`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { success: true });
+    await request(app)
+      .get("/api/community-events/my-welcome-notes")
+      .set(uidHeader(OTHER_UID))
+      .expect(200, { welcomeNotes: [] });
   });
 
   it("sends one host alert per new request and updates requesters on decisions", async () => {

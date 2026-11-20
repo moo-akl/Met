@@ -215,6 +215,7 @@ export const zh: LocaleTree = {
       welcomeCardPaper: "纸张",
       welcomeCardGarden: "花园",
       welcomeCardPostcard: "明信片",
+      welcomeCardGuestbook: "留言簿",
       details: "详情",
       hangoutDescription: "描述你想做的事情",
       starts: "开始时间",

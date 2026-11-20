@@ -216,6 +216,7 @@ export const vi: LocaleTree = {
       welcomeCardPaper: "Giấy",
       welcomeCardGarden: "Khu vườn",
       welcomeCardPostcard: "Bưu thiếp",
+      welcomeCardGuestbook: "Sổ lưu bút",
       details: "Chi tiết",
       hangoutDescription: "Mô tả điều bạn muốn làm",
       starts: "Bắt đầu",

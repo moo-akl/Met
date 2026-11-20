@@ -129,6 +129,7 @@ import type {
   MarkNotificationReadResult,
   MeetingHostRating,
   MyCommunityEventPlanChatsResponse,
+  MyPendingCommunityEventWelcomeNotesResponse,
   NativeBranchApplicationInput,
   NativeBranchApplicationSubmitted,
   NearbyEntry,
@@ -12405,6 +12406,107 @@ export const useRsvpToEventInvite = <TError = ErrorType<void>,
       > => {
       return useMutation(getRsvpToEventInviteMutationOptions(options), queryClient);
     }
+
+export const getGetMyPendingCommunityEventWelcomeNotesUrl = () => {
+
+
+
+
+  return `/api/community-events/my-welcome-notes`
+}
+
+/**
+ * @summary List the caller's unacknowledged accepted-event welcome notes
+ */
+export const getMyPendingCommunityEventWelcomeNotes = async ( options?: Parameters<typeof customFetch>[1]): Promise<MyPendingCommunityEventWelcomeNotesResponse> => {
+
+  return customFetch<MyPendingCommunityEventWelcomeNotesResponse>(getGetMyPendingCommunityEventWelcomeNotesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyPendingCommunityEventWelcomeNotesQueryKey = () => {
+    return [
+    `/api/community-events/my-welcome-notes`
+    ] as const;
+    }
+
+
+export const getGetMyPendingCommunityEventWelcomeNotesQueryOptions = <TData = Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyPendingCommunityEventWelcomeNotesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>> = ({ signal }) => getMyPendingCommunityEventWelcomeNotes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyPendingCommunityEventWelcomeNotesQueryResult = NonNullable<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>>
+export type GetMyPendingCommunityEventWelcomeNotesQueryError = ErrorType<void>
+
+
+export function useGetMyPendingCommunityEventWelcomeNotes<TData = Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPendingCommunityEventWelcomeNotes<TData = Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPendingCommunityEventWelcomeNotes<TData = Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List the caller's unacknowledged accepted-event welcome notes
+ */
+
+export function useGetMyPendingCommunityEventWelcomeNotes<TData = Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPendingCommunityEventWelcomeNotes>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyPendingCommunityEventWelcomeNotesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getClaimEventWelcomeNoteUrl = (eventType: 'venue' | 'member',
     eventId: number,) => {

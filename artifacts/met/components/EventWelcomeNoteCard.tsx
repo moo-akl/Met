@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useT } from "@/lib/i18n";
@@ -45,6 +45,9 @@ export function EventWelcomeNoteCard({
     : style.font === "serif"
       ? "PlayfairDisplay_400Regular"
       : "Inter_400Regular";
+  const isGuestbook = style.card === "guestbook";
+  const [bodyHeight, setBodyHeight] = useState(54);
+  const ruleCount = Math.max(2, Math.ceil(bodyHeight / 27));
 
   return (
     <View
@@ -61,26 +64,68 @@ export function EventWelcomeNoteCard({
     >
       <View style={styles.headingRow}>
         <View style={[styles.icon, { backgroundColor: card.iconBackground }]}>
-          <Feather name="message-circle" size={18} color={colors.primary} />
+          <Feather
+            name={isGuestbook ? "book-open" : "message-circle"}
+            size={18}
+            color={colors.primary}
+          />
         </View>
         <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
           {title}
         </Text>
       </View>
-      <Text
-        testID={bodyTestID}
-        style={[
-          styles.body,
-          {
-            color: textColor,
-            fontFamily,
-            fontSize: style.font === "handwritten" ? 21 : 15,
-            lineHeight: style.font === "handwritten" ? 27 : 23,
-          },
-        ]}
+      <View
+        style={styles.bodyWrap}
+        onLayout={
+          isGuestbook
+            ? (event) => {
+                const nextHeight = event.nativeEvent.layout.height;
+                setBodyHeight((current) =>
+                  Math.abs(current - nextHeight) > 1 ? nextHeight : current,
+                );
+              }
+            : undefined
+        }
       >
-        {note}
-      </Text>
+        {isGuestbook ? (
+          <View
+            pointerEvents="none"
+            testID={testID ? `${testID}-rules` : undefined}
+            style={StyleSheet.absoluteFill}
+          >
+            {Array.from({ length: ruleCount }, (_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.guestbookRule,
+                  { top: (index + 1) * 27, backgroundColor: colors.border },
+                ]}
+              />
+            ))}
+          </View>
+        ) : null}
+        <Text
+          testID={bodyTestID}
+          style={[
+            styles.body,
+            {
+              color: textColor,
+              fontFamily,
+              fontSize: style.font === "handwritten" ? 21 : 15,
+              lineHeight: style.font === "handwritten" ? 27 : 23,
+              ...(isGuestbook
+                ? {
+                    borderLeftColor: colors.border,
+                    borderLeftWidth: 1,
+                    paddingLeft: 12,
+                  }
+                : {}),
+            },
+          ]}
+        >
+          {note}
+        </Text>
+      </View>
       {dismissLabel ? (
         onDismiss ? (
           <Pressable
@@ -141,6 +186,15 @@ function cardStyles(
       iconBackground: colors.primarySoft,
     };
   }
+  if (card === "guestbook") {
+    return {
+      backgroundColor: colors.card,
+      borderColor: colors.secondaryForeground,
+      borderRadius: 13,
+      borderWidth: 1,
+      iconBackground: colors.primarySoft,
+    };
+  }
   return {
     backgroundColor: colors.card,
     borderColor: colors.border,
@@ -178,6 +232,15 @@ const styles = StyleSheet.create({
   },
   body: {
     minHeight: 44,
+  },
+  bodyWrap: {
+    position: "relative",
+  },
+  guestbookRule: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 1,
   },
   dismiss: {
     minHeight: 46,

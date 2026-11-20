@@ -216,6 +216,7 @@ export const ar: LocaleTree = {
       welcomeCardPaper: "ورق",
       welcomeCardGarden: "حديقة",
       welcomeCardPostcard: "بطاقة بريدية",
+      welcomeCardGuestbook: "دفتر الزوار",
       details: "التفاصيل",
       hangoutDescription: "صف ما تريد فعله",
       starts: "تبدأ",

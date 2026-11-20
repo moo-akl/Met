@@ -97,4 +97,54 @@ describe("EventWelcomeNoteEditor", () => {
       card: "paper",
     });
   });
+
+  it("applies a readable handwritten guestbook style to the live preview", async () => {
+    const onStyleChange = jest.fn();
+    const Harness = () => {
+      const [currentStyle, setCurrentStyle] =
+        useState<EventWelcomeNoteStyle>(style);
+      return (
+        <EventWelcomeNoteEditor
+          value="Welcome. The garden gate is on your left."
+          onChangeText={jest.fn()}
+          style={currentStyle}
+          onStyleChange={(nextStyle) => {
+            onStyleChange(nextStyle);
+            setCurrentStyle(nextStyle);
+          }}
+          colors={colors as ReturnType<typeof useColors>}
+          testIDPrefix="welcome-note"
+        />
+      );
+    };
+    const screen = await render(<Harness />);
+
+    await fireEvent.press(screen.getByTestId("welcome-note-card-guestbook"));
+
+    expect(onStyleChange).toHaveBeenLastCalledWith({
+      font: "handwritten",
+      color: "ink",
+      card: "guestbook",
+    });
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId("welcome-note-preview-body").props.style,
+      ),
+    ).toMatchObject({
+      color: "#111",
+      fontFamily: "Caveat_500Medium",
+      fontSize: 21,
+      lineHeight: 27,
+    });
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId("welcome-note-preview-card").props.style,
+      ),
+    ).toMatchObject({
+      borderColor: "#276238",
+      borderRadius: 13,
+      borderWidth: 1,
+    });
+    expect(screen.getByTestId("welcome-note-preview-card-rules")).toBeTruthy();
+  });
 });

@@ -1759,6 +1759,7 @@ export const EventWelcomeNoteStyleCard = {
   paper: 'paper',
   garden: 'garden',
   postcard: 'postcard',
+  guestbook: 'guestbook',
 } as const;
 
 export interface EventWelcomeNoteStyle {
@@ -2681,6 +2682,20 @@ export interface EventWelcomeNoteClaimResponse {
      */
   welcomeNote: string | null;
   welcomeNoteStyle: EventWelcomeNoteStyle;
+}
+
+export interface PendingCommunityEventWelcomeNote {
+  /** @minimum 1 */
+  eventId: number;
+  eventTitle: string;
+  /** @maxLength 300 */
+  welcomeNote: string;
+  welcomeNoteStyle: EventWelcomeNoteStyle;
+  createdAt: string;
+}
+
+export interface MyPendingCommunityEventWelcomeNotesResponse {
+  welcomeNotes: PendingCommunityEventWelcomeNote[];
 }
 
 export interface EventWelcomeNoteAcknowledgeResponse {

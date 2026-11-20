@@ -218,6 +218,7 @@ export const en = {
       welcomeCardPaper: "Paper",
       welcomeCardGarden: "Garden",
       welcomeCardPostcard: "Postcard",
+      welcomeCardGuestbook: "Guestbook",
       details: "Details",
       hangoutDescription: "Describe What you want to do",
       starts: "Starts",

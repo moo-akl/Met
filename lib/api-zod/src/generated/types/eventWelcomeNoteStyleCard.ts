@@ -13,4 +13,5 @@ export const EventWelcomeNoteStyleCard = {
   paper: 'paper',
   garden: 'garden',
   postcard: 'postcard',
+  guestbook: 'guestbook',
 } as const;

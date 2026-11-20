@@ -3695,7 +3695,7 @@ export const GetVenueOwnerMeEventsResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getVenueOwnerMeEventsResponseEventsItemGalleryPhotosMax).optional(),
@@ -3761,7 +3761,7 @@ export const CreateVenueOwnerMeEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerMeEventBodyGalleryPhotosMax).optional(),
@@ -3800,7 +3800,7 @@ export const CreateVenueOwnerMeEventResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
@@ -3877,7 +3877,7 @@ export const GetVenueOwnerMeEventResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
@@ -3950,7 +3950,7 @@ export const UpdateVenueOwnerMeEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerMeEventBodyGalleryPhotosMax).optional(),
@@ -3989,7 +3989,7 @@ export const UpdateVenueOwnerMeEventResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
@@ -4304,7 +4304,7 @@ export const CreateCommunityEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createCommunityEventBodyGalleryPhotosMax).optional(),
@@ -4853,7 +4853,7 @@ export const GetCommunityEventForEditResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getCommunityEventForEditResponseGalleryPhotosMax).optional(),
@@ -5321,6 +5321,29 @@ export const RsvpToEventInviteResponse = zod.object({
 
 
 /**
+ * @summary List the caller's unacknowledged accepted-event welcome notes
+ */
+
+export const getMyPendingCommunityEventWelcomeNotesResponseWelcomeNotesItemWelcomeNoteMax = 300;
+
+
+
+export const GetMyPendingCommunityEventWelcomeNotesResponse = zod.object({
+  "welcomeNotes": zod.array(zod.object({
+  "eventId": zod.number().int().min(1),
+  "eventTitle": zod.string(),
+  "welcomeNote": zod.string().max(getMyPendingCommunityEventWelcomeNotesResponseWelcomeNotesItemWelcomeNoteMax),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
+}),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Read the caller's pending private event welcome note
  */
 
@@ -5340,7 +5363,7 @@ export const ClaimEventWelcomeNoteResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 })
 })
 
@@ -5417,7 +5440,7 @@ export const UpdateCommunityEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateCommunityEventBodyGalleryPhotosMax).optional(),
@@ -5656,7 +5679,7 @@ export const ListVenueManagerEventsResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(listVenueManagerEventsResponseEventsItemGalleryPhotosMax).optional(),
@@ -5729,7 +5752,7 @@ export const CreateVenueManagerEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueManagerEventBodyGalleryPhotosMax).optional(),
@@ -5768,7 +5791,7 @@ export const CreateVenueManagerEventResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueManagerEventResponseEventGalleryPhotosMax).optional(),
@@ -5843,7 +5866,7 @@ export const UpdateVenueManagerEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueManagerEventBodyGalleryPhotosMax).optional(),
@@ -5882,7 +5905,7 @@ export const UpdateVenueManagerEventResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueManagerEventResponseEventGalleryPhotosMax).optional(),
@@ -6961,7 +6984,7 @@ export const ListAdminManagedEventsResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(listAdminManagedEventsResponseEventsItemGalleryPhotosMax).optional(),
@@ -7021,7 +7044,7 @@ export const CreateAdminManagedEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createAdminManagedEventBodyGalleryPhotosMax).optional(),
@@ -7060,7 +7083,7 @@ export const CreateAdminManagedEventResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createAdminManagedEventResponseEventGalleryPhotosMax).optional(),
@@ -7156,7 +7179,7 @@ export const UpdateAdminManagedEventBody = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateAdminManagedEventBodyGalleryPhotosMax).optional(),
@@ -7195,7 +7218,7 @@ export const UpdateAdminManagedEventResponse = zod.object({
   "welcomeNoteStyle": zod.object({
   "font": zod.enum(['classic', 'handwritten', 'serif']),
   "color": zod.enum(['ink', 'forest', 'soft']),
-  "card": zod.enum(['paper', 'garden', 'postcard'])
+  "card": zod.enum(['paper', 'garden', 'postcard', 'guestbook'])
 }).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateAdminManagedEventResponseEventGalleryPhotosMax).optional(),

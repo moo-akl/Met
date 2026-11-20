@@ -40,6 +40,7 @@ import {
   ChatBannerPayload,
   ChatMessageBanner,
 } from "@/components/ChatMessageBanner";
+import { EventWelcomeNoteReturnVisitController } from "@/components/EventWelcomeNoteReturnVisitController";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { initializeFirestore } from "@/lib/firestore/client";
@@ -760,6 +761,7 @@ export default function RootLayout() {
                   <ProfileGate />
                   <VenueOwnerLifecycleGate />
                   <RootLayoutNav />
+                  <EventWelcomeNoteReturnVisitController />
                   <ChatBannerController
                     pathnameRef={pathnameRef}
                     tappedIdsRef={tappedIdsRef}

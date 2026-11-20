@@ -216,6 +216,7 @@ export const ru: LocaleTree = {
       welcomeCardPaper: "Бумага",
       welcomeCardGarden: "Сад",
       welcomeCardPostcard: "Открытка",
+      welcomeCardGuestbook: "Гостевая книга",
       details: "Подробности",
       hangoutDescription: "Опиши, чем хочешь заняться",
       starts: "Начало",

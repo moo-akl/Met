@@ -28,6 +28,7 @@ export const WELCOME_NOTE_CARDS = [
   { value: "paper", labelKey: "tabs.events.welcomeCardPaper" },
   { value: "garden", labelKey: "tabs.events.welcomeCardGarden" },
   { value: "postcard", labelKey: "tabs.events.welcomeCardPostcard" },
+  { value: "guestbook", labelKey: "tabs.events.welcomeCardGuestbook" },
 ] as const satisfies ReadonlyArray<{
   value: EventWelcomeNoteStyle["card"];
   labelKey: string;

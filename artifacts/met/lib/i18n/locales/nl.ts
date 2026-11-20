@@ -216,6 +216,7 @@ export const nl: LocaleTree = {
       welcomeCardPaper: "Papier",
       welcomeCardGarden: "Tuin",
       welcomeCardPostcard: "Ansichtkaart",
+      welcomeCardGuestbook: "Gastenboek",
       details: "Details",
       hangoutDescription: "Beschrijf wat je wilt doen",
       starts: "Begint",

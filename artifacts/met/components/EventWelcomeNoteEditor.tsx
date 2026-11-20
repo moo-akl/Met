@@ -171,7 +171,16 @@ export function EventWelcomeNoteEditor({
               accessibilityLabel={t(option.labelKey)}
               accessibilityState={{ checked: selected }}
               testID={`${testIDPrefix}-card-${option.value}`}
-              onPress={() => updateStyle("card", option.value)}
+              onPress={() =>
+                option.value === "guestbook"
+                  ? onStyleChange({
+                      ...style,
+                      font: "handwritten",
+                      color: "ink",
+                      card: "guestbook",
+                    })
+                  : updateStyle("card", option.value)
+              }
               style={({ pressed }) => [
                 styles.option,
                 {
@@ -191,7 +200,25 @@ export function EventWelcomeNoteEditor({
                     borderWidth: preview.borderWidth,
                   },
                 ]}
-              />
+              >
+                {option.value === "guestbook" ? (
+                  <View
+                    pointerEvents="none"
+                    testID={`${testIDPrefix}-card-guestbook-rules`}
+                    style={styles.cardSwatchRules}
+                  >
+                    {[0, 1, 2].map((line) => (
+                      <View
+                        key={line}
+                        style={[
+                          styles.cardSwatchRule,
+                          { backgroundColor: preview.borderColor },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+              </View>
               <Text numberOfLines={1} style={[styles.optionText, { color: colors.text }]}>
                 {t(option.labelKey)}
               </Text>
@@ -320,6 +347,18 @@ const styles = StyleSheet.create({
   cardSwatch: {
     width: 24,
     height: 17,
+    overflow: "hidden",
+    position: "relative",
+  },
+  cardSwatchRules: {
+    position: "absolute",
+    top: 3,
+    left: 3,
+    right: 3,
+    gap: 3,
+  },
+  cardSwatchRule: {
+    height: 1,
   },
   preview: {
     gap: 10,

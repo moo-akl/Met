@@ -3558,6 +3558,22 @@ paths:
         "401":
           description: Passcode is incorrect
 
+  /community-events/my-welcome-notes:
+    get:
+      operationId: getMyPendingCommunityEventWelcomeNotes
+      tags: [events]
+      summary: List the caller's unacknowledged accepted-event welcome notes
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Pending welcome notes for accepted community-event join requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyPendingCommunityEventWelcomeNotesResponse"
+        "401": { description: Sign-in required }
+
   /events/{eventType}/{eventId}/welcome-note/claim:
     post:
       operationId: claimEventWelcomeNote
@@ -7668,6 +7684,22 @@ components:
       properties:
         welcomeNote: { type: ["string", "null"], maxLength: 300 }
         welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
+    MyPendingCommunityEventWelcomeNotesResponse:
+      type: object
+      required: [welcomeNotes]
+      properties:
+        welcomeNotes:
+          type: array
+          items: { $ref: "#/components/schemas/PendingCommunityEventWelcomeNote" }
+    PendingCommunityEventWelcomeNote:
+      type: object
+      required: [eventId, eventTitle, welcomeNote, welcomeNoteStyle, createdAt]
+      properties:
+        eventId: { type: integer, minimum: 1 }
+        eventTitle: { type: string }
+        welcomeNote: { type: string, maxLength: 300 }
+        welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
+        createdAt: { type: string, format: date-time }
     EventWelcomeNoteStyle:
       type: object
       required: [font, color, card]
@@ -7675,7 +7707,7 @@ components:
       properties:
         font: { type: string, enum: [classic, handwritten, serif] }
         color: { type: string, enum: [ink, forest, soft] }
-        card: { type: string, enum: [paper, garden, postcard] }
+        card: { type: string, enum: [paper, garden, postcard, guestbook] }
     EventWelcomeNoteAcknowledgeResponse:
       type: object
       required: [success]

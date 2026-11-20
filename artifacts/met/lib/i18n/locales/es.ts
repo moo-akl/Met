@@ -216,6 +216,7 @@ export const es: LocaleTree = {
       welcomeCardPaper: "Papel",
       welcomeCardGarden: "Jardín",
       welcomeCardPostcard: "Postal",
+      welcomeCardGuestbook: "Libro de visitas",
       details: "Detalles",
       hangoutDescription: "Describe qué quieres hacer",
       starts: "Empieza",

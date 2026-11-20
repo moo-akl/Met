@@ -95,6 +95,7 @@ import {
   GetHostPastHangoutsResponse,
   GetMyPastHangoutsResponse,
   GetMyPastMeetingsResponse,
+  GetMyPendingCommunityEventWelcomeNotesResponse,
   CreateCommunityEventPlanChatMediaUploadBody,
   CreateCommunityEventPlanChatMediaUploadResponse,
 } from "@workspace/api-zod";
@@ -1870,6 +1871,90 @@ router.get(
         inviteLinkEnabled: Boolean(event.inviteTokenHash),
         invitePasscodeRequired: Boolean(event.invitePasscodeHash),
       }),
+    );
+  },
+);
+
+router.get(
+  "/community-events/my-welcome-notes",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const deliveries = await db
+      .select({
+        eventId: communityEventsTable.id,
+        eventTitle: communityEventsTable.title,
+        verifiedExplorersOnly: communityEventsTable.verifiedExplorersOnly,
+        welcomeNote: communityEventWelcomeNoteDeliveriesTable.welcomeNote,
+        welcomeNoteStyle:
+          communityEventWelcomeNoteDeliveriesTable.welcomeNoteStyle,
+        createdAt: communityEventWelcomeNoteDeliveriesTable.createdAt,
+      })
+      .from(communityEventWelcomeNoteDeliveriesTable)
+      .innerJoin(
+        communityEventsTable,
+        eq(
+          communityEventsTable.id,
+          communityEventWelcomeNoteDeliveriesTable.eventId,
+        ),
+      )
+      .innerJoin(
+        communityEventJoinRequestsTable,
+        and(
+          eq(
+            communityEventJoinRequestsTable.eventId,
+            communityEventWelcomeNoteDeliveriesTable.eventId,
+          ),
+          eq(
+            communityEventJoinRequestsTable.userUid,
+            communityEventWelcomeNoteDeliveriesTable.userUid,
+          ),
+          eq(communityEventJoinRequestsTable.status, "accepted"),
+        ),
+      )
+      .innerJoin(
+        communityEventRsvpsTable,
+        and(
+          eq(
+            communityEventRsvpsTable.eventId,
+            communityEventWelcomeNoteDeliveriesTable.eventId,
+          ),
+          eq(communityEventRsvpsTable.userUid, uid),
+          inArray(communityEventRsvpsTable.status, ["going", "maybe"]),
+        ),
+      )
+      .where(and(
+        eq(communityEventWelcomeNoteDeliveriesTable.userUid, uid),
+        isNull(communityEventWelcomeNoteDeliveriesTable.claimedAt),
+        isNotNull(communityEventWelcomeNoteDeliveriesTable.welcomeNote),
+        eq(communityEventsTable.isHidden, false),
+        ne(communityEventsTable.ownerUid, uid),
+      ))
+      .orderBy(
+        asc(communityEventWelcomeNoteDeliveriesTable.createdAt),
+        asc(communityEventWelcomeNoteDeliveriesTable.id),
+      );
+
+    const isExplorer = deliveries.some((delivery) =>
+      delivery.verifiedExplorersOnly
+    )
+      ? await isVerifiedExplorer(uid)
+      : false;
+    const welcomeNotes = deliveries
+      .filter((delivery) =>
+        !delivery.verifiedExplorersOnly || isExplorer
+      )
+      .map((delivery) => ({
+        eventId: delivery.eventId,
+        eventTitle: delivery.eventTitle,
+        welcomeNote: delivery.welcomeNote!,
+        welcomeNoteStyle:
+          delivery.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
+        createdAt: delivery.createdAt.toISOString(),
+      }));
+
+    res.json(
+      GetMyPendingCommunityEventWelcomeNotesResponse.parse({ welcomeNotes }),
     );
   },
 );
