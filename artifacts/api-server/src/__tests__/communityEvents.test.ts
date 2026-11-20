@@ -7,6 +7,7 @@ import {
   communityEventJoinRequestsTable,
   communityEventPlanMessagesTable,
   communityEventPlanNotificationPreferencesTable,
+  communityEventWelcomeNoteDeliveriesTable,
   communityEventsTable,
   db,
   eventAttendanceTable,
@@ -58,6 +59,16 @@ const MUTED_UID = `${testPrefix}-muted`;
 const QUOTA_UID = `${testPrefix}-quota-owner`;
 const MIXED_QUOTA_UID = `${testPrefix}-mixed-quota-owner`;
 const RECURRING_QUOTA_UID = `${testPrefix}-recurring-quota-owner`;
+const DEFAULT_WELCOME_NOTE_STYLE = {
+  font: "classic",
+  color: "ink",
+  card: "paper",
+};
+const CUSTOM_WELCOME_NOTE_STYLE = {
+  font: "handwritten",
+  color: "forest",
+  card: "garden",
+};
 const app = express();
 app.use(express.json());
 app.use("/api", eventsRouter);
@@ -646,6 +657,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
         title: "Picnic by the lake",
         description: "Bring a snack and say hello.",
         welcomeNote: "The picnic tables are near the lake.",
+        welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
         startsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
         location: "Lumphini Park",
         locationPlaceId: "hangout-test-place",
@@ -671,6 +683,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
         expect(body).toMatchObject({
           joinApprovalRequired: true,
           welcomeNote: "The picnic tables are near the lake.",
+          welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
         });
       });
 
@@ -703,16 +716,23 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(OTHER_UID))
-      .expect(200, { welcomeNote: null });
+      .expect(200, {
+        welcomeNote: null,
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(INVITEE_UID))
-      .expect(200, { welcomeNote: null });
+      .expect(200, {
+        welcomeNote: null,
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
     const publicManage = await request(app)
       .get(`/api/community-events/${eventId}/manage`)
       .set(uidHeader(OTHER_UID))
       .expect(200);
     expect(publicManage.body).not.toHaveProperty("welcomeNote");
+    expect(publicManage.body).not.toHaveProperty("welcomeNoteStyle");
 
     await request(app)
       .post(`/api/community-events/${eventId}/join-requests`)
@@ -799,14 +819,29 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       myJoinRequestStatus: "accepted",
       myRsvp: "going",
     });
+    await db.update(communityEventsTable)
+      .set({
+        welcomeNoteStyle: {
+          font: "serif",
+          color: "soft",
+          card: "postcard",
+        },
+      })
+      .where(eq(communityEventsTable.id, eventId));
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(OTHER_UID))
-      .expect(200, { welcomeNote: "The picnic tables are near the lake." });
+      .expect(200, {
+        welcomeNote: "The picnic tables are near the lake.",
+        welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
+      });
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(OTHER_UID))
-      .expect(200, { welcomeNote: "The picnic tables are near the lake." });
+      .expect(200, {
+        welcomeNote: "The picnic tables are near the lake.",
+        welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
+      });
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/acknowledge`)
       .set(uidHeader(OTHER_UID))
@@ -818,7 +853,10 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(OTHER_UID))
-      .expect(200, { welcomeNote: null });
+      .expect(200, {
+        welcomeNote: null,
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
     await request(app)
       .get(`/api/community-events/${eventId}/plan-chat`)
       .set(uidHeader(OTHER_UID))
@@ -836,7 +874,10 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(INVITEE_UID))
-      .expect(200, { welcomeNote: null });
+      .expect(200, {
+        welcomeNote: null,
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
     await request(app)
       .delete(`/api/community-events/${eventId}/join-requests`)
       .set(uidHeader(OTHER_UID))
@@ -1484,7 +1525,10 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(INVITEE_UID))
-      .expect(200, { welcomeNote: null });
+      .expect(200, {
+        welcomeNote: null,
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
 
     await request(app)
       .put(`/api/community-events/${eventId}`)
@@ -1506,7 +1550,45 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(INVITEE_UID))
-      .expect(200, { welcomeNote: null });
+      .expect(200, {
+        welcomeNote: null,
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
+  });
+
+  it("uses the classic style when a legacy delivery has no saved style", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Legacy welcome note",
+        startsAt: new Date(Date.now() + 48 * 60 * 60_000).toISOString(),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+        welcomeNote: "Welcome to the plan.",
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ status: "going" })
+      .expect(200);
+    await db.update(communityEventWelcomeNoteDeliveriesTable)
+      .set({ welcomeNoteStyle: null })
+      .where(and(
+        eq(communityEventWelcomeNoteDeliveriesTable.eventId, eventId),
+        eq(communityEventWelcomeNoteDeliveriesTable.userUid, INVITEE_UID),
+      ));
+
+    await request(app)
+      .post(`/api/events/member/${eventId}/welcome-note/claim`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200, {
+        welcomeNote: "Welcome to the plan.",
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
   });
 
   it("shares passcode-protected invite links and grants event access after RSVP", async () => {
@@ -1603,11 +1685,17 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(OTHER_UID))
-      .expect(200, { welcomeNote: "Thanks for joining the plan." });
+      .expect(200, {
+        welcomeNote: "Thanks for joining the plan.",
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(OTHER_UID))
-      .expect(200, { welcomeNote: "Thanks for joining the plan." });
+      .expect(200, {
+        welcomeNote: "Thanks for joining the plan.",
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/acknowledge`)
       .set(uidHeader(OTHER_UID))
@@ -1615,7 +1703,10 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .post(`/api/events/member/${eventId}/welcome-note/claim`)
       .set(uidHeader(OTHER_UID))
-      .expect(200, { welcomeNote: null });
+      .expect(200, {
+        welcomeNote: null,
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+      });
 
     const recipientDetails = await request(app)
       .get(`/api/events/member/${eventId}`)

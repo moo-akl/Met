@@ -3692,6 +3692,11 @@ export const GetVenueOwnerMeEventsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(getVenueOwnerMeEventsResponseEventsItemWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getVenueOwnerMeEventsResponseEventsItemGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(getVenueOwnerMeEventsResponseEventsItemContactPhoneMax).nullish(),
@@ -3753,6 +3758,11 @@ export const CreateVenueOwnerMeEventBody = zod.object({
   "title": zod.string().min(1).max(createVenueOwnerMeEventBodyTitleMax),
   "description": zod.string().max(createVenueOwnerMeEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(createVenueOwnerMeEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerMeEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueOwnerMeEventBodyContactPhoneMax).nullish(),
@@ -3787,6 +3797,11 @@ export const CreateVenueOwnerMeEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(createVenueOwnerMeEventResponseEventWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueOwnerMeEventResponseEventContactPhoneMax).nullish(),
@@ -3859,6 +3874,11 @@ export const GetVenueOwnerMeEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(getVenueOwnerMeEventResponseEventWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(getVenueOwnerMeEventResponseEventContactPhoneMax).nullish(),
@@ -3927,6 +3947,11 @@ export const UpdateVenueOwnerMeEventBody = zod.object({
   "title": zod.string().min(1).max(updateVenueOwnerMeEventBodyTitleMax).optional(),
   "description": zod.string().max(updateVenueOwnerMeEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(updateVenueOwnerMeEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerMeEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueOwnerMeEventBodyContactPhoneMax).nullish(),
@@ -3961,6 +3986,11 @@ export const UpdateVenueOwnerMeEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(updateVenueOwnerMeEventResponseEventWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueOwnerMeEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueOwnerMeEventResponseEventContactPhoneMax).nullish(),
@@ -4271,6 +4301,11 @@ export const CreateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(createCommunityEventBodyTitleMax),
   "description": zod.string().max(createCommunityEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(createCommunityEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createCommunityEventBodyGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
@@ -4815,6 +4850,11 @@ export const GetCommunityEventForEditResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(getCommunityEventForEditResponseWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(getCommunityEventForEditResponseGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
@@ -5296,7 +5336,12 @@ export const claimEventWelcomeNoteResponseWelcomeNoteMax = 300;
 
 
 export const ClaimEventWelcomeNoteResponse = zod.object({
-  "welcomeNote": zod.string().max(claimEventWelcomeNoteResponseWelcomeNoteMax).nullable()
+  "welcomeNote": zod.string().max(claimEventWelcomeNoteResponseWelcomeNoteMax).nullable(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+})
 })
 
 
@@ -5369,6 +5414,11 @@ export const UpdateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(updateCommunityEventBodyTitleMax),
   "description": zod.string().max(updateCommunityEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(updateCommunityEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateCommunityEventBodyGalleryPhotosMax).optional(),
   "repeatFrequency": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
@@ -5603,6 +5653,11 @@ export const ListVenueManagerEventsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(listVenueManagerEventsResponseEventsItemWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(listVenueManagerEventsResponseEventsItemGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(listVenueManagerEventsResponseEventsItemContactPhoneMax).nullish(),
@@ -5671,6 +5726,11 @@ export const CreateVenueManagerEventBody = zod.object({
   "title": zod.string().min(1).max(createVenueManagerEventBodyTitleMax),
   "description": zod.string().max(createVenueManagerEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(createVenueManagerEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueManagerEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueManagerEventBodyContactPhoneMax).nullish(),
@@ -5705,6 +5765,11 @@ export const CreateVenueManagerEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(createVenueManagerEventResponseEventWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createVenueManagerEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createVenueManagerEventResponseEventContactPhoneMax).nullish(),
@@ -5775,6 +5840,11 @@ export const UpdateVenueManagerEventBody = zod.object({
   "title": zod.string().min(1).max(updateVenueManagerEventBodyTitleMax).optional(),
   "description": zod.string().max(updateVenueManagerEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(updateVenueManagerEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueManagerEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueManagerEventBodyContactPhoneMax).nullish(),
@@ -5809,6 +5879,11 @@ export const UpdateVenueManagerEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(updateVenueManagerEventResponseEventWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateVenueManagerEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateVenueManagerEventResponseEventContactPhoneMax).nullish(),
@@ -6883,6 +6958,11 @@ export const ListAdminManagedEventsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(listAdminManagedEventsResponseEventsItemWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(listAdminManagedEventsResponseEventsItemGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(listAdminManagedEventsResponseEventsItemContactPhoneMax).nullish(),
@@ -6938,6 +7018,11 @@ export const CreateAdminManagedEventBody = zod.object({
   "title": zod.string().min(1).max(createAdminManagedEventBodyTitleMax),
   "description": zod.string().max(createAdminManagedEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(createAdminManagedEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createAdminManagedEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createAdminManagedEventBodyContactPhoneMax).nullish(),
@@ -6972,6 +7057,11 @@ export const CreateAdminManagedEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(createAdminManagedEventResponseEventWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(createAdminManagedEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(createAdminManagedEventResponseEventContactPhoneMax).nullish(),
@@ -7063,6 +7153,11 @@ export const UpdateAdminManagedEventBody = zod.object({
   "title": zod.string().min(1).max(updateAdminManagedEventBodyTitleMax).optional(),
   "description": zod.string().max(updateAdminManagedEventBodyDescriptionMax).nullish(),
   "welcomeNote": zod.string().max(updateAdminManagedEventBodyWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateAdminManagedEventBodyGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateAdminManagedEventBodyContactPhoneMax).nullish(),
@@ -7097,6 +7192,11 @@ export const UpdateAdminManagedEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "welcomeNote": zod.string().max(updateAdminManagedEventResponseEventWelcomeNoteMax).nullish(),
+  "welcomeNoteStyle": zod.object({
+  "font": zod.enum(['classic', 'handwritten', 'serif']),
+  "color": zod.enum(['ink', 'forest', 'soft']),
+  "card": zod.enum(['paper', 'garden', 'postcard'])
+}).optional(),
   "imageUrl": zod.string().url().nullish(),
   "galleryPhotos": zod.array(zod.string().url()).max(updateAdminManagedEventResponseEventGalleryPhotosMax).optional(),
   "contactPhone": zod.string().max(updateAdminManagedEventResponseEventContactPhoneMax).nullish(),

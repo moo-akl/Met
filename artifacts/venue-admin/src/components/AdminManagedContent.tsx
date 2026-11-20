@@ -9,8 +9,9 @@ import {
   type VenueManagerEvent, type VenueManagerEventInput, type VenueManagerReward, type VenueManagerRewardInput,
   type VenueManagerAnnouncement, type AdminManagedAnnouncementInput,
   prepareAdminManagedImage, confirmAdminManagedImage,
+  type EventWelcomeNoteStyle,
 } from "@workspace/api-client-react";
-import { CalendarDays, Gift, Megaphone, Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { CalendarDays, Gift, Megaphone, Plus, Pencil, Trash2, RefreshCw, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -36,6 +37,122 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
 
 function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return <div className="space-y-1.5"><Label htmlFor={id}>{label}</Label>{children}</div>;
+}
+
+const DEFAULT_EVENT_WELCOME_NOTE_STYLE: EventWelcomeNoteStyle = {
+  font: "classic",
+  color: "ink",
+  card: "paper",
+};
+
+function EventWelcomeNoteStyleFields({
+  note,
+  style,
+  onChange,
+}: {
+  note: string;
+  style: EventWelcomeNoteStyle;
+  onChange: (style: EventWelcomeNoteStyle) => void;
+}) {
+  const cardSurface = style.card === "garden"
+    ? { backgroundColor: "#E8F5E5", borderColor: "#E8F5E5", borderRadius: 24, borderWidth: 1, iconBackground: "#FFFFFF" }
+    : style.card === "postcard"
+      ? { backgroundColor: "#FFFFFF", borderColor: "#166534", borderRadius: 8, borderWidth: 2, iconBackground: "#E8F5E5" }
+      : { backgroundColor: "#FFFFFF", borderColor: "#E2EAE0", borderRadius: 18, borderWidth: 1, iconBackground: "#E8F5E5" };
+  const textColor = style.color === "forest"
+    ? "#166534"
+    : style.color === "soft"
+      ? "#68776C"
+      : "#19351F";
+  const fontFamily = style.font === "handwritten"
+    ? "Caveat, cursive"
+    : style.font === "serif"
+      ? '"Playfair Display", serif'
+      : "Inter, sans-serif";
+  const update = <K extends keyof EventWelcomeNoteStyle>(
+    key: K,
+    value: EventWelcomeNoteStyle[K],
+  ) => onChange({ ...style, [key]: value });
+
+  return <fieldset className="space-y-3 rounded-md border p-3">
+    <legend className="px-1 text-sm font-medium">Welcome note style</legend>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <Field id="event-welcome-note-font" label="Font">
+        <select
+          id="event-welcome-note-font"
+          data-testid="event-welcome-note-font"
+          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          value={style.font}
+          onChange={(event) => update("font", event.target.value as EventWelcomeNoteStyle["font"])}
+        >
+          <option value="classic">Classic</option>
+          <option value="handwritten">Handwritten</option>
+          <option value="serif">Serif</option>
+        </select>
+      </Field>
+      <Field id="event-welcome-note-color" label="Text color">
+        <select
+          id="event-welcome-note-color"
+          data-testid="event-welcome-note-color"
+          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          value={style.color}
+          onChange={(event) => update("color", event.target.value as EventWelcomeNoteStyle["color"])}
+        >
+          <option value="ink">Ink</option>
+          <option value="forest">Forest</option>
+          <option value="soft">Soft</option>
+        </select>
+      </Field>
+      <Field id="event-welcome-note-card" label="Card">
+        <select
+          id="event-welcome-note-card"
+          data-testid="event-welcome-note-card"
+          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          value={style.card}
+          onChange={(event) => update("card", event.target.value as EventWelcomeNoteStyle["card"])}
+        >
+          <option value="paper">Paper</option>
+          <option value="garden">Garden</option>
+          <option value="postcard">Postcard</option>
+        </select>
+      </Field>
+    </div>
+    <div
+      aria-label="Guest preview"
+      className="grid w-full max-w-[420px] gap-3.5 border p-5"
+      data-testid="preview-event-welcome-note"
+      role="group"
+      style={{
+        backgroundColor: cardSurface.backgroundColor,
+        borderColor: cardSurface.borderColor,
+        borderRadius: cardSurface.borderRadius,
+        borderWidth: cardSurface.borderWidth,
+      }}
+    >
+      <div className="flex items-center gap-3 text-lg font-bold leading-6 text-foreground">
+        <span
+          aria-hidden="true"
+          className="grid h-[42px] w-[42px] place-items-center rounded-tl-2xl rounded-br-[14px]"
+          style={{ backgroundColor: cardSurface.iconBackground }}
+        >
+          <MessageCircle size={18} color="#3DCC44" />
+        </span>
+        <strong>A note from the host</strong>
+      </div>
+      <p
+        className="m-0 min-h-11 whitespace-pre-wrap break-words"
+        data-testid="preview-event-welcome-note-body"
+        style={{
+          color: textColor,
+          fontFamily,
+          fontSize: style.font === "handwritten" ? 21 : 15,
+          lineHeight: style.font === "handwritten" ? "27px" : "23px",
+        }}
+      >
+        {note.trim() || "Your welcome note will appear here."}
+      </p>
+    </div>
+  </fieldset>;
 }
 
 function CollectionState({ loading, error, retry, empty, children }: { loading: boolean; error: boolean; retry: () => void; empty: boolean; children: ReactNode }) {
@@ -98,9 +215,9 @@ function ImageField({ id, value, profileId, onChange, onUploadingChange }: {
   </div>;
 }
 
-type EventDraft = { title: string; description: string; welcomeNote: string; galleryPhotos: string[]; startsAt: string; endsAt: string; capacityLimit: string; isPublished: boolean };
-const emptyEvent: EventDraft = { title: "", description: "", welcomeNote: "", galleryPhotos: [], startsAt: "", endsAt: "", capacityLimit: "", isPublished: false };
-const eventDraft = (item: VenueManagerEvent): EventDraft => ({ title: item.title, description: item.description ?? "", welcomeNote: item.welcomeNote ?? "", galleryPhotos: item.galleryPhotos?.length ? item.galleryPhotos : item.imageUrl ? [item.imageUrl] : [], startsAt: localDate(item.startsAt), endsAt: localDate(item.endsAt), capacityLimit: item.capacityLimit?.toString() ?? "", isPublished: item.isPublished });
+type EventDraft = { title: string; description: string; welcomeNote: string; welcomeNoteStyle: EventWelcomeNoteStyle; galleryPhotos: string[]; startsAt: string; endsAt: string; capacityLimit: string; isPublished: boolean };
+const emptyEvent: EventDraft = { title: "", description: "", welcomeNote: "", welcomeNoteStyle: DEFAULT_EVENT_WELCOME_NOTE_STYLE, galleryPhotos: [], startsAt: "", endsAt: "", capacityLimit: "", isPublished: false };
+const eventDraft = (item: VenueManagerEvent): EventDraft => ({ title: item.title, description: item.description ?? "", welcomeNote: item.welcomeNote ?? "", welcomeNoteStyle: item.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE, galleryPhotos: item.galleryPhotos?.length ? item.galleryPhotos : item.imageUrl ? [item.imageUrl] : [], startsAt: localDate(item.startsAt), endsAt: localDate(item.endsAt), capacityLimit: item.capacityLimit?.toString() ?? "", isPublished: item.isPublished });
 
 function Events({ profileId }: { profileId: number }) {
   const { toast } = useToast();
@@ -121,7 +238,7 @@ function Events({ profileId }: { profileId: number }) {
     if (uploading) return;
     if (draft.endsAt && new Date(draft.endsAt) <= new Date(draft.startsAt)) { toast({ variant: "destructive", title: "End must be after start" }); return; }
     const galleryPhotos = draft.galleryPhotos.filter(Boolean);
-    const data: VenueManagerEventInput = { title: draft.title.trim(), description: optional(draft.description), welcomeNote: optional(draft.welcomeNote), imageUrl: galleryPhotos[0] ?? null, galleryPhotos, startsAt: isoDate(draft.startsAt), endsAt: draft.endsAt ? isoDate(draft.endsAt) : null, capacityLimit: draft.capacityLimit ? Number(draft.capacityLimit) : null, isPublished: draft.isPublished };
+    const data: VenueManagerEventInput = { title: draft.title.trim(), description: optional(draft.description), welcomeNote: optional(draft.welcomeNote), welcomeNoteStyle: draft.welcomeNoteStyle, imageUrl: galleryPhotos[0] ?? null, galleryPhotos, startsAt: isoDate(draft.startsAt), endsAt: draft.endsAt ? isoDate(draft.endsAt) : null, capacityLimit: draft.capacityLimit ? Number(draft.capacityLimit) : null, isPublished: draft.isPublished };
     try {
       if (editing === "new") await create.mutateAsync({ id: profileId, data });
       else if (typeof editing === "number") await update.mutateAsync({ id: profileId, eventId: editing, data });
@@ -173,11 +290,12 @@ function Events({ profileId }: { profileId: number }) {
             )}
           </div>
         </Field>
-        <div className="rounded-md border bg-muted/20 p-3" data-testid="preview-event-welcome-note">
-          <p className="mb-1 text-xs font-medium text-muted-foreground">Guest preview</p>
-          <p className="text-sm">{draft.welcomeNote.trim() || "Your welcome note will appear here."}</p>
-          <p className="mt-2 text-xs text-muted-foreground">Shown once in a private in-app card after a guest joins. No notification is sent.</p>
-        </div>
+        <p className="text-xs text-muted-foreground">Shown once in a private in-app card after a guest joins. No notification is sent.</p>
+        <EventWelcomeNoteStyleFields
+          note={draft.welcomeNote}
+          style={draft.welcomeNoteStyle}
+          onChange={(welcomeNoteStyle) => set("welcomeNoteStyle", welcomeNoteStyle)}
+        />
         <div className="space-y-3">
           <p className="text-sm font-medium">Event photos (up to 10)</p>
           {draft.galleryPhotos.map((photo, index) => (

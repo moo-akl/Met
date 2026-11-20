@@ -56,6 +56,10 @@ jest.mock("@/contexts/ThemeContext", () => ({
   useTheme: () => ({ isDark: false }),
 }));
 
+jest.mock("@/lib/i18n", () => ({
+  useT: () => ({ lang: "en", t: (key: string) => key }),
+}));
+
 jest.mock("@/hooks/useColors", () => ({
   useColors: () => ({
     background: "#fbfcf8",
@@ -69,6 +73,7 @@ jest.mock("@/hooks/useColors", () => ({
     primary: "#3dcc44",
     primaryForeground: "#19351f",
     primarySoft: "#e8f5e5",
+    secondaryForeground: "#276238",
     destructive: "#ef4444",
   }),
 }));
@@ -148,6 +153,15 @@ describe("VenueOwnerEventForm", () => {
     await fireEvent.press(screen.getByTestId("venue-event-welcome-note-clear"));
     expect(welcomeNoteInput.props.value).toBe("");
     await fireEvent.changeText(welcomeNoteInput, "Welcome to the opening night!");
+    await fireEvent.press(
+      screen.getByTestId("venue-event-welcome-note-font-handwritten"),
+    );
+    await fireEvent.press(
+      screen.getByTestId("venue-event-welcome-note-color-forest"),
+    );
+    await fireEvent.press(
+      screen.getByTestId("venue-event-welcome-note-card-garden"),
+    );
     await fireEvent.press(screen.getByTestId("venue-event-save"));
 
     await waitFor(() => {
@@ -159,6 +173,11 @@ describe("VenueOwnerEventForm", () => {
           reminderOffsetsHours: [24, 2],
           websiteUrl: "https://met-app.org/events",
           welcomeNote: "Welcome to the opening night!",
+          welcomeNoteStyle: {
+            font: "handwritten",
+            color: "forest",
+            card: "garden",
+          },
         }),
       });
     });
@@ -184,6 +203,7 @@ describe("VenueOwnerEventForm", () => {
         reminderOffsetsHours: [24, 2],
         isPublished: false,
         visibility: "public",
+        welcomeNoteStyle: null,
       },
     };
 
@@ -199,6 +219,11 @@ describe("VenueOwnerEventForm", () => {
           isPublished: false,
           startsAt,
           websiteUrl: "https://met-app.org/events",
+          welcomeNoteStyle: {
+            font: "classic",
+            color: "ink",
+            card: "paper",
+          },
         }),
       });
     });

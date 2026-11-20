@@ -27,10 +27,16 @@ import { api, ApiError } from "@/lib/api/client";
 import { getAppCheckToken } from "@/lib/firestore/client";
 import { buildEventDetailsUrl } from "@/lib/eventLinks";
 import EventFollowThroughActions from "@/components/EventFollowThroughActions";
+import { EventWelcomeNoteCard } from "@/components/EventWelcomeNoteCard";
 import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
 import { EventReviewSection } from "@/components/EventReviewSection";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
+import {
+  DEFAULT_EVENT_WELCOME_NOTE_STYLE,
+  resolveEventWelcomeNoteStyle,
+} from "@/lib/eventWelcomeNoteStyle";
+import type { EventWelcomeNoteStyle } from "@workspace/api-client-react";
 import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
 import {
   getActiveVenueBusinessHeaders,
@@ -93,6 +99,9 @@ export default function EventDetailsScreen() {
   const [checkinPending, setCheckinPending] = useState(false);
   const [startedEventKey, setStartedEventKey] = useState("");
   const [welcomeNote, setWelcomeNote] = useState<string | null>(null);
+  const [welcomeNoteStyle, setWelcomeNoteStyle] = useState<EventWelcomeNoteStyle>(
+    DEFAULT_EVENT_WELCOME_NOTE_STYLE,
+  );
   const [welcomeNoteVisible, setWelcomeNoteVisible] = useState(false);
   const welcomeNoteClaimedKey = useRef<string | null>(null);
   const welcomeNoteDisplayTarget = useRef<{
@@ -250,7 +259,10 @@ export default function EventDetailsScreen() {
       for (let attempt = 0; attempt < WELCOME_NOTE_CLAIM_ATTEMPTS; attempt += 1) {
         if (cancelled) return;
         try {
-          const { welcomeNote: note } = await claimEventWelcomeNote.mutateAsync({
+          const {
+            welcomeNote: note,
+            welcomeNoteStyle: noteStyle,
+          } = await claimEventWelcomeNote.mutateAsync({
             eventType: welcomeNoteEventType,
             eventId: welcomeNoteEventId,
           });
@@ -264,6 +276,7 @@ export default function EventDetailsScreen() {
               eventId: welcomeNoteEventId,
             };
             setWelcomeNote(note);
+            setWelcomeNoteStyle(resolveEventWelcomeNoteStyle(noteStyle));
             setWelcomeNoteVisible(true);
           }
           return;
@@ -1431,39 +1444,22 @@ export default function EventDetailsScreen() {
           <View
             accessibilityViewIsModal
             testID="event-welcome-note-card"
-            style={[
-              styles.welcomeModalCard,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
+            style={styles.welcomeModalCard}
           >
-            <View style={[styles.welcomeModalIcon, { backgroundColor: colors.primarySoft }]}>
-              <Feather name="message-circle" size={20} color={colors.primary} />
-            </View>
-            <Text accessibilityRole="header" style={[styles.welcomeModalTitle, { color: colors.text }]}>
-              {t("tabs.events.welcomeCardTitle")}
-            </Text>
-            <Text testID="event-welcome-note-body" style={[styles.welcomeModalBody, { color: colors.text }]}>
-              {welcomeNote}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              testID="event-welcome-note-dismiss"
-              onPress={() => {
+            <EventWelcomeNoteCard
+              note={welcomeNote ?? ""}
+              style={welcomeNoteStyle}
+              colors={colors}
+              title={t("tabs.events.welcomeCardTitle")}
+              dismissLabel={t("tabs.events.welcomeCardDismiss")}
+              testID="event-welcome-note-style-card"
+              bodyTestID="event-welcome-note-body"
+              dismissTestID="event-welcome-note-dismiss"
+              onDismiss={() => {
                 setWelcomeNoteVisible(false);
                 setWelcomeNote(null);
               }}
-              style={({ pressed }) => [
-                styles.welcomeModalDismiss,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: pressed ? 0.82 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.welcomeModalDismissText, { color: colors.primaryForeground }]}>
-                {t("tabs.events.welcomeCardDismiss")}
-              </Text>
-            </Pressable>
+            />
           </View>
         </View>
       </Modal>
@@ -1607,30 +1603,5 @@ const styles = StyleSheet.create({
   welcomeModalCard: {
     width: "100%",
     maxWidth: 420,
-    borderWidth: 1,
-    borderTopLeftRadius: 30,
-    borderBottomRightRadius: 24,
-    padding: 22,
-    gap: 13,
   },
-  welcomeModalIcon: {
-    width: 46,
-    height: 46,
-    borderTopLeftRadius: 18,
-    borderBottomRightRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  welcomeModalTitle: { fontSize: 20, fontWeight: "700", lineHeight: 26 },
-  welcomeModalBody: { fontSize: 15, lineHeight: 23 },
-  welcomeModalDismiss: {
-    minHeight: 48,
-    borderTopLeftRadius: 24,
-    borderBottomRightRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    marginTop: 3,
-  },
-  welcomeModalDismissText: { fontSize: 14, fontWeight: "700" },
 });

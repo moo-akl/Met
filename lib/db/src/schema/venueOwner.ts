@@ -73,6 +73,12 @@ export type VenueCategory = (typeof venueCategories)[number];
 
 export type VenueCheckinMode = "open" | "qr_only";
 
+export type EventWelcomeNoteStyle = {
+  font: "classic" | "handwritten" | "serif";
+  color: "ink" | "forest" | "soft";
+  card: "paper" | "garden" | "postcard";
+};
+
 export const venueOwnerProfilesTable = pgTable(
   "venue_owner_profiles",
   {
@@ -357,6 +363,7 @@ export const venueEventsTable = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     welcomeNote: text("welcome_note"),
+    welcomeNoteStyle: jsonb("welcome_note_style").$type<EventWelcomeNoteStyle>(),
     /** Cover image URL (Firebase Storage). */
     imageUrl: text("image_url"),
     /** Uploaded event gallery photos; imageUrl remains the first-photo compatibility field. */
@@ -472,6 +479,7 @@ export const venueEventWelcomeNoteDeliveriesTable = pgTable(
       .references(() => venueEventsTable.id, { onDelete: "cascade" }),
     userUid: text("user_uid").notNull(),
     welcomeNote: text("welcome_note"),
+    welcomeNoteStyle: jsonb("welcome_note_style").$type<EventWelcomeNoteStyle>(),
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -498,6 +506,7 @@ export const communityEventsTable = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     welcomeNote: text("welcome_note"),
+    welcomeNoteStyle: jsonb("welcome_note_style").$type<EventWelcomeNoteStyle>(),
     imageUrl: text("image_url"),
     contactPhone: text("contact_phone"),
     websiteUrl: text("website_url"),
@@ -668,6 +677,7 @@ export const communityEventWelcomeNoteDeliveriesTable = pgTable(
       .references(() => communityEventsTable.id, { onDelete: "cascade" }),
     userUid: text("user_uid").notNull(),
     welcomeNote: text("welcome_note"),
+    welcomeNoteStyle: jsonb("welcome_note_style").$type<EventWelcomeNoteStyle>(),
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

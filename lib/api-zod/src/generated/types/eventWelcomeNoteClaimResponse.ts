@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { EventWelcomeNoteStyle } from './eventWelcomeNoteStyle';
 
 export interface EventWelcomeNoteClaimResponse {
   /**
@@ -12,4 +13,5 @@ export interface EventWelcomeNoteClaimResponse {
      * @nullable
      */
   welcomeNote: string | null;
+  welcomeNoteStyle: EventWelcomeNoteStyle;
 }

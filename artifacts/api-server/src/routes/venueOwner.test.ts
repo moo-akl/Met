@@ -728,6 +728,11 @@ describe("membership revocation gates — event, reward, and announcement writes
     title: "Friday Night Social",
     startsAt: futureIso,
     welcomeNote: "Welcome to Friday night.",
+    welcomeNoteStyle: {
+      font: "serif",
+      color: "soft",
+      card: "postcard",
+    },
   };
 
   const validReward = {
@@ -767,7 +772,12 @@ describe("membership revocation gates — event, reward, and announcement writes
     // Make the insert chain work: values() must return `this` so .returning() is reachable.
     dbMocks.chain.values.mockReturnThis();
     dbMocks.chain.returning.mockReset();
-    dbMocks.chain.returning.mockResolvedValue([{ id: 42, title: "test" }]);
+    dbMocks.chain.returning.mockResolvedValue([{
+      id: 42,
+      title: "test",
+      welcomeNote: validEvent.welcomeNote,
+      welcomeNoteStyle: validEvent.welcomeNoteStyle,
+    }]);
   }
 
   /**
@@ -826,11 +836,13 @@ describe("membership revocation gates — event, reward, and announcement writes
 
     expect(response.status).toBe(201);
     expect(response.body.event).not.toHaveProperty("welcomeNote");
+    expect(response.body.event).not.toHaveProperty("welcomeNoteStyle");
     expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
       ownerUid: "venue-owner-uid",
       placeId: "place-1",
       title: validEvent.title,
       welcomeNote: validEvent.welcomeNote,
+      welcomeNoteStyle: validEvent.welcomeNoteStyle,
       reminderOffsetsHours: [24, 2],
       isPublished: true,
     }));

@@ -7,6 +7,7 @@
  */
 import type { CommunityEventInputRepeatFrequency } from './communityEventInputRepeatFrequency';
 import type { CommunityEventInputVisibility } from './communityEventInputVisibility';
+import type { EventWelcomeNoteStyle } from './eventWelcomeNoteStyle';
 
 export interface CommunityEventInput {
   /**
@@ -24,6 +25,7 @@ export interface CommunityEventInput {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */

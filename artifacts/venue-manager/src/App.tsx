@@ -34,6 +34,7 @@ import {
   type VenueManagerEvent,
   type VenueManagerEventList,
   type VenueManagerEventInput,
+  type EventWelcomeNoteStyle,
   type VenueManagerEventUpdate,
   type VenueManagerAnnouncementList,
   type VenueManagerAnnouncementInput,
@@ -50,6 +51,10 @@ import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, C
 import { normalizeVenuePlaceSearchResult, type PlaceResult, type VenuePlaceSearchItem } from "./lib/venuePlaceSearch";
 import { createPosterExportBlob, downloadBlob } from "./lib/posterExport";
 import { VenueQrPosterEditor, type VenueQrPosterDesign as PosterDesign } from "./components/VenueQrPosterEditor";
+import {
+  DEFAULT_EVENT_WELCOME_NOTE_STYLE,
+  EventWelcomeNoteStyleFields,
+} from "./components/EventWelcomeNoteStyleFields";
 import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
 import {
   countVenueEventRsvps,
@@ -1967,6 +1972,9 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
   const [visibility, setVisibility] = useState<"public" | "invite_only">(event?.visibility ?? "public");
   const [reminderOffsetsHours, setReminderOffsetsHours] = useState<ReminderOffsetHours[]>(event?.reminderOffsetsHours ?? [24, 2]);
   const [welcomeNote, setWelcomeNote] = useState(event?.welcomeNote ?? "");
+  const [welcomeNoteStyle, setWelcomeNoteStyle] = useState<EventWelcomeNoteStyle>(
+    () => event?.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
+  );
   const [inviteeUids, setInviteeUids] = useState<string[]>(event?.inviteeUids ?? []);
   const hadPasscode = Boolean(event?.invitePasscodeRequired);
   const [requireInvitePasscode, setRequireInvitePasscode] = useState(hadPasscode);
@@ -2085,6 +2093,7 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           title: formText(f.get("title")),
           description: formText(f.get("description")) || null,
           welcomeNote: welcomeNote.trim() || null,
+          welcomeNoteStyle,
           startsAt: isoFromInput(f.get("startsAt")),
           endsAt: isoFromInput(f.get("endsAt")) || null,
           capacityLimit: f.get("capacityLimit") ? Number(f.get("capacityLimit")) : null,
@@ -2190,11 +2199,7 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           <small>{welcomeNote.length}/300</small>
         </label>
         <div className="full">
-          <strong>Guest preview</strong>
           <p className="vm-subtitle">Shown once in a private in-app card after a guest joins. It is not sent as a notification.</p>
-          <div className="vm-item-card" data-testid="preview-event-welcome-note">
-            {welcomeNote.trim() || "Your welcome note will appear here."}
-          </div>
           {welcomeNote.length > 0 && (
             <button
               type="button"
@@ -2206,6 +2211,11 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
             </button>
           )}
         </div>
+        <EventWelcomeNoteStyleFields
+          note={welcomeNote}
+          style={welcomeNoteStyle}
+          onChange={setWelcomeNoteStyle}
+        />
         <div className="full">
           <div style={{ display: "grid", gap: 12 }}>
             <strong>Event photos (up to 10)</strong>

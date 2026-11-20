@@ -99,6 +99,7 @@ import {
   CreateCommunityEventPlanChatMediaUploadResponse,
 } from "@workspace/api-zod";
 import { searchPhotonLocations } from "../lib/eventLocationSearch";
+import { DEFAULT_EVENT_WELCOME_NOTE_STYLE } from "../lib/eventWelcomeNoteStyle";
 import {
   buildEventInviteUrl,
   createEventInviteLinkFields,
@@ -917,6 +918,8 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     welcomeNote: parsed.data.welcomeNote?.trim() || null,
+    welcomeNoteStyle:
+      parsed.data.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
     imageUrl,
     galleryPhotos,
     photosExpireAt: getEventPhotosExpireAt(
@@ -1840,7 +1843,13 @@ router.get(
         id: event.id,
         title: event.title,
         description: event.description,
-        ...(event.ownerUid === uid ? { welcomeNote: event.welcomeNote } : {}),
+        ...(event.ownerUid === uid
+          ? {
+              welcomeNote: event.welcomeNote,
+              welcomeNoteStyle:
+                event.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
+            }
+          : {}),
         imageUrl: event.imageUrl,
         repeatFrequency: event.repeatFrequency,
         recurrenceTimeZone: event.recurrenceTimeZone,
@@ -1882,7 +1891,7 @@ router.post(
     }
 
     const uid = req.uid!;
-    const welcomeNote = await db.transaction(async (tx) => {
+    const delivery = await db.transaction(async (tx) => {
       if (eventType === "member") {
         const [event] = await tx
           .select({
@@ -1915,6 +1924,7 @@ router.post(
         const [delivery] = await tx
           .select({
             welcomeNote: communityEventWelcomeNoteDeliveriesTable.welcomeNote,
+            welcomeNoteStyle: communityEventWelcomeNoteDeliveriesTable.welcomeNoteStyle,
           })
           .from(communityEventWelcomeNoteDeliveriesTable)
           .where(and(
@@ -1924,7 +1934,7 @@ router.post(
             isNotNull(communityEventWelcomeNoteDeliveriesTable.welcomeNote),
           ))
           .limit(1);
-        return delivery?.welcomeNote ?? null;
+        return delivery ?? null;
       }
 
       const [event] = await tx
@@ -1953,6 +1963,7 @@ router.post(
       const [delivery] = await tx
         .select({
           welcomeNote: venueEventWelcomeNoteDeliveriesTable.welcomeNote,
+          welcomeNoteStyle: venueEventWelcomeNoteDeliveriesTable.welcomeNoteStyle,
         })
         .from(venueEventWelcomeNoteDeliveriesTable)
         .where(and(
@@ -1962,9 +1973,13 @@ router.post(
           isNotNull(venueEventWelcomeNoteDeliveriesTable.welcomeNote),
         ))
         .limit(1);
-      return delivery?.welcomeNote ?? null;
+      return delivery ?? null;
     });
-    res.json({ welcomeNote });
+    res.json({
+      welcomeNote: delivery?.welcomeNote ?? null,
+      welcomeNoteStyle:
+        delivery?.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
+    });
   },
 );
 
@@ -3363,6 +3378,10 @@ router.put(
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         welcomeNote: parsed.data.welcomeNote?.trim() || null,
+        welcomeNoteStyle:
+          parsed.data.welcomeNoteStyle ??
+          existing.welcomeNoteStyle ??
+          DEFAULT_EVENT_WELCOME_NOTE_STYLE,
         imageUrl: nextImageUrl,
         galleryPhotos: nextGalleryPhotos,
         photosExpireAt: getEventPhotosExpireAt(
@@ -3624,6 +3643,8 @@ router.post(
               eventId: event.id,
               userUid: uid,
               welcomeNote: event.welcomeNote?.trim() || null,
+              welcomeNoteStyle:
+                event.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
             })
             .onConflictDoNothing();
         }
@@ -3690,6 +3711,8 @@ router.post(
             eventId: venueEvent.id,
             userUid: uid,
             welcomeNote: venueEvent.welcomeNote?.trim() || null,
+            welcomeNoteStyle:
+              venueEvent.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
           })
           .onConflictDoNothing();
       }
@@ -3816,6 +3839,8 @@ router.post(
             eventId,
             userUid: uid,
             welcomeNote: event.welcomeNote?.trim() || null,
+            welcomeNoteStyle:
+              event.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
           })
           .onConflictDoNothing();
       }
@@ -4043,6 +4068,7 @@ router.patch(
         ownerUid: communityEventsTable.ownerUid,
         joinApprovalRequired: communityEventsTable.joinApprovalRequired,
         welcomeNote: communityEventsTable.welcomeNote,
+        welcomeNoteStyle: communityEventsTable.welcomeNoteStyle,
       })
       .from(communityEventsTable)
       .where(and(
@@ -4133,6 +4159,8 @@ router.patch(
               eventId,
               userUid: request.userUid,
               welcomeNote: event.welcomeNote?.trim() || null,
+              welcomeNoteStyle:
+                event.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
             })
             .onConflictDoNothing();
         }

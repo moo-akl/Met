@@ -191,6 +191,7 @@ import {
 } from "../lib/venueOwnerAccess";
 import { gmailFailureStatus } from "../lib/gmailDeliveryStatus.js";
 import { createGmailHtmlDraft } from "../lib/gmail.js";
+import { DEFAULT_EVENT_WELCOME_NOTE_STYLE } from "../lib/eventWelcomeNoteStyle";
 import {
   VENUE_REGISTRATION_DRAFT_TARGETS,
   isExpectedVenueRegistrationDraftPdf,
@@ -286,6 +287,11 @@ const nativeBranchApplicationInputSchema = venueApplicationInputSchema.omit({
 type VenueApplicationInput = z.infer<typeof venueApplicationInputSchema>;
 
 const router: IRouter = Router();
+const eventWelcomeNoteStyleSchema = z.object({
+  font: z.enum(["classic", "handwritten", "serif"]),
+  color: z.enum(["ink", "forest", "soft"]),
+  card: z.enum(["paper", "garden", "postcard"]),
+}).strict();
 const ADMIN_SESSION_COOKIE = "met_venue_admin";
 const ADMIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
@@ -704,6 +710,7 @@ function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect, 
   const {
     ownerUid: _ownerUid,
     welcomeNote: _welcomeNote,
+    welcomeNoteStyle: _welcomeNoteStyle,
     inviteeUids: _inviteeUids,
     inviteTokenHash: _inviteTokenHash,
     inviteTokenEncrypted: _inviteTokenEncrypted,
@@ -2374,6 +2381,8 @@ router.get(
           `${req.protocol}://${req.get("host")}`,
         ),
         welcomeNote: event.welcomeNote,
+        welcomeNoteStyle:
+          event.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
       },
     });
   },
@@ -2392,6 +2401,7 @@ router.post(
       title: z.string().min(1).max(120),
       description: z.string().max(2000).optional().nullable(),
       welcomeNote: z.string().trim().max(300).optional().nullable(),
+      welcomeNoteStyle: eventWelcomeNoteStyleSchema.optional(),
       imageUrl: z.string().url().optional().nullable(),
       galleryPhotos: z.array(z.string().url()).max(EVENT_PHOTO_MAX_COUNT).optional(),
       contactPhone: z.string().trim().max(40).optional().nullable(),
@@ -2479,6 +2489,8 @@ router.post(
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         welcomeNote: parsed.data.welcomeNote?.trim() || null,
+        welcomeNoteStyle:
+          parsed.data.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
         imageUrl: galleryPhotos[0] ?? null,
         galleryPhotos,
         photosExpireAt: getEventPhotosExpireAt(
@@ -2603,6 +2615,7 @@ router.put(
       title: z.string().min(1).max(120).optional(),
       description: z.string().max(2000).optional().nullable(),
       welcomeNote: z.string().trim().max(300).optional().nullable(),
+      welcomeNoteStyle: eventWelcomeNoteStyleSchema.optional(),
       imageUrl: z.string().url().optional().nullable(),
       galleryPhotos: z.array(z.string().url()).max(EVENT_PHOTO_MAX_COUNT).optional(),
       contactPhone: z.string().trim().max(40).optional().nullable(),
@@ -2729,6 +2742,9 @@ router.put(
     if (parsed.data.description !== undefined) updatePayload["description"] = parsed.data.description;
     if (parsed.data.welcomeNote !== undefined) {
       updatePayload["welcomeNote"] = parsed.data.welcomeNote?.trim() || null;
+    }
+    if (parsed.data.welcomeNoteStyle !== undefined) {
+      updatePayload["welcomeNoteStyle"] = parsed.data.welcomeNoteStyle;
     }
     if (parsed.data.imageUrl !== undefined) updatePayload["imageUrl"] = parsed.data.imageUrl;
     if (parsed.data.contactPhone !== undefined) updatePayload["contactPhone"] = parsed.data.contactPhone?.trim() || null;
@@ -3048,6 +3064,7 @@ router.post(
         id: venueEventsTable.id,
         ownerUid: venueEventsTable.ownerUid,
         welcomeNote: venueEventsTable.welcomeNote,
+        welcomeNoteStyle: venueEventsTable.welcomeNoteStyle,
         visibility: venueEventsTable.visibility,
         inviteeUids: venueEventsTable.inviteeUids,
         isPublished: venueEventsTable.isPublished,
@@ -3106,6 +3123,8 @@ router.post(
             eventId,
             userUid: uid,
             welcomeNote: event.welcomeNote?.trim() || null,
+            welcomeNoteStyle:
+              event.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
           })
           .onConflictDoNothing();
       }

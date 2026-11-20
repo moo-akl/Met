@@ -20,6 +20,7 @@ import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { EventWelcomeNoteEditor } from "@/components/EventWelcomeNoteEditor";
 import { EventPhotoUploadStatus } from "@/components/EventPhotoUploadStatus";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
@@ -27,6 +28,10 @@ import { useVenueEventPhotoUploads } from "@/lib/useVenueEventPhotoUploads";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import {
+  resolveEventWelcomeNoteStyle,
+} from "@/lib/eventWelcomeNoteStyle";
+import type { EventWelcomeNoteStyle } from "@workspace/api-client-react";
 import { formatRecurringPlanDate } from "@/lib/formatRecurringPlanDate";
 import {
   getInitialCommunityEventWebsiteUrl,
@@ -110,6 +115,9 @@ export default function CommunityEventForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [welcomeNote, setWelcomeNote] = useState(initial?.welcomeNote ?? "");
+  const [welcomeNoteStyle, setWelcomeNoteStyle] = useState<EventWelcomeNoteStyle>(
+    () => resolveEventWelcomeNoteStyle(initial?.welcomeNoteStyle),
+  );
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "");
   const initialGalleryUrls =
     initial?.galleryPhotos?.length
@@ -460,6 +468,7 @@ export default function CommunityEventForm({
       title: title.trim(),
       description: description.trim() || null,
       welcomeNote: welcomeNote.trim() || null,
+      welcomeNoteStyle,
       imageUrl: galleryPhotos[0] ?? null,
       galleryPhotos,
       repeatFrequency: isHangout ? null : repeatFrequency,
@@ -826,71 +835,14 @@ export default function CommunityEventForm({
             { color: colors.text, backgroundColor: colors.card, borderColor: colors.border },
           ]}
         />
-        <View style={{ gap: 8, marginTop: 4 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text style={[styles.label, { color: colors.text, marginBottom: 0 }]}>
-              {t("tabs.events.welcomeNoteTitle")}
-            </Text>
-            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-              {welcomeNote.length}/300
-            </Text>
-          </View>
-          <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-            {t("tabs.events.welcomeNoteHint")}
-          </Text>
-          <TextInput
-            accessibilityLabel={t("tabs.events.welcomeNoteTitle")}
-            testID="community-event-welcome-note"
-            value={welcomeNote}
-            onChangeText={setWelcomeNote}
-            placeholder={t("tabs.events.welcomeNoteTitle")}
-            placeholderTextColor={colors.mutedForeground}
-            maxLength={300}
-            multiline
-            textAlignVertical="top"
-            style={[
-              styles.input,
-              styles.multiline,
-              { color: colors.text, backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          />
-          <View
-            testID="community-event-welcome-note-preview"
-            style={{
-              gap: 8,
-              padding: 13,
-              borderWidth: 1,
-              borderTopLeftRadius: 18,
-              borderBottomRightRadius: 16,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
-          >
-            <Text style={{ color: colors.mutedForeground, fontSize: 11, fontWeight: "700" }}>
-              {t("tabs.events.welcomeNotePreview")}
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9 }}>
-              <Feather name="message-circle" size={16} color={colors.primary} />
-              <Text style={{ flex: 1, color: colors.text, fontSize: 14, lineHeight: 21 }}>
-                {welcomeNote.trim() || t("tabs.events.welcomeNotePreviewEmpty")}
-              </Text>
-            </View>
-          </View>
-          {welcomeNote.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("tabs.events.welcomeNoteClear")}
-              testID="community-event-welcome-note-clear"
-              onPress={() => setWelcomeNote("")}
-              style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 }}
-            >
-              <Feather name="x-circle" size={15} color={colors.destructive} />
-              <Text style={{ color: colors.destructive, fontSize: 13, fontWeight: "600" }}>
-                {t("tabs.events.welcomeNoteClear")}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <EventWelcomeNoteEditor
+          value={welcomeNote}
+          onChangeText={setWelcomeNote}
+          style={welcomeNoteStyle}
+          onStyleChange={setWelcomeNoteStyle}
+          colors={colors}
+          testIDPrefix="community-event-welcome-note"
+        />
         <Text style={[styles.label, { color: colors.text }]}>
           {t("tabs.events.location")}
         </Text>

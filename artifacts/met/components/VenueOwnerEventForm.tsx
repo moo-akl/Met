@@ -24,6 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { EventWelcomeNoteEditor } from "@/components/EventWelcomeNoteEditor";
 import { EventPhotoUploadStatus } from "@/components/EventPhotoUploadStatus";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
@@ -39,6 +40,10 @@ import {
   normalizeCommunityEventWebsiteUrl,
 } from "@/lib/communityEventWebsite";
 import { useVenueEventPhotoUploads } from "@/lib/useVenueEventPhotoUploads";
+import {
+  resolveEventWelcomeNoteStyle,
+} from "@/lib/eventWelcomeNoteStyle";
+import type { EventWelcomeNoteStyle } from "@workspace/api-client-react";
 
 type Mode = "create" | "edit";
 type ReminderOffset = 24 | 2;
@@ -241,6 +246,9 @@ function EventFormFields({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [welcomeNote, setWelcomeNote] = useState(initial?.welcomeNote ?? "");
+  const [welcomeNoteStyle, setWelcomeNoteStyle] = useState<EventWelcomeNoteStyle>(
+    () => resolveEventWelcomeNoteStyle(initial?.welcomeNoteStyle),
+  );
   const initialGalleryUrls =
     initial?.galleryPhotos?.length
       ? initial.galleryPhotos
@@ -348,6 +356,7 @@ function EventFormFields({
       title: cleanTitle,
       description: description.trim() || null,
       welcomeNote: welcomeNote.trim() || null,
+      welcomeNoteStyle,
       imageUrl: galleryPhotos[0] ?? null,
       galleryPhotos,
       contactPhone: contactPhone.trim() || null,
@@ -448,65 +457,14 @@ function EventFormFields({
             textAlignVertical="top"
             style={[inputStyle, styles.multiline]}
           />
-          <View style={{ gap: 8, marginTop: 4 }}>
-            <View style={styles.photosHeading}>
-              <FieldLabel label="Welcome note" colors={colors} />
-              <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-                {welcomeNote.length}/300
-              </Text>
-            </View>
-            <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-              Guests see this privately after they join.
-            </Text>
-            <TextInput
-              accessibilityLabel="Welcome note"
-              testID="venue-event-welcome-note"
-              value={welcomeNote}
-              onChangeText={setWelcomeNote}
-              placeholder="Write a short note for new guests"
-              placeholderTextColor={colors.mutedForeground}
-              maxLength={300}
-              multiline
-              textAlignVertical="top"
-              style={[inputStyle, styles.multiline]}
-            />
-            <View
-              testID="venue-event-welcome-note-preview"
-              style={{
-                gap: 8,
-                padding: 13,
-                borderWidth: 1,
-                borderTopLeftRadius: 18,
-                borderBottomRightRadius: 16,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-              }}
-            >
-              <Text style={[styles.helper, { color: colors.mutedForeground, fontWeight: "700" }]}>
-                Preview
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9 }}>
-                <Feather name="message-circle" size={16} color={colors.primary} />
-                <Text style={{ flex: 1, color: colors.text, fontSize: 14, lineHeight: 21 }}>
-                  {welcomeNote.trim() || "Your note preview appears here."}
-                </Text>
-              </View>
-            </View>
-            {welcomeNote.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Clear welcome note"
-                testID="venue-event-welcome-note-clear"
-                onPress={() => setWelcomeNote("")}
-                style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 }}
-              >
-                <Feather name="x-circle" size={15} color={colors.destructive} />
-                <Text style={{ color: colors.destructive, fontSize: 13, fontWeight: "600" }}>
-                  Clear note
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
+          <EventWelcomeNoteEditor
+            value={welcomeNote}
+            onChangeText={setWelcomeNote}
+            style={welcomeNoteStyle}
+            onStyleChange={setWelcomeNoteStyle}
+            colors={colors}
+            testIDPrefix="venue-event-welcome-note"
+          />
           <View style={styles.photosHeading}>
             <View style={styles.photosCopy}>
               <FieldLabel label="Photos" colors={colors} />

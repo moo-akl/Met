@@ -1734,6 +1734,39 @@ export const VenueManagerEventVisibility = {
   invite_only: 'invite_only',
 } as const;
 
+export type EventWelcomeNoteStyleFont = typeof EventWelcomeNoteStyleFont[keyof typeof EventWelcomeNoteStyleFont];
+
+
+export const EventWelcomeNoteStyleFont = {
+  classic: 'classic',
+  handwritten: 'handwritten',
+  serif: 'serif',
+} as const;
+
+export type EventWelcomeNoteStyleColor = typeof EventWelcomeNoteStyleColor[keyof typeof EventWelcomeNoteStyleColor];
+
+
+export const EventWelcomeNoteStyleColor = {
+  ink: 'ink',
+  forest: 'forest',
+  soft: 'soft',
+} as const;
+
+export type EventWelcomeNoteStyleCard = typeof EventWelcomeNoteStyleCard[keyof typeof EventWelcomeNoteStyleCard];
+
+
+export const EventWelcomeNoteStyleCard = {
+  paper: 'paper',
+  garden: 'garden',
+  postcard: 'postcard',
+} as const;
+
+export interface EventWelcomeNoteStyle {
+  font: EventWelcomeNoteStyleFont;
+  color: EventWelcomeNoteStyleColor;
+  card: EventWelcomeNoteStyleCard;
+}
+
 export interface VenueManagerEvent {
   id: number;
   title: string;
@@ -1744,6 +1777,7 @@ export interface VenueManagerEvent {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -1839,6 +1873,7 @@ export interface VenueManagerEventInput {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -1917,6 +1952,7 @@ export interface VenueManagerEventUpdate {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -2536,6 +2572,7 @@ export interface CommunityEventInput {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */
@@ -2643,6 +2680,7 @@ export interface EventWelcomeNoteClaimResponse {
      * @nullable
      */
   welcomeNote: string | null;
+  welcomeNoteStyle: EventWelcomeNoteStyle;
 }
 
 export interface EventWelcomeNoteAcknowledgeResponse {
@@ -2711,6 +2749,7 @@ export interface CommunityEventManageResponse {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */

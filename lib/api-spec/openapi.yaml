@@ -7202,6 +7202,7 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         welcomeNote: { type: ["string", "null"], maxLength: 300 }
+        welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7274,6 +7275,7 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         welcomeNote: { type: ["string", "null"], maxLength: 300 }
+        welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7304,6 +7306,7 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         welcomeNote: { type: ["string", "null"], maxLength: 300 }
+        welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7620,6 +7623,7 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         welcomeNote: { type: ["string", "null"], maxLength: 300 }
+        welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array
@@ -7660,9 +7664,18 @@ components:
         status: { type: string, enum: [accepted, declined] }
     EventWelcomeNoteClaimResponse:
       type: object
-      required: [welcomeNote]
+      required: [welcomeNote, welcomeNoteStyle]
       properties:
         welcomeNote: { type: ["string", "null"], maxLength: 300 }
+        welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
+    EventWelcomeNoteStyle:
+      type: object
+      required: [font, color, card]
+      additionalProperties: false
+      properties:
+        font: { type: string, enum: [classic, handwritten, serif] }
+        color: { type: string, enum: [ink, forest, soft] }
+        card: { type: string, enum: [paper, garden, postcard] }
     EventWelcomeNoteAcknowledgeResponse:
       type: object
       required: [success]
@@ -7692,6 +7705,7 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         welcomeNote: { type: ["string", "null"], maxLength: 300 }
+        welcomeNoteStyle: { $ref: "#/components/schemas/EventWelcomeNoteStyle" }
         imageUrl: { type: ["string", "null"], format: uri }
         galleryPhotos:
           type: array

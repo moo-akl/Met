@@ -1,7 +1,8 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { Image, Modal } from "react-native";
+import { Image, Modal, StyleSheet } from "react-native";
 import { waitFor } from "@testing-library/react-native";
+import type { EventWelcomeNoteStyle } from "@workspace/api-client-react";
 
 const baseEvent = {
   id: 42,
@@ -40,8 +41,19 @@ const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefin
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn() };
 const mockOpenVenueManager = jest.fn();
 const mockWelcomeNoteStorage = new Map<string, string>();
+const DEFAULT_WELCOME_NOTE_STYLE = {
+  font: "classic",
+  color: "ink",
+  card: "paper",
+} as EventWelcomeNoteStyle;
+const CUSTOM_WELCOME_NOTE_STYLE = {
+  font: "handwritten",
+  color: "forest",
+  card: "garden",
+} as EventWelcomeNoteStyle;
 const mockClaimEventWelcomeNote = jest.fn(async (_input: unknown) => ({
   welcomeNote: null as string | null,
+  welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
 }));
 const mockAcknowledgeEventWelcomeNote = jest.fn(async (_input: unknown) => ({
   success: true,
@@ -106,7 +118,9 @@ jest.mock("@/hooks/useColors", () => ({
     primary: "#30a83c",
     primaryForeground: "#fff",
     primarySoft: "#e5f4e5",
+    secondaryForeground: "#276238",
     text: "#111",
+    foreground: "#111",
   }),
 }));
 jest.mock("@/lib/i18n", () => ({
@@ -173,7 +187,10 @@ describe("event detail layouts", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockWelcomeNoteStorage.clear();
-    mockClaimEventWelcomeNote.mockReset().mockResolvedValue({ welcomeNote: null });
+    mockClaimEventWelcomeNote.mockReset().mockResolvedValue({
+      welcomeNote: null,
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+    });
     mockAcknowledgeEventWelcomeNote
       .mockReset()
       .mockResolvedValue({ success: true });
@@ -184,6 +201,7 @@ describe("event detail layouts", () => {
   it("shows a claimed welcome note in a dismissible card only for an accepted participant", async () => {
     mockClaimEventWelcomeNote.mockResolvedValue({
       welcomeNote: "The picnic tables are near the lake.",
+      welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
     });
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
@@ -198,6 +216,15 @@ describe("event detail layouts", () => {
     expect(root.root.findByProps({ testID: "event-welcome-note-card" })).toBeTruthy();
     expect(root.root.findByProps({ testID: "event-welcome-note-body" }).props.children)
       .toBe("The picnic tables are near the lake.");
+    expect(
+      StyleSheet.flatten(
+        root.root.findByProps({ testID: "event-welcome-note-body" }).props.style,
+      ),
+    ).toMatchObject({
+      color: "#276238",
+      fontFamily: "Caveat_500Medium",
+      fontSize: 21,
+    });
     await act(async () => {
       await root.root.findByType(Modal).props.onShow();
     });
@@ -232,6 +259,7 @@ describe("event detail layouts", () => {
       .mockRejectedValueOnce(new Error("response lost"))
       .mockResolvedValueOnce({
         welcomeNote: "The tables are beside the lake.",
+        welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
       });
 
     const root = renderScreen();
@@ -275,6 +303,7 @@ describe("event detail layouts", () => {
   it("retries an acknowledgment after reopening without showing the note again", async () => {
     mockClaimEventWelcomeNote.mockResolvedValue({
       welcomeNote: "The tables are beside the lake.",
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
     });
     mockAcknowledgeEventWelcomeNote
       .mockRejectedValueOnce(new Error("ack response lost"))

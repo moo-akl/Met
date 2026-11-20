@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,600&display=swap');
 @import 'tailwindcss';
 
 :root { font-family: "DM Sans", sans-serif; color: #1c2521; background: #f7f5ef; }
@@ -29,6 +29,14 @@
 .vm-place-result span{font-size:11px;color:#66756d}
 .vm-apply-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
 .vm-optional{font-weight:400;color:#88a09a;font-size:11px;margin-left:4px}
+.vm-note-style{min-width:0;border:1px solid #cad8d0;border-radius:10px;padding:12px;display:grid;gap:12px}
+.vm-note-style legend{padding:0 5px;font-size:13px;font-weight:700;color:#3d5148}
+.vm-note-style-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.vm-welcome-note-preview{width:100%;max-width:420px;padding:20px;border-style:solid;display:grid;gap:14px}
+.vm-welcome-note-heading{display:flex;align-items:center;gap:11px;font:700 18px/24px Inter,sans-serif;color:#1c2521}
+.vm-welcome-note-icon{width:42px;height:42px;border-top-left-radius:16px;border-bottom-right-radius:14px;display:grid;place-items:center}
+.vm-welcome-note-preview p{min-height:44px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+@media (max-width:800px){.vm-note-style-fields{grid-template-columns:1fr}}
 .vm-review{display:flex;flex-direction:column;border:1px solid #cad8d0;border-radius:8px;overflow:hidden}
 .vm-review-row{display:flex;gap:12px;align-items:baseline;padding:10px 14px;font-size:13px;border-bottom:1px solid #eef2ef}
 .vm-review-row:last-child{border-bottom:0}

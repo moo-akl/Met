@@ -5,6 +5,11 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import {
+  Caveat_500Medium,
+  Caveat_600SemiBold,
+} from "@expo-google-fonts/caveat";
+import { PlayfairDisplay_400Regular } from "@expo-google-fonts/playfair-display";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
@@ -639,6 +644,9 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Caveat_500Medium,
+    Caveat_600SemiBold,
+    PlayfairDisplay_400Regular,
   });
   const [fontLoadTimedOut, setFontLoadTimedOut] = useState(false);
   const pathnameRef = useRef(pathname);

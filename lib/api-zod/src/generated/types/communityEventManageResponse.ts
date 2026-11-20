@@ -7,6 +7,7 @@
  */
 import type { CommunityEventManageResponseRepeatFrequency } from './communityEventManageResponseRepeatFrequency';
 import type { CommunityEventManageResponseVisibility } from './communityEventManageResponseVisibility';
+import type { EventWelcomeNoteStyle } from './eventWelcomeNoteStyle';
 
 export interface CommunityEventManageResponse {
   id: number;
@@ -18,6 +19,7 @@ export interface CommunityEventManageResponse {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */

@@ -1,5 +1,6 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
+import { z } from "zod";
 import { venueCategories } from "@workspace/db/schema";
 import { and, count, desc, eq, gte, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -38,6 +39,7 @@ import { getVenueManagerFirebaseConfig } from "../lib/venueManagerFirebaseConfig
 import { mirrorRevealRequest } from "../lib/firestoreMirror";
 import { sendPush } from "../lib/push";
 import { notifyVenueEventRsvps } from "../lib/eventNotifications";
+import { DEFAULT_EVENT_WELCOME_NOTE_STYLE } from "../lib/eventWelcomeNoteStyle";
 import {
   EVENT_PHOTO_MAX_COUNT,
   getEventPhotosExpireAt,
@@ -56,6 +58,11 @@ import {
 } from "../lib/eventCheckinLinks";
 
 const router: IRouter = Router();
+const eventWelcomeNoteStyleSchema = z.object({
+  font: z.enum(["classic", "handwritten", "serif"]),
+  color: z.enum(["ink", "forest", "soft"]),
+  card: z.enum(["paper", "garden", "postcard"]),
+}).strict();
 const COOKIE = "met_venue_manager";
 const CSRF_HEADER = "x-csrf-token";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -428,6 +435,8 @@ function serializeEvent(event: typeof venueEventsTable.$inferSelect) {
   } = event;
   return {
     ...serialized,
+    welcomeNoteStyle:
+      event.welcomeNoteStyle ?? DEFAULT_EVENT_WELCOME_NOTE_STYLE,
     inviteLinkEnabled: Boolean(event.inviteTokenHash),
     invitePasscodeRequired: Boolean(event.invitePasscodeHash),
   };
@@ -1047,6 +1056,12 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   const welcomeNote = typeof rawWelcomeNote === "string"
     ? rawWelcomeNote.trim() || null
     : null;
+  const parsedWelcomeNoteStyle = req.body?.welcomeNoteStyle === undefined
+    ? { success: true as const, data: DEFAULT_EVENT_WELCOME_NOTE_STYLE }
+    : eventWelcomeNoteStyleSchema.safeParse(req.body.welcomeNoteStyle);
+  if (!parsedWelcomeNoteStyle.success) {
+    return void res.status(400).json({ message: "Choose a valid welcome note style." });
+  }
   const endsAt = req.body?.endsAt === null ? null : validDate(req.body?.endsAt);
   if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
   if (endsAt && endsAt <= startsAt) return void res.status(400).json({ message: "Event end time must be after the start time." });
@@ -1088,6 +1103,7 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
     ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
     description: optionalText(req.body?.description, 2000) ?? null,
     welcomeNote,
+    welcomeNoteStyle: parsedWelcomeNoteStyle.data,
     imageUrl,
     galleryPhotos,
     photosExpireAt: getEventPhotosExpireAt(startsAt, endsAt, Boolean(imageUrl || galleryPhotos.length)),
@@ -1118,6 +1134,15 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
     : typeof rawWelcomeNote === "string"
       ? rawWelcomeNote.trim() || null
       : null;
+  const parsedWelcomeNoteStyle = req.body?.welcomeNoteStyle === undefined
+    ? undefined
+    : eventWelcomeNoteStyleSchema.safeParse(req.body.welcomeNoteStyle);
+  if (
+    parsedWelcomeNoteStyle !== undefined &&
+    !parsedWelcomeNoteStyle.success
+  ) {
+    return void res.status(400).json({ message: "Choose a valid welcome note style." });
+  }
   const title = optionalText(req.body?.title, 120);
   const startsAt = req.body?.startsAt === undefined ? undefined : validDate(req.body.startsAt);
   const endsAt = req.body?.endsAt === undefined ? undefined : req.body.endsAt === null ? null : validDate(req.body.endsAt);
@@ -1174,6 +1199,9 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
     title, startsAt, endsAt, capacityLimit, reminderOffsetsHours,
     description: optionalText(req.body?.description, 2000),
     welcomeNote,
+    welcomeNoteStyle: parsedWelcomeNoteStyle?.success
+      ? parsedWelcomeNoteStyle.data
+      : undefined,
     imageUrl: nextImageUrl,
     galleryPhotos: nextGalleryPhotos,
     photosExpireAt: getEventPhotosExpireAt(

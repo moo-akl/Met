@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { EventWelcomeNoteStyle } from './eventWelcomeNoteStyle';
 import type { VenueManagerEventInputReminderOffsetsHoursItem } from './venueManagerEventInputReminderOffsetsHoursItem';
 import type { VenueManagerEventInputVisibility } from './venueManagerEventInputVisibility';
 
@@ -24,6 +25,7 @@ export interface VenueManagerEventInput {
      * @nullable
      */
   welcomeNote?: string | null;
+  welcomeNoteStyle?: EventWelcomeNoteStyle;
   /** @nullable */
   imageUrl?: string | null;
   /** @maxItems 10 */

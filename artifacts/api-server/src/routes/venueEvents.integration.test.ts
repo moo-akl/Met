@@ -65,6 +65,16 @@ const PREFIX = `itest-vevt-${process.pid}-${Date.now()}`;
 const email = (name: string) => `${PREFIX}-${name}@example.com`;
 const STRONG = "CorrectHorse99x";
 const GUEST_UID = `${PREFIX}-guest-uid`;
+const DEFAULT_WELCOME_NOTE_STYLE = {
+  font: "classic",
+  color: "ink",
+  card: "paper",
+};
+const CUSTOM_WELCOME_NOTE_STYLE = {
+  font: "handwritten",
+  color: "forest",
+  card: "garden",
+};
 
 async function cleanup() {
   // Clean up events and RSVPs for test-owned places.
@@ -809,20 +819,28 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       });
     expect(created.status).toBe(201);
     expect(created.body.event.welcomeNote).toBe("Glad you can join us.");
+    expect(created.body.event.welcomeNoteStyle).toEqual(DEFAULT_WELCOME_NOTE_STYLE);
     const eventId = Number(created.body.event.id);
 
     const updated = await agent
       .patch(`/api/venue-manager/businesses/${business.id}/events/${eventId}`)
       .set("x-csrf-token", csrf)
-      .send({ welcomeNote: "The updated welcome." });
+      .send({
+        welcomeNote: "The updated welcome.",
+        welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
+      });
     expect(updated.status).toBe(200);
     expect(updated.body.event.welcomeNote).toBe("The updated welcome.");
+    expect(updated.body.event.welcomeNoteStyle).toEqual(CUSTOM_WELCOME_NOTE_STYLE);
 
     const guestBeforeJoining = await api()
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
       .set("x-test-uid", GUEST_UID);
     expect(guestBeforeJoining.status).toBe(200);
-    expect(guestBeforeJoining.body).toEqual({ welcomeNote: null });
+    expect(guestBeforeJoining.body).toEqual({
+      welcomeNote: null,
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+    });
 
     const publicList = await api()
       .get(`/api/venue-owner/${profile.placeId}/events`)
@@ -832,6 +850,7 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     const publicEvent = publicEvents.find((event) => event.id === eventId);
     expect(publicEvent).toBeDefined();
     expect(publicEvent).not.toHaveProperty("welcomeNote");
+    expect(publicEvent).not.toHaveProperty("welcomeNoteStyle");
 
     const rsvp = await api()
       .post(`/api/venue-events/${eventId}/rsvp`)
@@ -843,13 +862,19 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
       .set("x-test-uid", GUEST_UID);
     expect(claimed.status).toBe(200);
-    expect(claimed.body).toEqual({ welcomeNote: "The updated welcome." });
+    expect(claimed.body).toEqual({
+      welcomeNote: "The updated welcome.",
+      welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
+    });
 
     const repeatedClaim = await api()
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
       .set("x-test-uid", GUEST_UID);
     expect(repeatedClaim.status).toBe(200);
-    expect(repeatedClaim.body).toEqual({ welcomeNote: "The updated welcome." });
+    expect(repeatedClaim.body).toEqual({
+      welcomeNote: "The updated welcome.",
+      welcomeNoteStyle: CUSTOM_WELCOME_NOTE_STYLE,
+    });
 
     const acknowledged = await api()
       .post(`/api/events/venue/${eventId}/welcome-note/acknowledge`)
@@ -861,13 +886,19 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
       .set("x-test-uid", GUEST_UID);
     expect(claimAfterAcknowledgment.status).toBe(200);
-    expect(claimAfterAcknowledgment.body).toEqual({ welcomeNote: null });
+    expect(claimAfterAcknowledgment.body).toEqual({
+      welcomeNote: null,
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+    });
 
     const unrelatedClaim = await api()
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
       .set("x-test-uid", `${PREFIX}-unrelated`);
     expect(unrelatedClaim.status).toBe(200);
-    expect(unrelatedClaim.body).toEqual({ welcomeNote: null });
+    expect(unrelatedClaim.body).toEqual({
+      welcomeNote: null,
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+    });
   });
 
   it("shares invite-only venue events with an optional passcode and grants RSVP access", async () => {
@@ -926,7 +957,10 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
       .set("x-test-uid", GUEST_UID);
     expect(claimBeforeRsvp.status).toBe(200);
-    expect(claimBeforeRsvp.body).toEqual({ welcomeNote: null });
+    expect(claimBeforeRsvp.body).toEqual({
+      welcomeNote: null,
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+    });
 
     const rsvp = await api()
       .post("/api/event-invites/rsvp")
@@ -940,6 +974,7 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(claimedWelcomeNote.status).toBe(200);
     expect(claimedWelcomeNote.body).toEqual({
       welcomeNote: "Welcome to the evening.",
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
     });
 
     const repeatedWelcomeNoteClaim = await api()
@@ -948,6 +983,7 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(repeatedWelcomeNoteClaim.status).toBe(200);
     expect(repeatedWelcomeNoteClaim.body).toEqual({
       welcomeNote: "Welcome to the evening.",
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
     });
 
     const acknowledgedWelcomeNote = await api()
@@ -960,7 +996,10 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       .post(`/api/events/venue/${eventId}/welcome-note/claim`)
       .set("x-test-uid", `${PREFIX}-unrelated`);
     expect(unrelatedWelcomeNoteClaim.status).toBe(200);
-    expect(unrelatedWelcomeNoteClaim.body).toEqual({ welcomeNote: null });
+    expect(unrelatedWelcomeNoteClaim.body).toEqual({
+      welcomeNote: null,
+      welcomeNoteStyle: DEFAULT_WELCOME_NOTE_STYLE,
+    });
 
     const guestDetails = await api()
       .get(`/api/events/venue/${eventId}`)
