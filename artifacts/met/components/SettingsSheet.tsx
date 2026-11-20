@@ -498,18 +498,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 colors={colors}
               />
 
-              <NavRow
-                icon="archive"
-                testID="settings-past-hangouts"
-                label={t("plans.pastHangoutsTitle")}
-                sub={t("plans.pastHangoutsEmpty")}
-                onPress={() => {
-                  close();
-                  setTimeout(() => router.push("/past-hangouts" as never), 50);
-                }}
-                colors={colors}
-              />
-
               <View
                 style={[
                   styles.row,

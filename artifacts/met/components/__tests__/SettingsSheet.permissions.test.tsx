@@ -1,11 +1,12 @@
 /**
- * Tests for the Permissions NavRow in SettingsSheet.
+ * Tests for navigation rows in SettingsSheet.
  *
  * Covers:
  * - Pressing the Permissions row closes the sheet (onClose called).
  * - Pressing the Permissions row calls router.push("/permissions") after the
  *   50 ms setTimeout that guards against the modal close animation.
  * - Only /permissions is navigated to — no other route.
+ * - Past Meetings is the only history row and keeps its existing destination.
  */
 
 import React from "react";
@@ -262,13 +263,20 @@ describe("SettingsSheet — Permissions NavRow", () => {
   });
 });
 
-describe("SettingsSheet — Past Hangouts NavRow", () => {
-  it("shows Past Hangouts and opens its history after closing the sheet", async () => {
+describe("SettingsSheet — event history NavRow", () => {
+  it("shows Past Meetings as the only history entry", async () => {
+    await renderSheet();
+
+    expect(screen.getByText("tabs.events.pastMeetings")).toBeTruthy();
+    expect(screen.queryByText("plans.pastHangoutsTitle")).toBeNull();
+    expect(screen.getAllByTestId(/^settings-past-/)).toHaveLength(1);
+  });
+
+  it("closes Settings before opening the existing Past Meetings screen", async () => {
     const onClose = jest.fn();
     await renderSheet(onClose);
 
-    expect(screen.getByText("plans.pastHangoutsTitle")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("settings-past-hangouts"));
+    fireEvent.press(screen.getByTestId("settings-past-meetings"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).not.toHaveBeenCalled();
@@ -278,7 +286,7 @@ describe("SettingsSheet — Past Hangouts NavRow", () => {
     });
 
     expect(mockRouterPush).toHaveBeenCalledTimes(1);
-    expect(mockRouterPush).toHaveBeenCalledWith("/past-hangouts");
+    expect(mockRouterPush).toHaveBeenCalledWith("/past-meetings");
   });
 });
 
