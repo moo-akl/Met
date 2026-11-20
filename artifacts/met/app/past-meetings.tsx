@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -20,12 +20,22 @@ import {
   useGetMyPastMeetings,
 } from "@workspace/api-client-react";
 
+const PAST_MEETING_FILTERS = [
+  { value: "all", labelKey: "tabs.events.pastMeetingsAll" },
+  { value: "event", labelKey: "tabs.events.title" },
+  { value: "plan", labelKey: "plans.screenTitle" },
+  { value: "hangout", labelKey: "tabs.events.nearbyTab" },
+] as const;
+
+type PastMeetingFilter = (typeof PAST_MEETING_FILTERS)[number]["value"];
+
 export default function PastMeetingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t, lang } = useT();
   const { authedUid } = useApp();
+  const [filter, setFilter] = useState<PastMeetingFilter>("all");
   const pastMeetings = useGetMyPastMeetings({
     query: {
       enabled: !!authedUid,
@@ -36,6 +46,11 @@ export default function PastMeetingsScreen() {
   });
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const meetings = pastMeetings.data?.meetings ?? [];
+  const visibleMeetings =
+    filter === "all"
+      ? meetings
+      : meetings.filter((meeting) => meeting.type === filter);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -81,7 +96,7 @@ export default function PastMeetingsScreen() {
               {t("plans.retry")}
             </Text>
           </Pressable>
-        ) : (pastMeetings.data?.meetings.length ?? 0) === 0 ? (
+        ) : meetings.length === 0 ? (
           <View style={[styles.empty, { borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.primarySoft }]}>
               <Feather name="clock" size={20} color={colors.primary} />
@@ -94,75 +109,128 @@ export default function PastMeetingsScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.list}>
-            {pastMeetings.data?.meetings.map((meeting) => {
-              const category = meeting.type === "hangout"
-                ? t("tabs.events.nearbyTab")
-                : meeting.type === "plan"
-                  ? t("plans.screenTitle")
-                  : t("tabs.events.title");
-              const isMemberMeeting = meeting.eventType === "member";
-              const date = new Date(meeting.startsAt);
-              return (
-                <Pressable
-                  key={`${meeting.eventType}:${meeting.id}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${meeting.title}, ${category}`}
-                  testID={`past-meeting-${meeting.eventType}-${meeting.id}`}
-                  onPress={() => router.push(
-                    `/event-details/${meeting.eventType}/${meeting.id}` as never,
-                  )}
-                  style={({ pressed }) => [
-                    styles.meeting,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      opacity: pressed ? 0.78 : 1,
-                    },
-                  ]}
-                >
-                  <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
-                    <Feather
-                      name={meeting.type === "event" ? "calendar" : "users"}
-                      size={18}
-                      color={colors.primary}
-                    />
-                  </View>
-                  <View style={styles.meetingCopy}>
-                    <Text style={[styles.category, { color: colors.primary }]}>
-                      {category}
-                    </Text>
+          <View>
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t("tabs.events.pastMeetingsFilterLabel")}
+              testID="past-meetings-filters"
+              style={styles.filters}
+            >
+              {PAST_MEETING_FILTERS.map(({ value, labelKey }) => {
+                const selected = filter === value;
+                const label = t(labelKey);
+                return (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="radio"
+                    accessibilityLabel={label}
+                    accessibilityState={{ checked: selected }}
+                    testID={`past-meetings-filter-${value}`}
+                    onPress={() => setFilter(value)}
+                    style={({ pressed }) => [
+                      styles.filterChip,
+                      {
+                        backgroundColor: selected ? colors.primary : colors.card,
+                        borderColor: selected ? colors.primary : colors.border,
+                        opacity: pressed ? 0.78 : 1,
+                      },
+                    ]}
+                  >
                     <Text
-                      style={[styles.meetingTitle, { color: colors.text }]}
-                      numberOfLines={2}
+                      style={[
+                        styles.filterText,
+                        {
+                          color: selected
+                            ? colors.primaryForeground
+                            : colors.text,
+                        },
+                      ]}
                     >
-                      {meeting.title}
+                      {label}
                     </Text>
-                    <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                      {date.toLocaleString(lang, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </Text>
-                    {meeting.location || meeting.hostName ? (
-                      <Text style={[styles.meta, { color: colors.mutedForeground }]} numberOfLines={1}>
-                        {[meeting.location, meeting.hostName]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </Text>
-                    ) : null}
-                    {isMemberMeeting && !meeting.isHost ? (
-                      <Text style={[styles.rating, { color: colors.primary }]}>
-                        {meeting.myRating == null
-                          ? t("plans.rateHost")
-                          : `${t("plans.updateHostRating")} · ${meeting.myRating}/5`}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-                </Pressable>
-              );
-            })}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {visibleMeetings.length === 0 ? (
+              <View style={[styles.empty, { borderColor: colors.border }]}>
+                <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+                  {t("tabs.events.pastMeetingsFilterEmpty")}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.list}>
+                {visibleMeetings.map((meeting) => {
+                  const category = meeting.type === "hangout"
+                    ? t("tabs.events.nearbyTab")
+                    : meeting.type === "plan"
+                      ? t("plans.screenTitle")
+                      : t("tabs.events.title");
+                  const isMemberMeeting = meeting.eventType === "member";
+                  const date = new Date(meeting.startsAt);
+                  return (
+                    <Pressable
+                      key={`${meeting.eventType}:${meeting.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${meeting.title}, ${category}`}
+                      testID={`past-meeting-${meeting.eventType}-${meeting.id}`}
+                      onPress={() => router.push(
+                        `/event-details/${meeting.eventType}/${meeting.id}` as never,
+                      )}
+                      style={({ pressed }) => [
+                        styles.meeting,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.border,
+                          opacity: pressed ? 0.78 : 1,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
+                        <Feather
+                          name={meeting.type === "event" ? "calendar" : "users"}
+                          size={18}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <View style={styles.meetingCopy}>
+                        <Text style={[styles.category, { color: colors.primary }]}>
+                          {category}
+                        </Text>
+                        <Text
+                          style={[styles.meetingTitle, { color: colors.text }]}
+                          numberOfLines={2}
+                        >
+                          {meeting.title}
+                        </Text>
+                        <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                          {date.toLocaleString(lang, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </Text>
+                        {meeting.location || meeting.hostName ? (
+                          <Text style={[styles.meta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                            {[meeting.location, meeting.hostName]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </Text>
+                        ) : null}
+                        {isMemberMeeting && !meeting.isHost ? (
+                          <Text style={[styles.rating, { color: colors.primary }]}>
+                            {meeting.myRating == null
+                              ? t("plans.rateHost")
+                              : `${t("plans.updateHostRating")} · ${meeting.myRating}/5`}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -183,6 +251,21 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontFamily: "serif", fontSize: 30 },
   content: { paddingHorizontal: 20, paddingTop: 6 },
   state: { minHeight: 200, alignItems: "center", justifyContent: "center" },
+  filters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 15,
+  },
+  filterChip: {
+    minHeight: 38,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+  },
+  filterText: { fontSize: 12, fontWeight: "700" },
   empty: {
     minHeight: 210,
     borderWidth: StyleSheet.hairlineWidth,
