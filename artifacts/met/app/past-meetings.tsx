@@ -51,6 +51,14 @@ export default function PastMeetingsScreen() {
     filter === "all"
       ? meetings
       : meetings.filter((meeting) => meeting.type === filter);
+  const filterCounts = meetings.reduce(
+    (counts, meeting) => {
+      counts.all += 1;
+      counts[meeting.type] += 1;
+      return counts;
+    },
+    { all: 0, event: 0, plan: 0, hangout: 0 },
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -119,11 +127,14 @@ export default function PastMeetingsScreen() {
               {PAST_MEETING_FILTERS.map(({ value, labelKey }) => {
                 const selected = filter === value;
                 const label = t(labelKey);
+                const count = new Intl.NumberFormat(lang).format(
+                  filterCounts[value],
+                );
                 return (
                   <Pressable
                     key={value}
                     accessibilityRole="radio"
-                    accessibilityLabel={label}
+                    accessibilityLabel={`${label}, ${count}`}
                     accessibilityState={{ checked: selected }}
                     testID={`past-meetings-filter-${value}`}
                     onPress={() => setFilter(value)}
@@ -145,8 +156,9 @@ export default function PastMeetingsScreen() {
                             : colors.text,
                         },
                       ]}
+                      testID={`past-meetings-filter-label-${value}`}
                     >
-                      {label}
+                      {`${label} (${count})`}
                     </Text>
                   </Pressable>
                 );
@@ -167,13 +179,18 @@ export default function PastMeetingsScreen() {
                     : meeting.type === "plan"
                       ? t("plans.screenTitle")
                       : t("tabs.events.title");
+                  const roleLabel = t(
+                    meeting.isHost
+                      ? "tabs.events.pastMeetingsHosted"
+                      : "tabs.events.pastMeetingsAttended",
+                  );
                   const isMemberMeeting = meeting.eventType === "member";
                   const date = new Date(meeting.startsAt);
                   return (
                     <Pressable
                       key={`${meeting.eventType}:${meeting.id}`}
                       accessibilityRole="button"
-                      accessibilityLabel={`${meeting.title}, ${category}`}
+                      accessibilityLabel={`${meeting.title}, ${category}, ${roleLabel}`}
                       testID={`past-meeting-${meeting.eventType}-${meeting.id}`}
                       onPress={() => router.push(
                         `/event-details/${meeting.eventType}/${meeting.id}` as never,
@@ -195,9 +212,23 @@ export default function PastMeetingsScreen() {
                         />
                       </View>
                       <View style={styles.meetingCopy}>
-                        <Text style={[styles.category, { color: colors.primary }]}>
-                          {category}
-                        </Text>
+                        <View style={styles.categoryRow}>
+                          <Text style={[styles.category, { color: colors.primary }]}>
+                            {category}
+                          </Text>
+                          <View
+                            style={[
+                              styles.roleBadge,
+                              { backgroundColor: colors.primarySoft },
+                            ]}
+                          >
+                            <Text
+                              style={[styles.roleText, { color: colors.primary }]}
+                            >
+                              {roleLabel}
+                            </Text>
+                          </View>
+                        </View>
                         <Text
                           style={[styles.meetingTitle, { color: colors.text }]}
                           numberOfLines={2}
@@ -258,6 +289,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   filterChip: {
+    maxWidth: "100%",
     minHeight: 38,
     justifyContent: "center",
     borderWidth: 1,
@@ -265,7 +297,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 7,
   },
-  filterText: { fontSize: 12, fontWeight: "700" },
+  filterText: { flexShrink: 1, fontSize: 12, fontWeight: "700" },
   empty: {
     minHeight: 210,
     borderWidth: StyleSheet.hairlineWidth,
@@ -305,7 +337,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   meetingCopy: { flex: 1, gap: 4 },
+  categoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
   category: { fontSize: 10, fontWeight: "700", letterSpacing: 0.7 },
+  roleBadge: {
+    maxWidth: "100%",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  roleText: { flexShrink: 1, fontSize: 10, fontWeight: "600", lineHeight: 14 },
   meetingTitle: { fontSize: 15, lineHeight: 20, fontWeight: "700" },
   meta: { fontSize: 11, lineHeight: 16 },
   rating: { fontSize: 12, fontWeight: "700", marginTop: 2 },

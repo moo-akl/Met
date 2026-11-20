@@ -135,6 +135,8 @@ export const ar: LocaleTree = {
       pastMeetingsFilterLabel: "تصفية اللقاءات السابقة حسب النوع",
       pastMeetingsAll: "الكل",
       pastMeetingsFilterEmpty: "لا توجد لقاءات سابقة تطابق هذا الفلتر.",
+      pastMeetingsHosted: "من تنظيمك",
+      pastMeetingsAttended: "بمشاركتك",
       subtitle: "خطط قادمة من الأماكن وأعضاء Met",
       create: "إنشاء فعالية",
       quickPlan: "لقاء",

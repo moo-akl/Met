@@ -135,6 +135,8 @@ export const ru: LocaleTree = {
       pastMeetingsFilterLabel: "Фильтровать прошедшие встречи по типу",
       pastMeetingsAll: "Все",
       pastMeetingsFilterEmpty: "Нет прошедших встреч, подходящих под этот фильтр.",
+      pastMeetingsHosted: "Вы организовали",
+      pastMeetingsAttended: "Вы участвовали",
       subtitle: "Предстоящие встречи от заведений и участников Met",
       create: "Создать событие",
       quickPlan: "Встреча",

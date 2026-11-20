@@ -135,6 +135,8 @@ export const nl: LocaleTree = {
       pastMeetingsFilterLabel: "Eerdere ontmoetingen filteren op type",
       pastMeetingsAll: "Alle",
       pastMeetingsFilterEmpty: "Geen eerdere ontmoetingen komen overeen met dit filter.",
+      pastMeetingsHosted: "Door jou georganiseerd",
+      pastMeetingsAttended: "Door jou bijgewoond",
       subtitle: "Aankomende plannen van locaties en Met-leden",
       create: "Evenement maken",
       quickPlan: "Hangout",

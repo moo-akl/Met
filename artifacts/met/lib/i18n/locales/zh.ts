@@ -135,6 +135,8 @@ export const zh: LocaleTree = {
       pastMeetingsFilterLabel: "按类型筛选往期会面",
       pastMeetingsAll: "全部",
       pastMeetingsFilterEmpty: "没有符合此筛选条件的往期会面。",
+      pastMeetingsHosted: "你组织的",
+      pastMeetingsAttended: "你参加的",
       subtitle: "场所和 Met 成员的近期活动",
       create: "创建活动",
       quickPlan: "聚会",

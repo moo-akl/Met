@@ -135,6 +135,8 @@ export const vi: LocaleTree = {
       pastMeetingsFilterLabel: "Lọc các buổi gặp trước đây theo loại",
       pastMeetingsAll: "Tất cả",
       pastMeetingsFilterEmpty: "Không có buổi gặp trước đây nào khớp với bộ lọc này.",
+      pastMeetingsHosted: "Bạn tổ chức",
+      pastMeetingsAttended: "Bạn tham dự",
       subtitle: "Lịch sắp tới từ địa điểm và thành viên Met",
       create: "Tạo sự kiện",
       quickPlan: "Buổi gặp",

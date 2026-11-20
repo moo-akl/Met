@@ -137,6 +137,8 @@ export const en = {
       pastMeetingsFilterLabel: "Filter past meetings by type",
       pastMeetingsAll: "All",
       pastMeetingsFilterEmpty: "No past meetings match this filter.",
+      pastMeetingsHosted: "You hosted",
+      pastMeetingsAttended: "You attended",
       subtitle: "Upcoming plans from venues and Met members",
       create: "Create event",
       createHangout: "Create hangout",

@@ -135,6 +135,8 @@ export const fr: LocaleTree = {
       pastMeetingsFilterLabel: "Filtrer les rencontres passées par type",
       pastMeetingsAll: "Toutes",
       pastMeetingsFilterEmpty: "Aucune rencontre passée ne correspond à ce filtre.",
+      pastMeetingsHosted: "Vous avez organisé",
+      pastMeetingsAttended: "Vous avez participé",
       subtitle: "Les prochains rendez-vous des lieux et membres Met",
       create: "Créer un événement",
       quickPlan: "Sortie",

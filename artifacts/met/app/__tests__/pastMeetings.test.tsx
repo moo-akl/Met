@@ -3,7 +3,9 @@ import {
   cleanup,
   fireEvent,
   render,
+  within,
 } from "@testing-library/react-native";
+import { StyleSheet } from "react-native";
 
 // eslint-disable-next-line no-var
 var mockRouterPush = jest.fn();
@@ -11,6 +13,8 @@ var mockRouterPush = jest.fn();
 var mockRouterBack = jest.fn();
 // eslint-disable-next-line no-var
 var mockPastMeetings: any;
+// eslint-disable-next-line no-var
+var mockTranslate: (key: string) => string;
 
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -47,7 +51,7 @@ jest.mock("@/hooks/useColors", () => ({
 }));
 
 jest.mock("@/lib/i18n", () => ({
-  useT: () => ({ t: (key: string) => key, lang: "en" }),
+  useT: () => ({ t: (key: string) => mockTranslate(key), lang: "en" }),
 }));
 
 jest.mock("@workspace/api-client-react", () => ({
@@ -90,6 +94,7 @@ const allMeetings = [
 beforeEach(() => {
   mockRouterPush.mockReset();
   mockRouterBack.mockReset();
+  mockTranslate = (key) => key;
   mockPastMeetings = {
     data: { meetings: allMeetings },
     isLoading: false,
@@ -103,6 +108,43 @@ afterEach(() => {
 });
 
 describe("Past Meetings filters", () => {
+  it("shows host or attendee labels and limits rating prompts to member attendees", async () => {
+    const view = await render(<PastMeetingsScreen />);
+    const attendedMemberMeeting = view.getByTestId("past-meeting-member-101");
+    const hostedMemberMeeting = view.getByTestId("past-meeting-member-202");
+    const attendedVenueMeeting = view.getByTestId("past-meeting-venue-303");
+
+    expect(
+      within(attendedMemberMeeting).getByText(
+        "tabs.events.pastMeetingsAttended",
+      ),
+    ).toBeTruthy();
+    expect(
+      within(attendedMemberMeeting).getByText("plans.rateHost"),
+    ).toBeTruthy();
+
+    expect(
+      within(hostedMemberMeeting).getByText(
+        "tabs.events.pastMeetingsHosted",
+      ),
+    ).toBeTruthy();
+    expect(
+      within(hostedMemberMeeting).queryByText("plans.rateHost"),
+    ).toBeNull();
+
+    expect(
+      within(attendedVenueMeeting).getByText(
+        "tabs.events.pastMeetingsAttended",
+      ),
+    ).toBeTruthy();
+    expect(
+      within(attendedVenueMeeting).queryByText("plans.rateHost"),
+    ).toBeNull();
+    expect(attendedVenueMeeting.props.accessibilityLabel).toContain(
+      "tabs.events.pastMeetingsAttended",
+    );
+  });
+
   it("shows every type by default and exposes the filters as a radio group", async () => {
     const view = await render(<PastMeetingsScreen />);
 
@@ -112,6 +154,24 @@ describe("Past Meetings filters", () => {
     expect(
       view.getByTestId("past-meetings-filter-all").props.accessibilityState,
     ).toEqual({ checked: true });
+    expect(view.getByTestId("past-meetings-filter-label-all").props.children)
+      .toBe("tabs.events.pastMeetingsAll (3)");
+    expect(view.getByTestId("past-meetings-filter-label-event").props.children)
+      .toBe("tabs.events.title (1)");
+    expect(view.getByTestId("past-meetings-filter-label-plan").props.children)
+      .toBe("plans.screenTitle (1)");
+    expect(view.getByTestId("past-meetings-filter-label-hangout").props.children)
+      .toBe("tabs.events.nearbyTab (1)");
+    for (const [filter, label, count] of [
+      ["all", "tabs.events.pastMeetingsAll", 3],
+      ["event", "tabs.events.title", 1],
+      ["plan", "plans.screenTitle", 1],
+      ["hangout", "tabs.events.nearbyTab", 1],
+    ] as const) {
+      expect(
+        view.getByTestId(`past-meetings-filter-${filter}`).props.accessibilityLabel,
+      ).toBe(`${label}, ${count}`);
+    }
 
     const group = view.getByTestId("past-meetings-filters");
     expect(group.props.accessibilityRole).toBe("radiogroup");
@@ -151,6 +211,9 @@ describe("Past Meetings filters", () => {
     expect(
       view.getByTestId(`past-meetings-filter-${filter}`).props.accessibilityState,
     ).toEqual({ checked: true });
+    expect(
+      view.getByTestId(`past-meetings-filter-${filter}`).props.accessibilityLabel,
+    ).toContain(", 1");
   });
 
   it("shows the localized empty message when a filter has no matches", async () => {
@@ -173,5 +236,37 @@ describe("Past Meetings filters", () => {
     expect(view.getByTestId("past-meeting-member-101")).toBeTruthy();
     expect(view.getByTestId("past-meeting-member-202")).toBeTruthy();
     expect(view.getByTestId("past-meeting-venue-303")).toBeTruthy();
+  });
+
+  it("recalculates counts when the history data changes", async () => {
+    const view = await render(<PastMeetingsScreen />);
+    expect(view.getByTestId("past-meetings-filter-label-all").props.children)
+      .toBe("tabs.events.pastMeetingsAll (3)");
+
+    mockPastMeetings.data = { meetings: [allMeetings[0]] };
+    await view.rerender(<PastMeetingsScreen />);
+
+    expect(view.getByTestId("past-meetings-filter-label-all").props.children)
+      .toBe("tabs.events.pastMeetingsAll (1)");
+    expect(view.getByTestId("past-meetings-filter-label-event").props.children)
+      .toBe("tabs.events.title (0)");
+    expect(view.getByTestId("past-meetings-filter-label-plan").props.children)
+      .toBe("plans.screenTitle (0)");
+    expect(view.getByTestId("past-meetings-filter-label-hangout").props.children)
+      .toBe("tabs.events.nearbyTab (1)");
+  });
+
+  it("lets long translated filter names wrap within the available width", async () => {
+    const longLabel = "An event type with a much longer translated name";
+    mockTranslate = (key) =>
+      key === "tabs.events.title" ? longLabel : key;
+    const view = await render(<PastMeetingsScreen />);
+
+    const chip = view.getByTestId("past-meetings-filter-event");
+    const label = view.getByTestId("past-meetings-filter-label-event");
+    expect(label.props.children).toBe(`${longLabel} (1)`);
+    expect(chip.props.accessibilityLabel).toBe(`${longLabel}, 1`);
+    expect(StyleSheet.flatten(chip.props.style).maxWidth).toBe("100%");
+    expect(StyleSheet.flatten(label.props.style).flexShrink).toBe(1);
   });
 });
