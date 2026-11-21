@@ -113,7 +113,8 @@ for (const [platform, enabled, expected] of [
       if (id === "react-native") return { Platform: { OS: platform } };
       if (id === "./app.json") return { expo: { extra: { startupDiagnostics: enabled } } };
       if (id === "@react-native-firebase/messaging") return {
-        default: () => ({ setBackgroundMessageHandler() { backgroundRegistrations++; } }),
+        getMessaging: () => ({}),
+        setBackgroundMessageHandler() { backgroundRegistrations++; },
       };
       return {};
     },
@@ -121,7 +122,7 @@ for (const [platform, enabled, expected] of [
   assert.equal(loaded[0], "@expo/metro-runtime");
   assert.equal(loaded.includes("./startup/registerDiagnosticRoot"), expected === "diagnostic");
   assert.equal(loaded.includes("expo-router/entry"), expected === "standard");
-  assert.equal(backgroundRegistrations, expected === "standard" ? 1 : 0);
+  assert.equal(backgroundRegistrations, expected === "standard" && platform !== "web" ? 1 : 0);
 });
 
 test("the root layout reports readiness and early provider errors", () => {
