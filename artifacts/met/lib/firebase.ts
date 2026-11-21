@@ -8,9 +8,9 @@
 
 import { Platform } from "react-native";
 
-type AuthModule = typeof import("@react-native-firebase/auth").default;
+type AuthModule = typeof import("@react-native-firebase/auth");
 
-let cachedAuth: ReturnType<AuthModule> | null = null;
+let cachedAuth: ReturnType<AuthModule["getAuth"]> | null = null;
 let nativeUnavailable = false;
 
 export function isFirebaseAvailable(): boolean {
@@ -24,12 +24,12 @@ export function isFirebaseAvailable(): boolean {
   return true;
 }
 
-export async function getAuthModule(): Promise<ReturnType<AuthModule> | null> {
+export async function getAuthModule(): Promise<ReturnType<AuthModule["getAuth"]> | null> {
   if (!isFirebaseAvailable()) return null;
   if (cachedAuth) return cachedAuth;
   try {
     const mod = await import("@react-native-firebase/auth");
-    cachedAuth = mod.default();
+    cachedAuth = mod.getAuth();
     return cachedAuth;
   } catch {
     nativeUnavailable = true;

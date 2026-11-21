@@ -1,6 +1,6 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { Modal, StyleSheet } from "react-native";
+import { Modal, Platform, StyleSheet } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { waitFor } from "@testing-library/react-native";
 import type { PendingCommunityEventWelcomeNote } from "@workspace/api-client-react";
@@ -120,8 +120,8 @@ describe("EventWelcomeNoteReturnVisitController", () => {
           .props.style,
       ),
     ).toMatchObject({
-      fontFamily: "Caveat_500Medium",
-      fontSize: 21,
+      fontFamily: Platform.OS === "ios" ? "Noteworthy" : "cursive",
+      fontSize: 18,
       lineHeight: 27,
     });
     expect(

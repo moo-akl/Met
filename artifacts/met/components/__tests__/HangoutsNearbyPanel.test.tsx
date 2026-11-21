@@ -199,7 +199,7 @@ describe("Hangouts discovery", () => {
       await Promise.resolve();
     });
     expect(root.root.findByProps({ testID: "events-heading" }).props.children)
-      .toBe("tabs.events.hangoutsHeading");
+      .toBe("tabs.events.nearbyTab");
     expect(root.root.findByProps({ testID: "hangouts-sort-nearest" })).toBeTruthy();
     act(() => {
       root.root.findByProps({ testID: "events-view-hangouts" }).props.onPress();
@@ -236,7 +236,7 @@ describe("Hangouts discovery", () => {
     });
 
     expect(root.root.findByProps({ testID: "events-heading" }).props.children)
-      .toBe("tabs.events.eventsHeading");
+      .toBe("tabs.events.title");
     act(() => root.unmount());
   });
 

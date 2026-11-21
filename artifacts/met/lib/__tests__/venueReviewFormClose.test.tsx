@@ -53,6 +53,9 @@ jest.mock("@/contexts/ThemeContext", () => ({
 jest.mock("@/components/VenueGuestbook", () => ({
   VenueGuestbook: () => null,
 }));
+jest.mock("@/components/SavePlaceButton", () => ({
+  SavePlaceButton: () => null,
+}));
 
 // expo-image — just render a plain View so the tree is stable
 jest.mock("expo-image", () => ({
@@ -114,6 +117,11 @@ jest.mock("@/lib/api/client", () => ({
     getMyVenueReview:        (...a: unknown[]) => mockGetMyVenueReview(...a),
     submitVenueReview:       (...a: unknown[]) => mockSubmitVenueReview(...a),
     hubQrVerify:             (...a: unknown[]) => mockHubQrVerify(...a),
+    hubCheckinStatus:        jest.fn().mockResolvedValue({
+      isRegisteredVenue: false,
+      isQrVerified: true,
+      hasOpenCheckin: false,
+    }),
   },
   ApiError: class ApiError extends Error {
     constructor(message: string, public status = 0, public body: unknown = null) {

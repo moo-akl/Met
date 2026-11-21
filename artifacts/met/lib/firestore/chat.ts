@@ -7,7 +7,7 @@
 // chatId = [uidA, uidB].sort().join("_") so both users share one doc.
 
 import * as FileSystem from "expo-file-system/legacy";
-import { getFirestoreModule } from "./client";
+import { getFirestoreModule, getFirestoreSdk } from "./client";
 import { api } from "../api/client";
 
 export function getChatId(uidA: string, uidB: string): string {
@@ -72,7 +72,8 @@ export function startChatMediaUpload(
 
   const promise = (async () => {
     const authMod = await import("@react-native-firebase/auth");
-    const idToken = await authMod.default().currentUser?.getIdToken();
+    const user = authMod.getAuth().currentUser;
+    const idToken = user ? await authMod.getIdToken(user) : null;
     if (!idToken) throw new Error("Not authenticated");
     if (cancelled) throw new Error("Storage upload cancelled");
 
@@ -150,7 +151,8 @@ export async function uploadChatAudio(
   localUri: string,
 ): Promise<string> {
   const authMod = await import("@react-native-firebase/auth");
-  const idToken = await authMod.default().currentUser?.getIdToken();
+  const user = authMod.getAuth().currentUser;
+  const idToken = user ? await authMod.getIdToken(user) : null;
   if (!idToken) throw new Error("Not authenticated");
 
   const BUCKET = "metapp-b4642.firebasestorage.app";
@@ -222,13 +224,14 @@ export async function sendMessage(
 
   const chatId = getChatId(fromUid, toUid);
   const now = Date.now();
-  const chatRef = fs.collection("chats").doc(chatId);
-  const msgRef = chatRef.collection("messages").doc();
+  const fsMod = await getFirestoreSdk();
+  const chatRef = fsMod.doc(fsMod.collection(fs, "chats"), chatId);
+  const msgRef = fsMod.doc(fsMod.collection(chatRef, "messages"));
 
   const previewText = trimmed || (audioUri ? "🎤 Voice message" : "📷");
 
   try {
-    const batch = fs.batch();
+    const batch = fsMod.writeBatch(fs);
 
     const msgData: Record<string, unknown> = { from: fromUid, text: trimmed, sentAt: now };
     if (mediaUri) {
@@ -299,23 +302,24 @@ export async function toggleReaction(
   const fs = await getFirestoreModule();
   if (!fs) return;
 
-  const msgRef = fs.collection("chats").doc(chatId).collection("messages").doc(msgId);
+  const fsMod = await getFirestoreSdk();
+  const msgRef = fsMod.doc(
+    fsMod.collection(fsMod.doc(fsMod.collection(fs, "chats"), chatId), "messages"),
+    msgId,
+  );
 
   try {
-    const snap = await msgRef.get();
-    if (!snap.exists) return;
+    const snap = await fsMod.getDoc(msgRef);
+    if (!snap.exists()) return;
     const data = snap.data() as Record<string, unknown> | undefined;
     const reactions = (data?.["reactions"] ?? {}) as Record<string, string[]>;
     const current: string[] = reactions[emoji] ?? [];
     const alreadyReacted = current.includes(myUid);
 
-    const fsMod = await import("@react-native-firebase/firestore");
-    const FieldValue = fsMod.default.FieldValue;
-
-    await msgRef.update({
+    await fsMod.updateDoc(msgRef, {
       [`reactions.${emoji}`]: alreadyReacted
-        ? FieldValue.arrayRemove(myUid)
-        : FieldValue.arrayUnion(myUid),
+        ? fsMod.arrayRemove(myUid)
+        : fsMod.arrayUnion(myUid),
     });
   } catch (err) {
     console.warn("[chat] toggleReaction failed", err);
@@ -334,12 +338,12 @@ export async function deleteMessage(
   if (!fs) return;
 
   try {
-    await fs
-      .collection("chats")
-      .doc(chatId)
-      .collection("messages")
-      .doc(msgId)
-      .update({ deleted: true });
+    const fsMod = await getFirestoreSdk();
+    const msgRef = fsMod.doc(
+      fsMod.collection(fsMod.doc(fsMod.collection(fs, "chats"), chatId), "messages"),
+      msgId,
+    );
+    await fsMod.updateDoc(msgRef, { deleted: true });
   } catch (err) {
     console.warn("[chat] deleteMessage failed", err);
     throw err;
@@ -359,10 +363,13 @@ export async function clearChatHistory(
 
   try {
     const chatId = getChatId(myUid, peerUid);
-    await fs
-      .collection("chats")
-      .doc(chatId)
-      .set({ clearedAt: { [myUid]: Date.now() } }, { merge: true });
+    const fsMod = await getFirestoreSdk();
+    const chatRef = fsMod.doc(fsMod.collection(fs, "chats"), chatId);
+    await fsMod.setDoc(
+      chatRef,
+      { clearedAt: { [myUid]: Date.now() } },
+      { merge: true },
+    );
   } catch (err) {
     console.warn("[chat] clearChatHistory failed", err);
     throw err;
@@ -384,6 +391,8 @@ export async function subscribeToMessages(
   const fs = await getFirestoreModule();
   if (!fs) return () => {};
   if (cancelled) return () => {};
+  const firestore = fs;
+  const fsMod = await getFirestoreSdk();
 
   const chatId = getChatId(myUid, peerUid);
 
@@ -395,13 +404,16 @@ export async function subscribeToMessages(
     if (cancelled) return;
     if (real) { real(); real = null; }
 
-    real = fs!
-      .collection("chats")
-      .doc(chatId)
-      .collection("messages")
-      .orderBy("sentAt", "asc")
-      .limitToLast(200)
-      .onSnapshot(
+    const messagesQuery = fsMod.query(
+      fsMod.collection(
+        fsMod.doc(fsMod.collection(firestore, "chats"), chatId),
+        "messages",
+      ),
+      fsMod.orderBy("sentAt", "asc"),
+      fsMod.limitToLast(200),
+    );
+    real = fsMod.onSnapshot(
+      messagesQuery,
         (snap) => {
           retryCount = 0;
           const msgs: ChatMessage[] = [];
@@ -488,10 +500,9 @@ export async function markChatRead(
   if (!fs) return;
   try {
     const chatId = getChatId(myUid, peerUid);
-    await fs
-      .collection("chats")
-      .doc(chatId)
-      .update({ [`lastReadAt.${myUid}`]: Date.now() });
+    const fsMod = await getFirestoreSdk();
+    const chatRef = fsMod.doc(fsMod.collection(fs, "chats"), chatId);
+    await fsMod.updateDoc(chatRef, { [`lastReadAt.${myUid}`]: Date.now() });
   } catch {
     // Doc doesn't exist yet — nothing to mark as read.
   }
@@ -514,14 +525,14 @@ export async function subscribeToChatMeta(
     return () => {};
   }
   if (cancelled) return () => {};
+  const fsMod = await getFirestoreSdk();
 
   const chatId = getChatId(myUid, peerUid);
-  real = fs
-    .collection("chats")
-    .doc(chatId)
-    .onSnapshot(
+  const chatRef = fsMod.doc(fsMod.collection(fs, "chats"), chatId);
+  real = fsMod.onSnapshot(
+    chatRef,
       (snap) => {
-        if (!snap.exists) { listener(null); return; }
+        if (!snap.exists()) { listener(null); return; }
         const d = snap.data() as Record<string, unknown> | undefined;
         if (!d) { listener(null); return; }
         const lm = d["lastMessage"] as Record<string, unknown> | undefined;

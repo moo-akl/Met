@@ -37,7 +37,11 @@ var mockGetToken = jest.fn();
 var mockOnMessage = jest.fn().mockReturnValue(jest.fn());
 
 jest.mock("@react-native-firebase/messaging", () => {
-  return () => ({ getToken: mockGetToken, onMessage: mockOnMessage });
+  return {
+    getMessaging: jest.fn(() => ({})),
+    getToken: (...args: unknown[]) => mockGetToken(...args),
+    onMessage: (...args: unknown[]) => mockOnMessage(...args),
+  };
 });
 
 jest.mock("../storage", () => ({
@@ -377,7 +381,7 @@ describe("setupNotificationListeners", () => {
     ],
   ])("presents foreground FCM %s as a local notification", async (_label, data) => {
     setupNotificationListeners(jest.fn());
-    const handler = mockOnMessage.mock.calls[0]?.[0] as
+    const handler = mockOnMessage.mock.calls[0]?.[1] as
       | ((message: {
           notification?: { title?: string; body?: string };
           data?: Record<string, string>;
@@ -780,7 +784,7 @@ describe("registerForPushTokenAsync", () => {
     expect(result).toBe(FCM_TOKEN);
   });
 
-  it("returns null and does not throw when messaging().getToken() rejects", async () => {
+  it("returns null and does not throw when the FCM token request rejects", async () => {
     mockGetToken = jest.fn().mockRejectedValue(new Error("network error"));
 
     const result = await registerForPushTokenAsync();
@@ -789,7 +793,7 @@ describe("registerForPushTokenAsync", () => {
     expect(savePushToken).not.toHaveBeenCalled();
   });
 
-  it("does not call savePushToken when messaging().getToken() returns empty string", async () => {
+  it("does not call savePushToken when the FCM token is empty", async () => {
     mockGetToken = jest.fn().mockResolvedValue("");
 
     const result = await registerForPushTokenAsync();

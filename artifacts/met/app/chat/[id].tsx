@@ -3,9 +3,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { Audio } from "expo-av";
+import {
+  createAudioPlayer,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  type RecordingOptions,
+} from "expo-audio";
 import { ReviewModal } from "@/components/ReviewModal";
-import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
 import { api } from "@/lib/api/client";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -42,7 +48,6 @@ import {
   type ChatPhotoUploadStatus,
 } from "@/components/ChatPhotoBubble";
 import {
-
   attemptChatDraftDelivery,
   type UploadedChatDraftAttachment,
 } from "@/lib/chatDraftDelivery";
@@ -72,13 +77,8 @@ const REACTION_ICONS: Record<string, React.ComponentProps<typeof Feather>["name"
   "🔥": "zap",
 };
 
-// Custom recording preset — same quality as HIGH_QUALITY but with metering
-// disabled. The metering timer in expo-av fires on a background thread; if it
-// fires after stopAndUnloadAsync() has deallocated the AVAudioRecorder native
-// object iOS raises SIGABRT/SIGSEGV, crashing the app. Disabling metering
-// eliminates that race condition entirely.
 const VOICE_RECORDING_OPTIONS: RecordingOptions = {
-  ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+  ...RecordingPresets.HIGH_QUALITY,
   isMeteringEnabled: false,
 };
 
@@ -295,40 +295,47 @@ function AudioPlayer({
   const ownContentColor = isLightTheme ? colors.foreground : "#ffffff";
   const [isPlaying, setIsPlaying] = useState(false);
   const [posMs, setPosMs] = useState(0);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
+  const subscriptionRef = useRef<{ remove: () => void } | null>(null);
   const totalMs = durationMs ?? 0;
 
   useEffect(() => {
     return () => {
-      soundRef.current?.unloadAsync().catch(() => {});
+      subscriptionRef.current?.remove();
+      subscriptionRef.current = null;
+      playerRef.current?.remove();
+      playerRef.current = null;
     };
   }, []);
 
   const toggle = useCallback(async () => {
     try {
-      if (!soundRef.current) {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true },
+      if (!playerRef.current) {
+        await setAudioModeAsync({ playsInSilentMode: true });
+        const player = createAudioPlayer(uri, { updateInterval: 250 });
+        playerRef.current = player;
+        subscriptionRef.current = player.addListener(
+          "playbackStatusUpdate",
           (status) => {
-            if (!status.isLoaded) return;
-            setPosMs(status.positionMillis ?? 0);
+            setPosMs(status.currentTime * 1000);
+            setIsPlaying(status.playing);
             if (status.didJustFinish) {
+              subscriptionRef.current?.remove();
+              subscriptionRef.current = null;
+              player.remove();
+              if (playerRef.current === player) playerRef.current = null;
               setIsPlaying(false);
               setPosMs(0);
-              soundRef.current?.unloadAsync().catch(() => {});
-              soundRef.current = null;
             }
           },
         );
-        soundRef.current = sound;
+        player.play();
         setIsPlaying(true);
       } else if (isPlaying) {
-        await soundRef.current.pauseAsync();
+        playerRef.current.pause();
         setIsPlaying(false);
       } else {
-        await soundRef.current.playAsync();
+        playerRef.current.play();
         setIsPlaying(true);
       }
     } catch {
@@ -514,7 +521,6 @@ function MessageBubble({
             )}
           </Pressable>
         )}
-
 
         {/* Reaction badges */}
         {message.reactions && !isDeleted ? (
@@ -728,6 +734,7 @@ function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const { allEncounters, authedUid, profile } = useApp();
   const [showReviewModal, setShowReviewModal] = useState(false);
   const storeDemo = isStoreDemoEnabled();
@@ -785,34 +792,28 @@ function ChatScreen() {
   const imagePickerInProgressRef = useRef(false);
   const imagePickerRequestIdRef = useRef(0);
   const photoPreparationIdRef = useRef(0);
-
-  const recordingRef = useRef<Audio.Recording | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clean up any active recording when the screen unmounts (e.g. user navigates
-  // away mid-recording). Without this the iOS AVAudioSession stays locked in
-  // PlayAndRecord mode and the next createAsync call crashes or returns an error.
+  // away mid-recording). Without this the iOS audio session can remain in
+  // recording mode and interfere with later playback or recording.
   useEffect(() => {
     return () => {
       if (recordTimerRef.current) {
         clearInterval(recordTimerRef.current);
         recordTimerRef.current = null;
       }
-      const stale = recordingRef.current;
-      if (stale) {
-        recordingRef.current = null;
-        stale.stopAndUnloadAsync().catch(() => {});
-      }
+      if (audioRecorder.isRecording) void audioRecorder.stop().catch(() => {});
       imagePickerRequestIdRef.current += 1;
       photoPreparationIdRef.current += 1;
       pendingImageUploadRef.current?.handle.cancel();
       pendingImageUploadRef.current = null;
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+      setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
       }).catch(() => {});
     };
-  }, []);
+  }, [audioRecorder]);
 
   const listRef = useRef<FlatList<ListItem>>(null);
 
@@ -1035,7 +1036,6 @@ function ChatScreen() {
           setImageUploadStatus("idle");
           setImageUploadProgress(null);
         }
-
         Alert.alert(
           "Photo not ready",
           error instanceof Error ? error.message : "Could not prepare this photo.",
@@ -1051,7 +1051,6 @@ function ChatScreen() {
           setPreparingPhoto(false);
         }
       }
-
     }
   }, [
     isMyTurn,
@@ -1070,15 +1069,15 @@ function ChatScreen() {
         recordTimerRef.current = null;
       }
       try {
-        const rec = recordingRef.current;
-        if (!rec) return;
-        recordingRef.current = null;
-        const status = await rec.stopAndUnloadAsync();
-        const uri = rec.getURI();
+        if (!audioRecorder.isRecording) return;
+        await audioRecorder.stop();
+        const uri = audioRecorder.uri;
         if (uri) {
           uploadedAttachmentCacheRef.current = null;
           setPendingAudio(uri);
-          setPendingAudioMs((status as { durationMillis?: number }).durationMillis ?? recordSecs * 1000);
+          setPendingAudioMs(
+            audioRecorder.getStatus().durationMillis || recordSecs * 1000,
+          );
           setSendError(null);
         }
       } catch {
@@ -1086,9 +1085,9 @@ function ChatScreen() {
       } finally {
         // Always reset audio mode after stopping so playback works normally
         // and the AVAudioSession isn't left in PlayAndRecord for the next attempt.
-        Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
+        setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
         }).catch(() => {});
       }
       setRecordSecs(0);
@@ -1098,9 +1097,8 @@ function ChatScreen() {
 
       // Defensive: unload any stale recording object that was never cleaned up
       // (e.g. a previous attempt that errored out mid-way).
-      if (recordingRef.current) {
-        try { await recordingRef.current.stopAndUnloadAsync(); } catch {}
-        recordingRef.current = null;
+      if (audioRecorder.isRecording) {
+        try { await audioRecorder.stop(); } catch {}
       }
 
       try {
@@ -1108,7 +1106,7 @@ function ChatScreen() {
         // activating the AVAudioSession in PlayAndRecord mode. Trying to activate
         // the session before the permission is resolved can raise an uncaught
         // AVAudioSession exception on certain iOS versions.
-        const { granted } = await Audio.requestPermissionsAsync();
+        const { granted } = await requestRecordingPermissionsAsync();
         if (!granted) {
           Alert.alert(
             "Microphone access needed",
@@ -1116,25 +1114,26 @@ function ChatScreen() {
           );
           return;
         }
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+          interruptionMode: "duckOthers",
         });
-        const { recording } = await Audio.Recording.createAsync(
-          VOICE_RECORDING_OPTIONS,
-        );
-        recordingRef.current = recording;
+        await audioRecorder.prepareToRecordAsync();
+        audioRecorder.record();
         setIsRecording(true);
         setRecordSecs(0);
         recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
       } catch (err) {
         console.warn("[recording] start failed:", err);
-        Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
+        setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
+        }).catch(() => {});
         Alert.alert("Error", "Could not start recording. Please try again.");
       }
     }
-  }, [isMyTurn, sending, isRecording, recordSecs]);
+  }, [audioRecorder, isMyTurn, sending, isRecording, recordSecs]);
 
   const handleSend = useCallback(async () => {
     if (!canSend || !myUid || !peerUid) return;
@@ -1198,7 +1197,6 @@ function ChatScreen() {
           if (capturedMedia) setImageUploadStatus("sending");
           return sendMessage(myUid, peerUid, messageText, options);
         },
-
       },
     );
     uploadedAttachmentCacheRef.current = result.ok
@@ -1215,7 +1213,6 @@ function ChatScreen() {
       setImageUploadProgress(null);
     } else {
       if (capturedMedia) setImageUploadStatus("failed");
-
       setSendError(t("chat.sendFailed"));
       setText(trimmed);
       setPendingMedia(capturedMedia);
@@ -1764,7 +1761,6 @@ function ChatScreen() {
                 styles.photoUploadStatusText,
                 { color: colors.mutedForeground },
               ]}
-
             >
               {t("chat.preparingPhoto")}
             </Text>
@@ -2239,7 +2235,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
 
   // Fullscreen image viewer
   viewerOverlay: {

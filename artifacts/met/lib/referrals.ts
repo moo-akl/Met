@@ -54,7 +54,7 @@ function generateCode(): string {
 async function getAuthOpts(): Promise<{ uid: string } | null> {
   try {
     const authMod = await import("@react-native-firebase/auth");
-    const user = authMod.default().currentUser;
+    const user = authMod.getAuth().currentUser;
     if (!user) return null;
     return { uid: user.uid };
   } catch {

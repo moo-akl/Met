@@ -7,13 +7,13 @@
 
 import { Platform } from "react-native";
 
-type FirestoreModule = typeof import("@react-native-firebase/firestore").default;
-export type Firestore = ReturnType<FirestoreModule>;
 export type FirestoreSdk = typeof import("@react-native-firebase/firestore");
+export type Firestore = ReturnType<FirestoreSdk["getFirestore"]>;
+type AppCheckInstance = import("@react-native-firebase/app-check").AppCheck;
 
 let cached: Firestore | null = null;
 let nativeUnavailable = false;
-let appCheckInitPromise: Promise<void> | null = null;
+let appCheckInitPromise: Promise<AppCheckInstance | null> | null = null;
 
 export async function getFirestoreSdk(): Promise<FirestoreSdk> {
   return await import("@react-native-firebase/firestore");
@@ -37,15 +37,15 @@ export function isFirestoreAvailable(): boolean {
  * Firestore reads/writes will still succeed — the rules tolerate a
  * missing app-check token outside production.
  */
-function initAppCheck(): Promise<void> {
+function initAppCheck(): Promise<AppCheckInstance | null> {
   if (appCheckInitPromise) return appCheckInitPromise;
   appCheckInitPromise = (async () => {
     try {
-      const { default: appCheck, firebase } = await import(
-        "@react-native-firebase/app-check"
-      );
-      void firebase;
-      const provider = appCheck().newReactNativeFirebaseAppCheckProvider();
+      const appCheckSdk = (await import("@react-native-firebase/app-check")) as
+        typeof import("@react-native-firebase/app-check") & {
+          ReactNativeFirebaseAppCheckProvider: new () => import("@react-native-firebase/app-check").ReactNativeFirebaseAppCheckProvider;
+        };
+      const provider = new appCheckSdk.ReactNativeFirebaseAppCheckProvider();
       provider.configure({
         android: {
           provider: __DEV__ ? "debug" : "playIntegrity",
@@ -60,13 +60,14 @@ function initAppCheck(): Promise<void> {
           siteKey: "unused",
         },
       });
-      await appCheck().initializeAppCheck({
+      return await appCheckSdk.initializeAppCheck(undefined, {
         provider,
         isTokenAutoRefreshEnabled: true,
       });
     } catch (err) {
       // Non-fatal — Firestore still works without App Check during dev.
       console.warn("[firestore] App Check init failed", err);
+      return null;
     }
   })();
   return appCheckInitPromise;
@@ -78,12 +79,11 @@ function initAppCheck(): Promise<void> {
  */
 export async function getAppCheckToken(): Promise<string | null> {
   if (!isFirestoreAvailable()) return null;
-  await initAppCheck();
+  const appCheck = await initAppCheck();
+  if (!appCheck) return null;
   try {
-    const { default: appCheck } = await import(
-      "@react-native-firebase/app-check"
-    );
-    const tokenResult = await appCheck().getToken();
+    const { getToken } = await import("@react-native-firebase/app-check");
+    const tokenResult = await getToken(appCheck);
     return tokenResult.token || null;
   } catch (err) {
     console.warn("[firestore] App Check token unavailable", err);
@@ -102,7 +102,7 @@ export async function getFirestoreModule(): Promise<Firestore | null> {
     // Import Firestore first — App Check is best-effort and must never
     // block or crash Firestore initialization.
     const firestore = await getFirestoreSdk();
-    cached = firestore.default();
+    cached = firestore.getFirestore();
     // Fire-and-forget App Check after Firestore is ready.
     void initAppCheck();
     return cached;

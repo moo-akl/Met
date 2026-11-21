@@ -1,6 +1,10 @@
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import messaging from "@react-native-firebase/messaging";
+import {
+  getMessaging,
+  getToken,
+  onMessage,
+} from "@react-native-firebase/messaging";
 import { Platform } from "react-native";
 
 import {
@@ -88,20 +92,20 @@ export async function getNotificationPermissionGranted(): Promise<boolean> {
  * Safe on simulator — returns null instead of throwing.
  */
 export async function registerForPushTokenAsync(): Promise<string | null> {
-  if (!Device.isDevice) {
+  if (!Device.isDevice || Platform.OS === "web") {
     return null;
   }
   const granted = await getNotificationPermissionGranted();
   if (!granted) return null;
 
   try {
-    const token = await messaging().getToken();
+    const token = await getToken(getMessaging());
     if (token) {
       await savePushToken(token);
     }
     return token || null;
   } catch (err) {
-    console.warn("[notifications] messaging().getToken() failed", err);
+    console.warn("[notifications] getToken() failed", err);
     return null;
   }
 }
@@ -349,7 +353,7 @@ export function setupNotificationListeners(
   let unsubscribeFcm: (() => void) | undefined;
   if (Device.isDevice && Platform.OS !== "web") {
     try {
-      unsubscribeFcm = messaging().onMessage(async (message) => {
+      unsubscribeFcm = onMessage(getMessaging(), async (message) => {
         const title = message.notification?.title;
         const body = message.notification?.body;
         if (!title && !body) return;

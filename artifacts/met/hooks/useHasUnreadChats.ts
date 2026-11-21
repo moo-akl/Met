@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getFirestoreModule } from "@/lib/firestore/client";
+import { getFirestoreModule, getFirestoreSdk } from "@/lib/firestore/client";
 
 function toMs(v: unknown): number {
   if (typeof v === "number") return v;
@@ -30,13 +30,15 @@ export function useHasUnreadChats(myUid: string | null): boolean {
     let cancelled = false;
     let unsub: (() => void) | null = null;
 
-    getFirestoreModule().then((fs) => {
+    Promise.all([getFirestoreModule(), getFirestoreSdk()]).then(([fs, sdk]) => {
       if (cancelled || !fs) return;
 
-      unsub = fs
-        .collection("chats")
-        .where("participants", "array-contains", myUid)
-        .onSnapshot(
+      const chatsQuery = sdk.query(
+        sdk.collection(fs, "chats"),
+        sdk.where("participants", "array-contains", myUid),
+      );
+      unsub = sdk.onSnapshot(
+        chatsQuery,
           (snap) => {
             if (cancelled) return;
             const anyUnread = snap.docs.some((doc) => {
@@ -58,7 +60,9 @@ export function useHasUnreadChats(myUid: string | null): boolean {
           () => {
             if (!cancelled) setHasUnread(false);
           },
-        );
+      );
+    }).catch(() => {
+      if (!cancelled) setHasUnread(false);
     });
 
     return () => {

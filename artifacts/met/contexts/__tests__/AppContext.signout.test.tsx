@@ -62,6 +62,7 @@ jest.mock("@/lib/referrals", () => ({
 }));
 
 jest.mock("@/lib/seed", () => ({
+  ...jest.requireActual("@/lib/seed"),
   buildSeedEncounters: jest.fn().mockReturnValue([]),
 }));
 

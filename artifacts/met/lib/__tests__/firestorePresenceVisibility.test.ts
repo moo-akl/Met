@@ -20,40 +20,55 @@ jest.mock("@/lib/api/client", () => ({
 }));
 jest.mock("@/lib/firestore/client", () => ({
   getFirestoreModule: jest.fn(),
-  getFirestoreSdk: jest.fn(() =>
-    Promise.resolve({
-      default: {
-        GeoPoint: class GeoPoint {
-          latitude: number;
-          longitude: number;
+  getFirestoreSdk: jest.fn(() => {
+    const constraint = (kind: string) => (...args: unknown[]) => ({ kind, args });
+    return Promise.resolve({
+      collection: (parent: { collection: (name: string) => unknown }, name: string) =>
+        parent.collection(name),
+      doc: (parent: { doc: (...path: unknown[]) => unknown }, ...path: unknown[]) =>
+        parent.doc(...path),
+      setDoc: (
+        ref: { set: (data: unknown, options?: unknown) => Promise<void> },
+        data: unknown,
+        options?: unknown,
+      ) => ref.set(data, options),
+      updateDoc: (
+        ref: { update: (data: unknown) => Promise<void> },
+        data: unknown,
+      ) => ref.update(data),
+      query: (ref: Record<string, (...args: unknown[]) => unknown>, ...constraints: { kind: string; args: unknown[] }[]) =>
+        constraints.reduce((current, item) => current[item.kind](...item.args) as Record<string, (...args: unknown[]) => unknown>, ref),
+      orderBy: constraint("orderBy"),
+      startAt: constraint("startAt"),
+      endAt: constraint("endAt"),
+      getDocs: (query: { get: () => Promise<unknown> }) => query.get(),
+      GeoPoint: class GeoPoint {
+        latitude: number;
+        longitude: number;
 
-          constructor(lat: number, lng: number) {
-            this.latitude = lat;
-            this.longitude = lng;
-          }
-        },
-        FieldValue: {
-          delete: () => mockDeletedField,
-          serverTimestamp: () => ({ serverTimestamp: true }),
-        },
+        constructor(lat: number, lng: number) {
+          this.latitude = lat;
+          this.longitude = lng;
+        }
       },
-    }),
-  ),
+      deleteField: () => mockDeletedField,
+      serverTimestamp: () => ({ serverTimestamp: true }),
+    });
+  }),
 }));
 jest.mock("@react-native-firebase/firestore", () => ({
   __esModule: true,
-  default: {
-    GeoPoint: class GeoPoint {
-      latitude: number;
-      longitude: number;
+  GeoPoint: class GeoPoint {
+    latitude: number;
+    longitude: number;
 
-      constructor(lat: number, lng: number) {
-        this.latitude = lat;
-        this.longitude = lng;
-      }
-    },
-    FieldValue: { delete: () => mockDeletedField },
+    constructor(lat: number, lng: number) {
+      this.latitude = lat;
+      this.longitude = lng;
+    }
   },
+  deleteField: () => mockDeletedField,
+  serverTimestamp: () => ({ serverTimestamp: true }),
 }));
 
 import * as Location from "expo-location";
@@ -70,6 +85,7 @@ function makeFirestore(candidates: Record<string, unknown>[] = []) {
   const doc = {
     set: jest.fn().mockResolvedValue(undefined),
     update: jest.fn().mockResolvedValue(undefined),
+    collection: jest.fn(),
   };
   const query = {
     orderBy: jest.fn(() => query),
@@ -86,6 +102,7 @@ function makeFirestore(candidates: Record<string, unknown>[] = []) {
     doc: jest.fn(() => doc),
     orderBy: jest.fn(() => query),
   };
+  doc.collection.mockReturnValue(collection);
   return {
     db: { collection: jest.fn(() => collection) },
     doc,

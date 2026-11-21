@@ -80,13 +80,13 @@ async function getCurrentIdToken(): Promise<string | null> {
   // Step 2 — fetch the token. Try without force-refresh first (fast path),
   // then retry with force-refresh in case the cached token just expired.
   try {
-    const user = authMod.default().currentUser;
+    const user = authMod.getAuth().currentUser;
     if (!user) return null;
     try {
-      return await user.getIdToken(false);
+      return await authMod.getIdToken(user, false);
     } catch {
       // Token may be stale — force a network refresh once before giving up.
-      return await user.getIdToken(true);
+      return await authMod.getIdToken(user, true);
     }
   } catch {
     // getIdToken failed entirely — transient error. Return null so the

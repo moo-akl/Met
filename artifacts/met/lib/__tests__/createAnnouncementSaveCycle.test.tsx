@@ -31,6 +31,11 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 0, top: 0, left: 0, right: 0 }),
 }));
 
+jest.mock("react-native-keyboard-controller", () => {
+  const { View } = require("react-native");
+  return { KeyboardAwareScrollView: View };
+});
+
 jest.mock("@/contexts/AppContext", () => ({
   useApp: () => ({ authedUid: "owner-uid-1" }),
 }));

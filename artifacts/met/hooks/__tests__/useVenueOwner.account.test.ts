@@ -9,8 +9,14 @@ jest.mock("@/contexts/AppContext", () => ({
 }));
 
 jest.mock("@/lib/api/client", () => ({
+  getActiveVenueBusinessId: jest.fn(() => null),
+  setActiveVenueBusinessId: jest.fn(),
   api: {
     getMyVenueApplication: jest.fn(),
+    getMyVenueBranches: jest.fn().mockResolvedValue({
+      branches: [],
+      applications: [],
+    }),
   },
 }));
 

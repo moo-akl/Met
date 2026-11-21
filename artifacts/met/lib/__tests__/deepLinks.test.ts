@@ -55,8 +55,12 @@ jest.mock("@expo-google-fonts/inter", () => ({
   Inter_700Bold: "Inter_700Bold",
   useFonts: jest.fn(() => [true, null]),
 }));
-jest.mock("@react-native-firebase/messaging", () => () => ({
+jest.mock("@react-native-firebase/messaging", () => ({
+  getMessaging: jest.fn(() => ({})),
+  getToken: jest.fn(),
+  onMessage: jest.fn(() => jest.fn()),
   onTokenRefresh: jest.fn(() => jest.fn()),
+  setBackgroundMessageHandler: jest.fn(),
 }));
 jest.mock("@workspace/api-client-react", () => ({
   setBaseUrl: jest.fn(),

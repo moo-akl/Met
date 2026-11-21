@@ -90,6 +90,8 @@ jest.mock("@/lib/i18n", () => ({
 
 jest.mock("@/lib/api/client", () => ({
   api: { sendReveal: jest.fn() },
+  getActiveVenueBusinessHeaders: () => ({}),
+  getActiveVenueBusinessId: () => null,
 }));
 
 jest.mock("react-native-safe-area-context", () => ({

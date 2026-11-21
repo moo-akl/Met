@@ -70,6 +70,16 @@
             {
               "scheme": "https",
               "host": "met-app.org",
+              "pathPrefix": "/join"
+            },
+            {
+              "scheme": "https",
+              "host": "met-app.org",
+              "pathPrefix": "/r"
+            },
+            {
+              "scheme": "https",
+              "host": "met-app.org",
               "pathPrefix": "/event-invite"
             },
             {
@@ -84,8 +94,28 @@
             },
             {
               "scheme": "https",
+              "host": "met-app.org",
+              "pathPrefix": "/venue-owner"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
               "host": "metapp.replit.app",
               "pathPrefix": "/r"
+            },
+            {
+              "scheme": "https",
+              "host": "metapp.replit.app",
+              "pathPrefix": "/connect"
             },
             {
               "scheme": "https",

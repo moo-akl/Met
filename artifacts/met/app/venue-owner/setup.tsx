@@ -22,8 +22,8 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import auth from "@react-native-firebase/auth";
 import { useApp } from "@/contexts/AppContext";
+import { getCurrentUserEmail } from "@/lib/auth";
 import { api, ApiError, type VenueSearchPlace } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
@@ -305,6 +305,7 @@ export default function VenueOwnerSetupScreen() {
     setValidationError(null);
     setSubmitting(true);
     try {
+      const contactEmail = await getCurrentUserEmail();
       const body = {
         placeId: placeId.trim(),
         placeName: placeName.trim(),
@@ -317,7 +318,7 @@ export default function VenueOwnerSetupScreen() {
         registrationNotes: registrationNotes.trim() || undefined,
         // Auto-populated from the applicant's Firebase Auth account so the
         // admin has an address to send the Venue Manager registration link to.
-        contactEmail: auth().currentUser?.email ?? undefined,
+        contactEmail: contactEmail ?? undefined,
       };
       if (isBranchApplication) {
         await api.submitVenueBranchApplication({ uid: authedUid }, {

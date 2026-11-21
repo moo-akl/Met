@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useApp } from "@/contexts/AppContext";
-import { getFirestoreModule } from "@/lib/firestore/client";
+import { getFirestoreModule, getFirestoreSdk } from "@/lib/firestore/client";
 
 function toMs(v: unknown): number {
   if (typeof v === "number") return v;
@@ -20,12 +20,14 @@ export function useUnreadChatCount(): number {
     let cancelled = false;
     let unsub: (() => void) | null = null;
 
-    getFirestoreModule().then((fs) => {
+    Promise.all([getFirestoreModule(), getFirestoreSdk()]).then(([fs, sdk]) => {
       if (cancelled || !fs) return;
-      unsub = fs
-        .collection("chats")
-        .where("participants", "array-contains", authedUid)
-        .onSnapshot(
+      const chatsQuery = sdk.query(
+        sdk.collection(fs, "chats"),
+        sdk.where("participants", "array-contains", authedUid),
+      );
+      unsub = sdk.onSnapshot(
+        chatsQuery,
           (snap) => {
             if (cancelled) return;
             let unread = 0;
@@ -47,7 +49,9 @@ export function useUnreadChatCount(): number {
           () => {
             if (!cancelled) setCount(0);
           },
-        );
+      );
+    }).catch(() => {
+      if (!cancelled) setCount(0);
     });
 
     return () => {

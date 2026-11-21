@@ -8,7 +8,7 @@
 //
 // Both helpers are no-ops on web / Expo Go (no native bridge).
 
-import { getFirestoreModule } from "./client";
+import { getFirestoreModule, getFirestoreSdk } from "./client";
 
 export interface MetPersonDoc {
   otherUid: string;
@@ -62,13 +62,14 @@ export async function subscribeToMetPeople(
   const fs = await getFirestoreModule();
   if (!fs) return () => {};
   if (cancelled) return () => {};
+  const sdk = await getFirestoreSdk();
 
-  real = fs
-    .collection("users")
-    .doc(uid)
-    .collection("met_people")
-    .orderBy("lastMet", "desc")
-    .onSnapshot(
+  const peopleQuery = sdk.query(
+    sdk.collection(sdk.doc(sdk.collection(fs, "users"), uid), "met_people"),
+    sdk.orderBy("lastMet", "desc"),
+  );
+  real = sdk.onSnapshot(
+    peopleQuery,
       (snap) => {
         const out: MetPersonDoc[] = [];
         snap.forEach((doc) => {
@@ -141,6 +142,7 @@ export async function subscribeToRequestsChange(
   const fs = await getFirestoreModule();
   if (!fs) return () => {};
   if (cancelled) return () => {};
+  const sdk = await getFirestoreSdk();
 
   // metadata.hasPendingWrites is true for our own optimistic writes;
   // we don't filter on that here because the server is the only writer
@@ -151,11 +153,12 @@ export async function subscribeToRequestsChange(
   // is the only chance to see the "accepted" state — there will be no
   // subsequent change to the doc. Skipping it caused the sender to stay
   // stuck on "request_sent" forever when they weren't online at accept time.
-  real = fs
-    .collection("users")
-    .doc(uid)
-    .collection("requests")
-    .onSnapshot(
+  const requestsRef = sdk.collection(
+    sdk.doc(sdk.collection(fs, "users"), uid),
+    "requests",
+  );
+  real = sdk.onSnapshot(
+    requestsRef,
       (snap) => {
         const docChanges = snap.docChanges();
         if (snap.empty && docChanges.length === 0) return;
@@ -222,17 +225,17 @@ export async function writeRevealResponse(
   if (!fs) return false;
   try {
     const now = new Date();
-    const myRef = fs
-      .collection("users")
-      .doc(myUid)
-      .collection("requests")
-      .doc(peerUid);
-    const theirRef = fs
-      .collection("users")
-      .doc(peerUid)
-      .collection("requests")
-      .doc(myUid);
-    const batch = fs.batch();
+    const sdk = await getFirestoreSdk();
+    const users = sdk.collection(fs, "users");
+    const myRef = sdk.doc(
+      sdk.collection(sdk.doc(users, myUid), "requests"),
+      peerUid,
+    );
+    const theirRef = sdk.doc(
+      sdk.collection(sdk.doc(users, peerUid), "requests"),
+      myUid,
+    );
+    const batch = sdk.writeBatch(fs);
     // merge:true so we keep any other fields the api-server already
     // wrote (peerUid, direction, message, createdAt) and only flip
     // status / updatedAt / respondedAt.
@@ -293,34 +296,20 @@ export async function writeRemoval(
   const fs = await getFirestoreModule();
   if (!fs) return false;
   try {
-    const fsMod = await import("@react-native-firebase/firestore");
-    const now = fsMod.default.FieldValue.serverTimestamp();
-    const myReq = fs
-      .collection("users")
-      .doc(myUid)
-      .collection("requests")
-      .doc(peerUid);
-    const theirReq = fs
-      .collection("users")
-      .doc(peerUid)
-      .collection("requests")
-      .doc(myUid);
-    const myMet = fs
-      .collection("users")
-      .doc(myUid)
-      .collection("met_people")
-      .doc(peerUid);
-    const theirMet = fs
-      .collection("users")
-      .doc(peerUid)
-      .collection("met_people")
-      .doc(myUid);
-    const theirRemovalSignal = fs
-      .collection("users")
-      .doc(peerUid)
-      .collection("removals")
-      .doc(myUid);
-    const batch = fs.batch();
+    const sdk = await getFirestoreSdk();
+    const now = sdk.serverTimestamp();
+    const users = sdk.collection(fs, "users");
+    const userCollection = (uid: string, name: string) =>
+      sdk.collection(sdk.doc(users, uid), name);
+    const myReq = sdk.doc(userCollection(myUid, "requests"), peerUid);
+    const theirReq = sdk.doc(userCollection(peerUid, "requests"), myUid);
+    const myMet = sdk.doc(userCollection(myUid, "met_people"), peerUid);
+    const theirMet = sdk.doc(userCollection(peerUid, "met_people"), myUid);
+    const theirRemovalSignal = sdk.doc(
+      userCollection(peerUid, "removals"),
+      myUid,
+    );
+    const batch = sdk.writeBatch(fs);
     batch.delete(myReq);
     batch.delete(theirReq);
     batch.delete(myMet);
@@ -356,12 +345,14 @@ export async function subscribeToRemovals(
   const fs = await getFirestoreModule();
   if (!fs) return () => {};
   if (cancelled) return () => {};
+  const sdk = await getFirestoreSdk();
 
-  real = fs
-    .collection("users")
-    .doc(uid)
-    .collection("removals")
-    .onSnapshot(
+  const removalsRef = sdk.collection(
+    sdk.doc(sdk.collection(fs, "users"), uid),
+    "removals",
+  );
+  real = sdk.onSnapshot(
+    removalsRef,
       (snap) => {
         const out: RemovalDoc[] = [];
         snap.forEach((doc) => {

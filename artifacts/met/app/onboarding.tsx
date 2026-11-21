@@ -420,7 +420,7 @@ export default function OnboardingScreen() {
         try {
           const authMod = await import("@react-native-firebase/auth");
           const firebaseName =
-            authMod.default().currentUser?.displayName ?? null;
+            authMod.getAuth().currentUser?.displayName ?? null;
           if (firebaseName && !STALE_NAMES.includes(firebaseName)) {
             resolvedName = firebaseName;
           }
@@ -510,7 +510,7 @@ export default function OnboardingScreen() {
     // Identify the user for both new and returning sessions.
     try {
       const authMod = await import("@react-native-firebase/auth");
-      const uid = authMod.default().currentUser?.uid;
+      const uid = authMod.getAuth().currentUser?.uid;
       if (uid) tiktokIdentify(uid);
     } catch {
       // Firebase not available — skip identify.
@@ -560,7 +560,7 @@ export default function OnboardingScreen() {
           try {
             const authMod = await import("@react-native-firebase/auth");
             const fbName =
-              authMod.default().currentUser?.displayName ?? null;
+              authMod.getAuth().currentUser?.displayName ?? null;
             const firstName = fbName?.split(" ")[0]?.trim() ?? null;
             if (firstName) setName(firstName);
           } catch {
@@ -767,7 +767,7 @@ export default function OnboardingScreen() {
     if (!finalName && fromAppleSignIn) {
       try {
         const authMod = await import("@react-native-firebase/auth");
-        const fbName = authMod.default().currentUser?.displayName ?? null;
+        const fbName = authMod.getAuth().currentUser?.displayName ?? null;
         if (fbName && fbName !== "Apple User") finalName = fbName;
       } catch {
         // Firebase not available — fall through to the guard below.
@@ -935,7 +935,7 @@ export default function OnboardingScreen() {
       // wipe) and the resume effect re-runs goToProfileSetup directly.
       try {
         const authMod = await import("@react-native-firebase/auth");
-        const fbUser = authMod.default().currentUser;
+        const fbUser = authMod.getAuth().currentUser;
         if (fbUser) {
           const isApple = fbUser.providerData?.some(
             (p) => p.providerId === "apple.com",

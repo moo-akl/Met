@@ -27,6 +27,21 @@ Rules; keep App Check configuration at the service/client boundary. Test the
 actual rules without replacing this predicate with a permissive test shim, and
 verify service enforcement separately before a rollout.
 
+## React Native Firebase modular provider export
+
+With `@react-native-firebase/app-check` 24.1.1, the runtime re-exports
+`ReactNativeFirebaseAppCheckProvider` as a constructor, while the package's
+root TypeScript declarations expose the same name only as a type. The modular
+initializer and token getter are still available as named exports.
+
+**Why:** TypeScript rejected the provider constructor even though the installed
+runtime `modular.js` confirmed the constructor export. A type-only workaround
+would leave App Check initialization on deprecated namespaced calls.
+
+**How to apply:** Before casting the imported module to include the constructor,
+verify the installed runtime export and keep `initializeAppCheck` and `getToken`
+as modular calls. Recheck after upgrading the package.
+
 References:
 - https://firebase.google.com/docs/reference/rules/rules.firestore.Request
 - https://firebase.google.com/docs/app-check/enable-enforcement

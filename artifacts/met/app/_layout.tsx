@@ -22,7 +22,7 @@ import {
 } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -53,7 +53,6 @@ import {
   routeNotifTap,
   setupNotificationListeners,
 } from "@/lib/notifications";
-import messaging from "@react-native-firebase/messaging";
 import { initReferrals } from "@/lib/referrals";
 import {
   initializeRevenueCat,
@@ -122,9 +121,9 @@ setBaseUrl(process.env.EXPO_PUBLIC_API_URL ?? "");
 setAuthTokenGetter(async () => {
   try {
     const authMod = await import("@react-native-firebase/auth");
-    const user = authMod.default().currentUser;
+    const user = authMod.getAuth().currentUser;
     if (!user) return null;
-    return user.getIdToken(false).catch(() => user.getIdToken(true));
+    return authMod.getIdToken(user, false).catch(() => authMod.getIdToken(user, true));
   } catch {
     return null;
   }
@@ -410,13 +409,26 @@ function PushTokenRegistrar() {
   // OS reinstall). Re-upload whenever the token changes so the server always
   // has a valid FCM token.
   useEffect(() => {
-    if (!authedUid) return;
-    const unsubscribe = messaging().onTokenRefresh((newToken) => {
-      import("@/lib/api/client")
-        .then(({ api }) => api.registerPushToken({ uid: authedUid }, newToken))
-        .catch(() => {});
-    });
-    return unsubscribe;
+    if (!authedUid || Platform.OS === "web") return;
+    let cancelled = false;
+    let unsubscribe = () => {};
+    void import("@react-native-firebase/messaging")
+      .then((messaging) => {
+        if (cancelled) return;
+        unsubscribe = messaging.onTokenRefresh(
+          messaging.getMessaging(),
+          (newToken) => {
+            import("@/lib/api/client")
+              .then(({ api }) => api.registerPushToken({ uid: authedUid }, newToken))
+              .catch(() => {});
+          },
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [authedUid]);
 
   return null;

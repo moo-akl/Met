@@ -1,6 +1,6 @@
 import React from "react";
-import VenueOwnerEventForm from "@/components/VenueOwnerEventForm";
+import { VenueManagerHandoff } from "@/components/VenueManagerHandoff";
 
 export default function NewVenueEventScreen() {
-  return <VenueOwnerEventForm mode="create" />;
+  return <VenueManagerHandoff />;
 }

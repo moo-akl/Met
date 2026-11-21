@@ -7,6 +7,7 @@
 
 jest.mock("@react-native-firebase/auth", () => ({
   __esModule: true,
+  getAuth: () => ({ currentUser: null }),
   default: () => ({ currentUser: null }),
 }));
 

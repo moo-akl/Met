@@ -881,6 +881,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setVisibilityReconciledUid(uid);
       }
     };
+    const failClosedHide = async (current: Profile | null) => {
+      if (current && current.isVisible !== false) {
+        await setProfile({ ...current, isVisible: false }).catch((err) => {
+          console.warn("[appcontext] failed to persist fail-closed visibility", err);
+        });
+      }
+      const firestoreHidden = await stopLocalDiscovery();
+      const serverHidden = await writeCanonicalHide(current);
+      if (!serverHidden || !firestoreHidden) reportUnresolvedHide();
+      return serverHidden && firestoreHidden;
+    };
     const retryWithoutChangingPreference = () => {
       retryTimer = setTimeout(() => {
         if (!cancelled && authUidRef.current === uid) {
@@ -891,8 +902,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       try {
         if (!api.isConfigured()) {
-          await stopLocalDiscovery();
-          retryWithoutChangingPreference();
+          const hidden = await failClosedHide(profileRef.current);
+          if (hidden) finishReconciliation();
+          else retryWithoutChangingPreference();
           return;
         }
         const remote = await api.getMyProfile({ uid });
@@ -904,6 +916,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         const current = profileRef.current;
         if (!current) return;
+
+        if (current.isVisible === false && remote.isVisible === true) {
+          const hidden = await failClosedHide(current);
+          if (hidden) finishReconciliation();
+          else retryWithoutChangingPreference();
+          return;
+        }
 
         if (remote.isVisible !== true) {
           if (current.isVisible !== false) {
@@ -956,11 +975,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         if (cancelled || authUidRef.current !== uid) return;
         console.warn("[appcontext] canonical visibility lookup failed", err);
-        // A failed startup read is not a user request to hide. Keep the
-        // persisted preference, but fail closed on advertising/discovery
-        // until the server confirms which value is authoritative.
-        await stopLocalDiscovery();
-        retryWithoutChangingPreference();
+        if (profileVisibilityRevisionRef.current !== initialVisibilityRevision) {
+          finishReconciliation();
+          return;
+        }
+        // If visibility cannot be verified, hide locally and ask the server
+        // to hide too. Never leave discovery active based on a stale cache.
+        const hidden = await failClosedHide(profileRef.current);
+        if (hidden) finishReconciliation();
+        else retryWithoutChangingPreference();
       }
     })();
     return () => {

@@ -12,7 +12,7 @@ import type { Profile, SocialLinks } from "@/lib/types";
 async function firebaseDisplayName(): Promise<string | null> {
   try {
     const authMod = await import("@react-native-firebase/auth");
-    return authMod.default().currentUser?.displayName ?? null;
+    return authMod.getAuth().currentUser?.displayName ?? null;
   } catch {
     return null;
   }

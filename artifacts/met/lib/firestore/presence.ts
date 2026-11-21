@@ -190,12 +190,14 @@ export async function suppressFirestorePresence(uid: string): Promise<boolean> {
   const fs = await getFirestoreModule();
   if (!fs) return false;
   const firestore = await getFirestoreSdk();
-  await fs.collection("users").doc(uid).set(
+  const userRef = firestore.doc(firestore.collection(fs, "users"), uid);
+  await firestore.setDoc(
+    userRef,
     {
       uid,
       isVisible: false,
-      location: firestore.default.FieldValue.delete(),
-      geohash: firestore.default.FieldValue.delete(),
+      location: firestore.deleteField(),
+      geohash: firestore.deleteField(),
     },
     { merge: true },
   );
@@ -215,9 +217,10 @@ export async function clearFirestoreLocation(
   if (!fs || (onlyIfStopped && state?.uid === uid)) return false;
   const firestore = await getFirestoreSdk();
   if (onlyIfStopped && state?.uid === uid) return false;
-  await fs.collection("users").doc(uid).update({
-    location: firestore.default.FieldValue.delete(),
-    geohash: firestore.default.FieldValue.delete(),
+  const userRef = firestore.doc(firestore.collection(fs, "users"), uid);
+  await firestore.updateDoc(userRef, {
+    location: firestore.deleteField(),
+    geohash: firestore.deleteField(),
   });
   if (onlyIfStopped && state?.uid === uid) {
     // A newer foreground session may have started while this cleanup write
@@ -286,18 +289,17 @@ async function runPushOnce(gen: number): Promise<void> {
       // while it was loading. Revalidate before beginning the location write.
       s = liveStateFor(gen);
       if (!s) return;
-      await fs
-        .collection("users")
-        .doc(s.uid)
-        .set(
-          {
-            location: new fsMod.default.GeoPoint(here.lat, here.lng),
-            geohash,
-            lastActive: fsMod.default.FieldValue.serverTimestamp(),
-            uid: s.uid,
-          },
-          { merge: true },
-        );
+      const userRef = fsMod.doc(fsMod.collection(fs, "users"), s.uid);
+      await fsMod.setDoc(
+        userRef,
+        {
+          location: new fsMod.GeoPoint(here.lat, here.lng),
+          geohash,
+          lastActive: fsMod.serverTimestamp(),
+          uid: s.uid,
+        },
+        { merge: true },
+      );
       const live = liveStateFor(gen);
       if (live) {
         live.lastPushed = here;
@@ -343,6 +345,7 @@ async function runPullOnce(gen: number): Promise<void> {
     const fs = await getFirestoreModule();
     s = liveStateFor(gen);
     if (!s || !fs) return;
+    const fsMod = await getFirestoreSdk();
 
     // geohashQueryBounds returns one or more [start, end] pairs; we
     // dispatch each pair as its own range query (Firestore can't OR
@@ -355,12 +358,13 @@ async function runPullOnce(gen: number): Promise<void> {
     >();
     for (const b of bounds) {
       try {
-        const snap = await fs
-          .collection("users")
-          .orderBy("geohash")
-          .startAt(b[0])
-          .endAt(b[1])
-          .get();
+        const usersQuery = fsMod.query(
+          fsMod.collection(fs, "users"),
+          fsMod.orderBy("geohash"),
+          fsMod.startAt(b[0]),
+          fsMod.endAt(b[1]),
+        );
+        const snap = await fsMod.getDocs(usersQuery);
         s = liveStateFor(gen);
         if (!s) return;
         snap.forEach((doc) => {

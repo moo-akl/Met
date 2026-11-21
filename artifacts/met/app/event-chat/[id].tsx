@@ -1,6 +1,12 @@
 import { Feather } from "@expo/vector-icons";
-import { Audio } from "expo-av";
-import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
+import {
+  createAudioPlayer,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  type RecordingOptions,
+} from "expo-audio";
 import { Image } from "expo-image";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -148,7 +154,7 @@ function startReservedMediaUpload(
 }
 
 const VOICE_RECORDING_OPTIONS: RecordingOptions = {
-  ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+  ...RecordingPresets.HIGH_QUALITY,
   isMeteringEnabled: false,
 };
 
@@ -172,38 +178,45 @@ function VoiceMessagePlayer({
   const { t } = useT();
   const [isPlaying, setIsPlaying] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
+  const subscriptionRef = useRef<{ remove: () => void } | null>(null);
   const totalMs = durationMs ?? 0;
 
   useEffect(() => () => {
-    soundRef.current?.unloadAsync().catch(() => {});
+    subscriptionRef.current?.remove();
+    subscriptionRef.current = null;
+    playerRef.current?.remove();
+    playerRef.current = null;
   }, []);
 
   const toggle = async () => {
     try {
-      if (!soundRef.current) {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true },
+      if (!playerRef.current) {
+        await setAudioModeAsync({ playsInSilentMode: true });
+        const player = createAudioPlayer(uri, { updateInterval: 250 });
+        playerRef.current = player;
+        subscriptionRef.current = player.addListener(
+          "playbackStatusUpdate",
           (status) => {
-            if (!status.isLoaded) return;
-            setPositionMs(status.positionMillis ?? 0);
+            setPositionMs(status.currentTime * 1000);
+            setIsPlaying(status.playing);
             if (status.didJustFinish) {
+              subscriptionRef.current?.remove();
+              subscriptionRef.current = null;
+              player.remove();
+              if (playerRef.current === player) playerRef.current = null;
               setIsPlaying(false);
               setPositionMs(0);
-              soundRef.current?.unloadAsync().catch(() => {});
-              soundRef.current = null;
             }
           },
         );
-        soundRef.current = sound;
+        player.play();
         setIsPlaying(true);
       } else if (isPlaying) {
-        await soundRef.current.pauseAsync();
+        playerRef.current.pause();
         setIsPlaying(false);
       } else {
-        await soundRef.current.playAsync();
+        playerRef.current.play();
         setIsPlaying(true);
       }
     } catch {
@@ -254,6 +267,7 @@ export default function EventChatScreen() {
   const queryClient = useQueryClient();
   const { t } = useT();
   const { authedUid } = useApp();
+  const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
@@ -262,7 +276,6 @@ export default function EventChatScreen() {
   const recordSecsRef = useRef(0);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [leavePending, setLeavePending] = useState(false);
   const setPlanNotifications = useSetCommunityEventPlanChatNotifications();
@@ -363,15 +376,13 @@ export default function EventChatScreen() {
   useEffect(() => {
     return () => {
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-      const stale = recordingRef.current;
-      recordingRef.current = null;
-      if (stale) stale.stopAndUnloadAsync().catch(() => {});
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+      if (audioRecorder.isRecording) void audioRecorder.stop().catch(() => {});
+      setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
       }).catch(() => {});
     };
-  }, []);
+  }, [audioRecorder]);
 
   const stopVoiceRecording = async () => {
     if (recordTimerRef.current) {
@@ -379,19 +390,20 @@ export default function EventChatScreen() {
       recordTimerRef.current = null;
     }
     setIsRecording(false);
-    const recording = recordingRef.current;
-    recordingRef.current = null;
     const recordedSeconds = recordSecsRef.current;
-    if (!recording) return;
+    if (!audioRecorder.isRecording) return;
     try {
-      const status = await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
       if (uri) {
         setPendingAttachment({
           uri,
           mediaType: "voice",
           contentType: "audio/mp4",
-          durationMs: Math.max(1, status.durationMillis ?? recordedSeconds * 1000),
+          durationMs: Math.max(
+            1,
+            audioRecorder.getStatus().durationMillis || recordedSeconds * 1000,
+          ),
         });
       }
     } catch {
@@ -399,9 +411,9 @@ export default function EventChatScreen() {
     } finally {
       recordSecsRef.current = 0;
       setRecordSecs(0);
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+      setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
       }).catch(() => {});
     }
   };
@@ -598,7 +610,7 @@ export default function EventChatScreen() {
       return;
     }
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
         Alert.alert(
           t("tabs.events.planChatRecordVoice"),
@@ -606,13 +618,13 @@ export default function EventChatScreen() {
         );
         return;
       }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        interruptionMode: "duckOthers",
       });
-      const { recording } = await Audio.Recording.createAsync(VOICE_RECORDING_OPTIONS);
-      recordingRef.current = recording;
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
       setIsRecording(true);
       recordSecsRef.current = 0;
       setRecordSecs(0);
@@ -625,9 +637,9 @@ export default function EventChatScreen() {
       setSendError("");
     } catch {
       setSendError(t("tabs.events.planChatMediaUploadError"));
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+      setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
       }).catch(() => {});
     }
   };

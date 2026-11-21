@@ -65,6 +65,7 @@ jest.mock("@/lib/referrals", () => ({
 }));
 
 jest.mock("@/lib/seed", () => ({
+  ...jest.requireActual("@/lib/seed"),
   buildSeedEncounters: jest.fn().mockReturnValue([]),
 }));
 
@@ -81,6 +82,7 @@ jest.mock("@/lib/api/client", () => ({
   },
   api: {
     isConfigured: jest.fn().mockReturnValue(true),
+    syncNotificationPrefs: jest.fn().mockResolvedValue(undefined),
     getMyProfile: jest.fn().mockResolvedValue(undefined),
     upsertMyProfile: jest.fn().mockResolvedValue(undefined),
     uploadProfilePhoto: jest.fn().mockResolvedValue({ photoUrl: "" }),

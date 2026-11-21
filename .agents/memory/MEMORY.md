@@ -8,7 +8,7 @@
 - [regenerateNetworkCode id type](regen-network-code-id.md) — useRegenerateNetworkCode mutation expects id as string, not number. Use String(networkId).
 - [Jest Expo native API mocks](jest-expo-device-mock.md) — use getter mocks for Expo APIs, stable query-key results, and direct Platform.OS overrides; inject dependencies around dynamic imports.
 - [expo-camera mic permission removal](expo-camera-mic-permission-removal.md) — microphonePermission:false in expo-camera plugin DELETES NSMicrophoneUsageDescription from Info.plist (overrides infoPlist too), crashing app on any audio API call with no dialog shown.
-- [Firestore App Check boundary](app-check-enforcement.md) — enforcement is service-level; rules cannot inspect request.app_check_token. Check current settings instead of assuming historical state.
+- [App Check enforcement and modular setup](app-check-enforcement.md) — enforcement is service-level; rules cannot inspect tokens, and the v24.1.1 provider constructor needs a runtime-verified type cast.
 - [pnpm stale package causes Metro ENOENT](pnpm-stale-metro.md) — when pnpm overwrites a package with a lower version, the old version dir remains in .pnpm and causes Metro watcher ENOENT crashes. Fix: rm -rf the old version directory then restart expo.
 - [GitHub submission safety](github-push-auth.md) — preserve remote release metadata and verify new imports, manifests, and lockfile against the exact destination branch.
 - [Merge setup safety](merge-setup-safety.md) — setup must not force-push GitHub or mutate schemas; pnpm overrides can cause lock mismatches despite matching manifest text.

@@ -21,7 +21,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { clearChatHistory } from "@/lib/firestore/chat";
-import { getFirestoreModule } from "@/lib/firestore/client";
+import { getFirestoreModule, getFirestoreSdk } from "@/lib/firestore/client";
 import {
   getGetMyCommunityEventPlanChatsQueryKey,
   useGetMyCommunityEventPlanChats,
@@ -139,12 +139,14 @@ function InboxScreen() {
       }
     }
 
-    getFirestoreModule().then((fs) => {
+    Promise.all([getFirestoreModule(), getFirestoreSdk()]).then(([fs, sdk]) => {
       if (cancelled || !fs) return;
-      unsub = fs
-        .collection("chats")
-        .where("participants", "array-contains", authedUid)
-        .onSnapshot(
+      const chatsQuery = sdk.query(
+        sdk.collection(fs, "chats"),
+        sdk.where("participants", "array-contains", authedUid),
+      );
+      unsub = sdk.onSnapshot(
+        chatsQuery,
           (snap) => {
             if (cancelled) return;
             const entries: ChatEntry[] = [];
@@ -191,7 +193,9 @@ function InboxScreen() {
           () => {
             if (!cancelled) setChats([]);
           },
-        );
+      );
+    }).catch(() => {
+      if (!cancelled) setChats([]);
     });
 
     return () => {

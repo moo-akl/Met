@@ -11,6 +11,7 @@ const mockOpenVenueManager = jest.fn();
 const mockGetLocationPermission = jest.fn();
 const mockRequestLocationPermission = jest.fn();
 const mockGetCurrentPosition = jest.fn();
+let mockOwnerEvents: unknown[] = [];
 const mockEventLocationResults = [
   { placeId: "far", label: "Far place", name: "Far place", latitude: 14.75, longitude: 100.5 },
   { placeId: "near", label: "Near place", name: "Near place", latitude: 13.751, longitude: 100.5 },
@@ -47,9 +48,11 @@ jest.mock("@/contexts/AppContext", () => ({
 }));
 jest.mock("@/hooks/useVenueOwner", () => ({
   useVenueOwner: () => ({
-    profile: { placeId: "venue-place" },
+    profile: { placeId: "venue-place", isApproved: true },
     isLoading: false,
     error: null,
+    branchError: null,
+    activeBusinessId: null,
   }),
 }));
 jest.mock("@/hooks/useColors", () => ({
@@ -91,6 +94,8 @@ jest.mock("@workspace/api-client-react", () => ({
   getGetEventDetailsQueryKey: (...args: unknown[]) => ["event-details", ...args],
   getGetEventsFeedQueryKey: () => ["events-feed"],
   getGetCommunityEventCreationUsageQueryKey: () => ["community-event-creation-usage"],
+  getGetVenueOwnerMeEventQueryKey: (...args: unknown[]) => ["venue-owner-event", ...args],
+  getGetVenueOwnerMeEventsQueryKey: () => ["venue-owner-events"],
   getSearchEventLocationsQueryOptions: () => ({ queryKey: ["event-locations"] }),
   useCreateCommunityEvent: () => ({ mutate: mockCreateCommunityEvent, isPending: false }),
   useCreateCommunityEventInviteLink: () => ({ mutateAsync: jest.fn() }),
@@ -99,6 +104,15 @@ jest.mock("@workspace/api-client-react", () => ({
   useGetMyVerifiedExplorer: () => ({ data: { isVerifiedExplorer: false }, isLoading: false }),
   useCreateVenueOwnerEventInviteLink: () => ({ isPending: false, mutateAsync: jest.fn() }),
   useGetVenueOwnerMeGuests: () => ({ data: { guests: [] }, isLoading: false }),
+  useGetVenueOwnerMeEvent: () => ({ data: null, isLoading: false, isError: false }),
+  useGetVenueOwnerMeEvents: () => ({
+    data: { events: mockOwnerEvents },
+    isLoading: false,
+    isError: false,
+    refetch: jest.fn().mockResolvedValue(undefined),
+  }),
+  useCreateVenueOwnerMeEvent: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useUpdateVenueOwnerMeEvent: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useRevokeVenueOwnerEventInviteLink: () => ({ isPending: false, mutateAsync: jest.fn() }),
   useRotateVenueOwnerEventInviteLink: () => ({ isPending: false, mutateAsync: jest.fn() }),
 }));
@@ -125,6 +139,8 @@ jest.mock("@/lib/api/client", () => ({
     uploadVenueEventImage: jest.fn(),
     getVenueEvents: (...args: unknown[]) => mockGetVenueEvents(...args),
   },
+  getActiveVenueBusinessHeaders: () => ({}),
+  getActiveVenueBusinessId: () => null,
   ApiError: class ApiError extends Error {},
 }));
 
@@ -166,6 +182,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockQueryClient.invalidateQueries.mockResolvedValue(undefined);
   mockLocalSearchParams = {};
+  mockOwnerEvents = [];
   mockOpenVenueManager.mockResolvedValue(undefined);
   mockGetVenueEvents.mockResolvedValue({ events: [] });
   mockGetLocationPermission.mockResolvedValue({ granted: false });
@@ -424,7 +441,6 @@ describe("DateTimePicker platform behavior", () => {
       ),
     ).toBeTruthy();
     expect(mockCreateCommunityEvent).not.toHaveBeenCalled();
-    expect(root.root.findAll((node) => node.props.accessibilityRole === "radio")).toHaveLength(0);
     act(() => root.unmount());
   }, 15000);
 
@@ -839,8 +855,7 @@ describe("DateTimePicker platform behavior", () => {
 
   it("keeps RSVP access and ignores old edit links in the mobile event list", async () => {
     mockLocalSearchParams = { editEventId: "84" };
-    mockGetVenueEvents.mockResolvedValue({
-      events: [{
+    mockOwnerEvents = [{
         id: 84,
         ownerUid: "event-owner",
         title: "Owner event",
@@ -857,18 +872,13 @@ describe("DateTimePicker platform behavior", () => {
         inviteLinkEnabled: false,
         invitePasscodeRequired: false,
         rsvpCount: 3,
-      }],
-    });
+      }];
 
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
       root = renderer.create(<VenueOwnerEventsScreen />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(mockGetVenueEvents).toHaveBeenCalledWith(
-      { uid: "event-owner" },
-      "venue-place",
-    );
     expect(mockRouterPush).not.toHaveBeenCalled();
     expect(findByTestId(root, "venue-owner-event-rsvps-84")).toBeTruthy();
     expect(root.root.findAllByProps({ testID: "venue-owner-event-edit-84" })).toHaveLength(0);

@@ -101,7 +101,7 @@ export function subscribeToAuthState(
   }
   let unsubbed = false;
   let unsubscribe: (() => void) | null = null;
-  void getAuthModule().then((auth) => {
+  void getAuthModule().then(async (auth) => {
     // The caller may have unsubscribed before getAuthModule() resolves
     // (e.g. fast component unmount). In that case do NOT invoke the
     // callback — that would trigger setState-after-unmount warnings and
@@ -112,7 +112,8 @@ export function subscribeToAuthState(
       return;
     }
     cb(auth.currentUser?.uid ?? null);
-    const off = auth.onAuthStateChanged((user) => {
+    const { onAuthStateChanged } = await import("@react-native-firebase/auth");
+    const off = onAuthStateChanged(auth, (user) => {
       // The unsubscribe path below calls `off()`, but Firebase may emit
       // one final event between this assignment and that call — guard.
       if (unsubbed) return;
@@ -150,7 +151,8 @@ export async function signOut(): Promise<void> {
   const auth = await getAuthModule();
   if (!auth) return;
   try {
-    await auth.signOut();
+    const { signOut } = await import("@react-native-firebase/auth");
+    await signOut(auth);
   } catch {
     // Best-effort.
   }
@@ -170,10 +172,12 @@ export async function deleteUserAccount(): Promise<void> {
   const user = auth.currentUser;
   if (!user) return;
   try {
-    await user.delete();
+    const { deleteUser } = await import("@react-native-firebase/auth");
+    await deleteUser(user);
   } catch {
     try {
-      await auth.signOut();
+      const { signOut } = await import("@react-native-firebase/auth");
+      await signOut(auth);
     } catch {
       // Best-effort.
     }
@@ -215,14 +219,14 @@ export async function signInWithApple(): Promise<{ uid: string; fullName: string
   if (!credential.identityToken) {
     throw new Error("No Apple identity token");
   }
-  const firebaseAuth = (await import("@react-native-firebase/auth")).default;
+  const firebaseAuth = await import("@react-native-firebase/auth");
   // Pass the raw nonce so Firebase can verify the JWT carries the same
   // (hashed) value Apple received from us — replay protection.
   const provider = firebaseAuth.AppleAuthProvider.credential(
     credential.identityToken,
     raw,
   );
-  const userCred = await auth.signInWithCredential(provider);
+  const userCred = await firebaseAuth.signInWithCredential(auth, provider);
   // Use only the given (first) name — social apps show first names.
   // Apple only sends fullName on the very first sign-in, so persist it
   // to Firebase Auth as the full name so we can extract the first name
@@ -233,7 +237,9 @@ export async function signInWithApple(): Promise<{ uid: string; fullName: string
     .trim() || null;
   if (appleFullName) {
     try {
-      await userCred.user.updateProfile({ displayName: appleFullName });
+      await firebaseAuth.updateProfile(userCred.user, {
+        displayName: appleFullName,
+      });
     } catch {
       // Best-effort. The name is still available from appleFullName below.
     }
@@ -274,9 +280,9 @@ export async function signInWithGoogle(): Promise<string | null> {
     throw new Error("No Google ID token returned");
   }
 
-  const firebaseAuth = (await import("@react-native-firebase/auth")).default;
+  const firebaseAuth = await import("@react-native-firebase/auth");
   const cred = firebaseAuth.GoogleAuthProvider.credential(idToken);
-  const userCred = await auth.signInWithCredential(cred);
+  const userCred = await firebaseAuth.signInWithCredential(auth, cred);
   return userCred.user.uid;
 }
 
@@ -286,7 +292,8 @@ export async function signInWithEmail(
 ): Promise<string> {
   const auth = await getAuthModule();
   if (!auth) throw new Error("Firebase not available");
-  const userCred = await auth.signInWithEmailAndPassword(email.trim(), password);
+  const { signInWithEmailAndPassword } = await import("@react-native-firebase/auth");
+  const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
   return userCred.user.uid;
 }
 
@@ -296,7 +303,9 @@ export async function signUpWithEmail(
 ): Promise<string> {
   const auth = await getAuthModule();
   if (!auth) throw new Error("Firebase not available");
-  const userCred = await auth.createUserWithEmailAndPassword(
+  const firebaseAuth = await import("@react-native-firebase/auth");
+  const userCred = await firebaseAuth.createUserWithEmailAndPassword(
+    auth,
     email.trim(),
     password,
   );
@@ -304,7 +313,7 @@ export async function signUpWithEmail(
   // shouldn't block the sign-up; the user can resend from the verify
   // screen.
   try {
-    await userCred.user.sendEmailVerification();
+    await firebaseAuth.sendEmailVerification(userCred.user);
   } catch {
     // Best-effort.
   }
@@ -314,7 +323,8 @@ export async function signUpWithEmail(
 export async function sendPasswordReset(email: string): Promise<void> {
   const auth = await getAuthModule();
   if (!auth) throw new Error("Firebase not available");
-  await auth.sendPasswordResetEmail(email.trim());
+  const { sendPasswordResetEmail } = await import("@react-native-firebase/auth");
+  await sendPasswordResetEmail(auth, email.trim());
 }
 
 /**
@@ -326,7 +336,8 @@ export async function sendVerificationEmail(): Promise<void> {
   if (!auth || !auth.currentUser) {
     throw new Error("Not signed in");
   }
-  await auth.currentUser.sendEmailVerification();
+  const { sendEmailVerification } = await import("@react-native-firebase/auth");
+  await sendEmailVerification(auth.currentUser);
 }
 
 /**
@@ -338,7 +349,8 @@ export async function reloadAndCheckVerified(): Promise<boolean> {
   const auth = await getAuthModule();
   if (!auth || !auth.currentUser) return false;
   try {
-    await auth.currentUser.reload();
+    const { reload } = await import("@react-native-firebase/auth");
+    await reload(auth.currentUser);
   } catch {
     // Stale/expired token — treat as not verified rather than crashing.
     return false;

@@ -23,7 +23,6 @@ import { getActiveVenueBusinessHeaders } from "@/lib/api/client";
 import {
   getGetVenueOwnerMeEventsQueryKey,
   useCreateVenueOwnerEventInviteLink,
-  useDeleteVenueOwnerMeEvent,
   useGetVenueOwnerMeEvents,
   useUpdateVenueOwnerMeEvent,
   type VenueManagerEvent,
@@ -58,9 +57,6 @@ export default function VenueOwnerEventsScreen() {
     request: { headers: requestHeaders },
   });
   const updateEvent = useUpdateVenueOwnerMeEvent({
-    request: { headers: requestHeaders },
-  });
-  const deleteEvent = useDeleteVenueOwnerMeEvent({
     request: { headers: requestHeaders },
   });
   const events = eventsQuery.data?.events ?? [];
@@ -143,30 +139,6 @@ export default function VenueOwnerEventsScreen() {
                 error instanceof Error ? error.message : "Please try again.",
               );
             });
-          },
-        },
-      ],
-    );
-  };
-
-  const confirmDelete = (event: VenueManagerEvent) => {
-    Alert.alert(
-      "Delete this event?",
-      "This permanently removes the event and its RSVPs.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void deleteEvent.mutateAsync({ eventId: event.id })
-              .then(invalidateEvents)
-              .catch((error: unknown) => {
-                Alert.alert(
-                  "Could not delete event",
-                  error instanceof Error ? error.message : "Please try again.",
-                );
-              });
           },
         },
       ],
@@ -308,13 +280,6 @@ export default function VenueOwnerEventsScreen() {
                 icon="users"
               />
               <IconAction
-                label={`Edit ${item.title}`}
-                testID={`venue-owner-event-edit-${item.id}`}
-                onPress={() => router.push(`/venue-owner/events/${item.id}` as never)}
-                color={colors.text}
-                icon="edit-2"
-              />
-              <IconAction
                 label={`${item.isPublished ? "Unpublish" : "Publish"} ${item.title}`}
                 testID={`venue-owner-event-publish-${item.id}`}
                 onPress={() => togglePublished(item)}
@@ -331,13 +296,6 @@ export default function VenueOwnerEventsScreen() {
                   disabled={!item.isPublished || createInviteLink.isPending}
                 />
               ) : null}
-              <IconAction
-                label={`Delete ${item.title}`}
-                testID={`venue-owner-event-delete-${item.id}`}
-                onPress={() => confirmDelete(item)}
-                color={colors.destructive}
-                icon="trash-2"
-              />
             </View>
           </View>
         )}
