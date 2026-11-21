@@ -48,6 +48,7 @@ import {
 } from "@/lib/api/client";
 import { SheetHandle } from "@/components/SheetHandle";
 import { VenueEventCard } from "@/components/VenueEventCard";
+import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
 import { VenueGuestbook } from "@/components/VenueGuestbook";
 import { SavePlaceButton } from "@/components/SavePlaceButton";
 import {
@@ -419,6 +420,13 @@ export default function VenueProfileScreen() {
   const [notFound, setNotFound] = useState(false);
   const [selectedReward, setSelectedReward] = useState<VenueReward | null>(null);
   const [selectedEvent, setSelectedEvent]   = useState<VenueEvent | null>(null);
+  const selectedEventPhotos = selectedEvent
+    ? selectedEvent.galleryPhotos?.length
+      ? selectedEvent.galleryPhotos
+      : selectedEvent.imageUrl
+        ? [selectedEvent.imageUrl]
+        : []
+    : [];
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
   const [showEndedRewards, setShowEndedRewards] = useState(false);
   const [myLeaderboardEntry, setMyLeaderboardEntry] = useState<{ rank: number; checkinCount: number } | null>(null);
@@ -1550,11 +1558,14 @@ export default function VenueProfileScreen() {
               <View style={styles.eventDetailHandle} />
 
               {/* hero image */}
-              {selectedEvent.imageUrl ? (
-                <Image
-                  source={{ uri: selectedEvent.imageUrl }}
-                  style={styles.eventDetailHero}
-                  contentFit="cover"
+              {selectedEventPhotos.length > 0 ? (
+                <EventPhotoCarousel
+                  photos={selectedEventPhotos}
+                  imageStyle={styles.eventDetailHero}
+                  containerStyle={styles.eventDetailGallery}
+                  testID={`venue-event-detail-gallery-${selectedEvent.id}`}
+                  accessibilityLabel={`${selectedEvent.title} photos`}
+                  indicatorPlacement="overlay"
                 />
               ) : (
                 <LinearGradient
@@ -1816,6 +1827,10 @@ const styles = StyleSheet.create({
   eventDetailHero: {
     width: "100%",
     height: 180,
+  },
+  eventDetailGallery: {
+    width: "100%",
+    overflow: "hidden",
   },
   eventDetailBody: {
     padding: 18,

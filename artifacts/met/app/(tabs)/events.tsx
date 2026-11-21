@@ -29,6 +29,7 @@ import { HangoutsNearbyPanel } from "@/components/HangoutsNearbyPanel";
 import { getHangoutOpenPath } from "@/lib/hangoutNavigation";
 import { groupEventsByDate } from "@/lib/eventDateGroups";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
+import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
 import { type HangoutSortMode } from "@/lib/hangoutDiscovery";
 import {
   getGetEventsFeedQueryKey,
@@ -642,6 +643,11 @@ function EventsScreen() {
                   const eventTimeLabel = recurrenceDate
                     ? t("tabs.events.nextOccurrence", { date: recurrenceDate })
                     : new Date(event.startsAt).toLocaleString(lang);
+                  const eventPhotos = event.galleryPhotos?.length
+                    ? event.galleryPhotos
+                    : event.imageUrl
+                      ? [event.imageUrl]
+                      : [];
                   const eventPlaceLabel =
                     event.location ?? event.venueName;
                   const eventAccessibilityLabel = [
@@ -682,7 +688,16 @@ function EventsScreen() {
                             : `/event-details/${event.eventType}/${event.id}` as never,
                         )}
                       >
-                        {event.imageUrl ? <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" /> : null}
+                        {eventPhotos.length > 0 ? (
+                          <EventPhotoCarousel
+                            photos={eventPhotos}
+                            imageStyle={styles.cover}
+                            containerStyle={styles.eventPhotoGallery}
+                            testID={`event-card-gallery-${event.eventType}-${event.id}`}
+                            accessibilityLabel={`${event.title} photos`}
+                            indicatorPlacement="overlay"
+                          />
+                        ) : null}
                         <View style={styles.eventBody}>
                           <View style={styles.badgeRow}>
                             <Text style={[styles.badge, { color: colors.primary, backgroundColor: "transparent" }]}>
@@ -841,6 +856,7 @@ const styles = StyleSheet.create({
   eventDateGroupRtl: { borderLeftWidth: 0, borderRightWidth: 1, paddingLeft: 0, paddingRight: 14, marginLeft: 0, marginRight: 6 },
   eventDateHeading: { fontFamily: "serif", fontSize: 19, fontWeight: "400", marginTop: 10, marginBottom: 8 },
   eventCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 15, marginBottom: 8 },
+  eventPhotoGallery: { width: "100%", overflow: "hidden" },
   cover: { width: "100%", height: 154, borderTopRightRadius: 30, borderBottomLeftRadius: 22 },
   eventBody: { paddingTop: 12, paddingBottom: 5 },
   badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 7 },

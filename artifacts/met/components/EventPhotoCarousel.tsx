@@ -6,6 +6,7 @@ import {
   Text,
   View,
   type ImageStyle,
+  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type StyleProp,
@@ -19,6 +20,8 @@ type EventPhotoCarouselProps = {
   containerStyle?: StyleProp<ViewStyle>;
   testID: string;
   accessibilityLabel: string;
+  indicatorPlacement?: "below" | "overlay";
+  indicatorAlignment?: "left" | "right";
 };
 
 export function getEventPhotoIndexAfterScroll(
@@ -40,17 +43,21 @@ export function EventPhotoCarousel({
   containerStyle,
   testID,
   accessibilityLabel,
+  indicatorPlacement = "below",
+  indicatorAlignment = "right",
 }: EventPhotoCarouselProps) {
   const colors = useColors();
   const photosKey = photos.join("\u0000");
   const [activePage, setActivePage] = useState({ photosKey, index: 0 });
+  const [measuredWidth, setMeasuredWidth] = useState(0);
   const activeIndex = activePage.photosKey === photosKey ? activePage.index : 0;
   const flattenedImageStyle = StyleSheet.flatten(imageStyle);
   const flattenedContainerStyle = StyleSheet.flatten(containerStyle);
-  const itemWidth =
+  const fixedItemWidth =
     typeof flattenedImageStyle.width === "number"
       ? flattenedImageStyle.width
-      : 0;
+      : undefined;
+  const itemWidth = fixedItemWidth ?? measuredWidth;
   const itemHeight =
     typeof flattenedImageStyle.height === "number"
       ? flattenedImageStyle.height
@@ -73,10 +80,20 @@ export function EventPhotoCarousel({
     setActivePage({ photosKey, index });
   };
 
+  const measureContainer = (event: LayoutChangeEvent) => {
+    if (fixedItemWidth != null) return;
+    const nextWidth = event.nativeEvent.layout.width;
+    if (nextWidth > 0) {
+      setMeasuredWidth((current) =>
+        Math.abs(current - nextWidth) < 0.5 ? current : nextWidth,
+      );
+    }
+  };
+
   if (photos.length === 0) return null;
 
   return (
-    <View style={containerStyle} testID={testID}>
+    <View style={containerStyle} onLayout={measureContainer} testID={testID}>
       <ScrollView
         key={photosKey}
         horizontal
@@ -95,7 +112,11 @@ export function EventPhotoCarousel({
           <Image
             key={`${photosKey}-${index}`}
             source={{ uri: photo }}
-            style={imageStyle}
+            style={
+              fixedItemWidth == null && itemWidth > 0
+                ? [imageStyle, { width: itemWidth }]
+                : imageStyle
+            }
             resizeMode="cover"
             accessibilityLabel={`${accessibilityLabel}, ${index + 1} of ${photos.length}`}
             testID={
@@ -108,11 +129,28 @@ export function EventPhotoCarousel({
       </ScrollView>
       {photos.length > 1 ? (
         <View
-          style={styles.pagination}
+          style={[
+            styles.pagination,
+            indicatorPlacement === "overlay" && [
+              styles.paginationOverlay,
+              indicatorAlignment === "left" && styles.paginationLeft,
+              { backgroundColor: colors.card },
+            ],
+          ]}
           pointerEvents="none"
           testID={`${testID}-indicator`}
         >
-          <Text style={[styles.paginationText, { color: colors.mutedForeground }]}>
+          <Text
+            style={[
+              styles.paginationText,
+              {
+                color:
+                  indicatorPlacement === "overlay"
+                    ? colors.text
+                    : colors.mutedForeground,
+              },
+            ]}
+          >
             {currentIndex + 1} / {photos.length}
           </Text>
         </View>
@@ -131,8 +169,18 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingRight: 10,
   },
-  paginationText: {
-    fontSize: 11,
-    fontWeight: "600",
+  paginationOverlay: {
+    position: "absolute",
+    right: 10,
+    bottom: 8,
+    alignSelf: "auto",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
+  paginationLeft: {
+    left: 10,
+    right: undefined,
+  },
+  paginationText: { fontSize: 11, fontWeight: "600" },
 });

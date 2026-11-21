@@ -8,6 +8,9 @@ jest.mock("@/contexts/AppContext", () => ({ useApp: () => ({ authedUid: "test-gu
 jest.mock("@/contexts/ThemeContext", () => ({
   useTheme: () => ({ isDark: false, theme: "light" }),
 }));
+jest.mock("@/hooks/useColors", () => ({
+  useColors: () => ({ card: "#fff", text: "#111", mutedForeground: "#666" }),
+}));
 jest.mock("@/lib/api/client", () => ({ api: { rsvpEvent: (...args: unknown[]) => mockRsvp(...args) } }));
 jest.mock("expo-linear-gradient", () => {
   const React = require("react");
@@ -42,4 +45,46 @@ it("shows an explicit error when the server rejects the RSVP", async () => {
   expect(alert).toHaveBeenCalledWith("Couldn't update RSVP", "Please try again in a moment.");
   expect(screen.getByLabelText("RSVP Going")).toBeTruthy();
   alert.mockRestore();
+});
+
+it("shows all venue event photos in a swipeable gallery", async () => {
+  const photos = [
+    "https://example.test/event-cover.jpg",
+    "https://example.test/event-detail.jpg",
+  ];
+  const screen = await render(
+    <VenueEventCard
+      event={{ ...event, imageUrl: photos[0], galleryPhotos: photos }}
+      onPress={jest.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByTestId("venue-event-gallery-17-image").props.source.uri,
+  ).toBe(photos[0]);
+  expect(
+    screen.getByTestId("venue-event-gallery-17-image-1").props.source.uri,
+  ).toBe(photos[1]);
+  expect(
+    screen.getByTestId("venue-event-gallery-17-scroll").props.horizontal,
+  ).toBe(true);
+});
+
+it("falls back to the legacy cover photo when no gallery is returned", async () => {
+  const screen = await render(
+    <VenueEventCard
+      event={{
+        ...event,
+        imageUrl: "https://example.test/legacy-cover.jpg",
+      }}
+      onPress={jest.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByTestId("venue-event-gallery-17-image").props.source.uri,
+  ).toBe("https://example.test/legacy-cover.jpg");
+  expect(
+    screen.queryByTestId("venue-event-gallery-17-indicator"),
+  ).toBeNull();
 });

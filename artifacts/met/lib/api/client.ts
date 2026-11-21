@@ -220,6 +220,7 @@ export interface VenueEvent {
   title: string;
   description: string | null;
   imageUrl: string | null;
+  galleryPhotos?: string[];
   contactPhone?: string | null;
   websiteUrl?: string | null;
   publicEmail?: string | null;

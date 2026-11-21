@@ -1,5 +1,6 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
+import { StyleSheet } from "react-native";
 
 jest.mock("@/hooks/useColors", () => ({
   useColors: () => ({ mutedForeground: "#666" }),
@@ -74,6 +75,50 @@ describe("EventPhotoCarousel", () => {
     ).toBe("https://example.test/only-photo.jpg");
     expect(carousel.findAllByProps({ testID: "event-photos-indicator" })).toHaveLength(0);
     expect(getEventPhotoIndexAfterScroll(80, 200, 0, 1)).toBe(0);
+    act(() => root.unmount());
+  });
+
+  it("measures full-width pages so swipe indicators stay in sync", () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <EventPhotoCarousel
+          photos={["https://example.test/first.jpg", "https://example.test/second.jpg"]}
+          imageStyle={{ width: "100%", height: 120 }}
+          testID="responsive-event-photos"
+          accessibilityLabel="Event photos"
+          indicatorPlacement="overlay"
+        />,
+      );
+    });
+    const carousel = root.root.find(
+      (instance) =>
+        instance.props.testID === "responsive-event-photos" &&
+        typeof instance.props.onLayout === "function",
+    );
+    act(() => {
+      carousel.props.onLayout({
+        nativeEvent: { layout: { width: 320, height: 120, x: 0, y: 0 } },
+      });
+    });
+    const scroll = root.root.findByProps({ testID: "responsive-event-photos-scroll" });
+    expect(scroll.props.snapToInterval).toBe(320);
+    expect(
+      StyleSheet.flatten(
+        root.root.findByProps({ testID: "responsive-event-photos-image" }).props.style,
+      ).width,
+    ).toBe(320);
+    act(() => {
+      scroll.props.onMomentumScrollEnd({
+        nativeEvent: { contentOffset: { x: 320 } },
+      });
+    });
+    expect(
+      root.root
+        .findByProps({ testID: "responsive-event-photos-indicator" })
+        .findByType(require("react-native").Text)
+        .props.children.join(""),
+    ).toBe("2 / 2");
     act(() => root.unmount());
   });
 

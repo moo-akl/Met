@@ -10,7 +10,6 @@ import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -20,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/lib/api/client";
+import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
 import themeColors from "@/constants/colors";
 
 export interface VenueEventCardData {
@@ -28,6 +28,7 @@ export interface VenueEventCardData {
   title: string;
   description?: string | null;
   imageUrl?: string | null;
+  galleryPhotos?: string[];
   startsAt: string;
   endsAt?: string | null;
   rsvpCount: number;
@@ -85,6 +86,11 @@ export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false 
 
   const isGoing   = myRsvp === "going";
   const { month, day, time } = formatEventDate(event.startsAt);
+  const eventPhotos = event.galleryPhotos?.length
+    ? event.galleryPhotos
+    : event.imageUrl
+      ? [event.imageUrl]
+      : [];
 
   return (
     <Pressable
@@ -98,12 +104,15 @@ export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false 
     >
       {/* ── Image + date badge ───────────────────────── */}
       <View style={styles.imageWrap}>
-        {event.imageUrl ? (
-          <Image
-            source={{ uri: event.imageUrl }}
-            style={styles.image}
-            resizeMode="cover"
-            accessibilityIgnoresInvertColors
+        {eventPhotos.length > 0 ? (
+          <EventPhotoCarousel
+            photos={eventPhotos}
+            imageStyle={styles.image}
+            containerStyle={styles.imageCarousel}
+            testID={`venue-event-gallery-${event.id}`}
+            accessibilityLabel={`${event.title} photos`}
+            indicatorPlacement="overlay"
+            indicatorAlignment="left"
           />
         ) : (
           <LinearGradient
@@ -186,6 +195,7 @@ const styles = StyleSheet.create({
 
   // Image area
   imageWrap: { position: "relative" },
+  imageCarousel: { width: "100%", overflow: "hidden" },
   image:     { width: "100%", height: 140, alignItems: "center", justifyContent: "center" },
   imageFallbackEmoji: { fontSize: 40 },
 
