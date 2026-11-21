@@ -7,7 +7,6 @@ const mockCreateCommunityEvent = jest.fn();
 const mockUpdateCommunityEvent = jest.fn();
 const mockGetVenueEvents = jest.fn();
 const mockRouterPush = jest.fn();
-const mockOpenVenueManager = jest.fn();
 const mockGetLocationPermission = jest.fn();
 const mockRequestLocationPermission = jest.fn();
 const mockGetCurrentPosition = jest.fn();
@@ -123,9 +122,6 @@ jest.mock("@/components/KeyboardAwareScrollViewCompat", () => {
 });
 jest.mock("@/lib/venueEventImage", () => ({ prepareVenueEventImage: jest.fn() }));
 jest.mock("@/lib/eventReminders", () => ({ cancelEventReminder: jest.fn() }));
-jest.mock("@/lib/venueManagerLink", () => ({
-  openVenueManager: (...args: unknown[]) => mockOpenVenueManager(...args),
-}));
 jest.mock("expo-image-picker", () => ({ MediaTypeOptions: { Images: "Images" } }));
 jest.mock("expo-location", () => ({
   Accuracy: { Balanced: 3 },
@@ -183,7 +179,6 @@ beforeEach(() => {
   mockQueryClient.invalidateQueries.mockResolvedValue(undefined);
   mockLocalSearchParams = {};
   mockOwnerEvents = [];
-  mockOpenVenueManager.mockResolvedValue(undefined);
   mockGetVenueEvents.mockResolvedValue({ events: [] });
   mockGetLocationPermission.mockResolvedValue({ granted: false });
   mockRequestLocationPermission.mockResolvedValue({ granted: false });
@@ -838,19 +833,28 @@ describe("DateTimePicker platform behavior", () => {
     act(() => root.unmount());
   });
 
-  it("opens Venue Manager from the retired mobile create and edit routes", async () => {
-    for (const Screen of [NewVenueEventScreen, EditVenueEventScreen]) {
-      let root!: renderer.ReactTestRenderer;
-      act(() => {
-        root = renderer.create(<Screen />);
-      });
-      await act(async () => {
-        findByTestId(root, "open-venue-manager").props.onPress();
-      });
-      expect(mockOpenVenueManager).toHaveBeenCalled();
-      act(() => root.unmount());
-    }
-    expect(mockOpenVenueManager).toHaveBeenCalledTimes(2);
+  it("keeps venue event creation and editing in the app", () => {
+    let createRoot!: renderer.ReactTestRenderer;
+    act(() => {
+      createRoot = renderer.create(<NewVenueEventScreen />);
+    });
+    expect(findByTestId(createRoot, "venue-event-title")).toBeTruthy();
+    expect(createRoot.root.findAllByProps({ testID: "open-venue-manager" })).toHaveLength(0);
+    act(() => createRoot.unmount());
+
+    mockLocalSearchParams = { id: "84" };
+    let editRoot!: renderer.ReactTestRenderer;
+    act(() => {
+      editRoot = renderer.create(<EditVenueEventScreen />);
+    });
+    expect(
+      editRoot.root.findAll((node) =>
+        node.type === Text &&
+        node.props.children === "This event isn't available for the selected venue.",
+      ),
+    ).toHaveLength(1);
+    expect(editRoot.root.findAllByProps({ testID: "open-venue-manager" })).toHaveLength(0);
+    act(() => editRoot.unmount());
   });
 
   it("keeps RSVP access and ignores old edit links in the mobile event list", async () => {
