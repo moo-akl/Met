@@ -267,7 +267,30 @@ export default function EventChatScreen() {
   const queryClient = useQueryClient();
   const { t } = useT();
   const { authedUid } = useApp();
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioRecorderRef = useRef<ReturnType<typeof useAudioRecorder> | null>(null);
+
+  // Run before useAudioRecorder's shared-object release effect on unmount.
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      const recorder = audioRecorderRef.current;
+      if (recorder) {
+        try {
+          if (recorder.isRecording) void recorder.stop().catch(() => {});
+        } catch {
+          // The screen is leaving; do not let native cleanup interrupt navigation.
+        }
+      }
+      setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => {});
+    };
+  }, []);
+
   const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  audioRecorderRef.current = audioRecorder;
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
@@ -276,7 +299,6 @@ export default function EventChatScreen() {
   const recordSecsRef = useRef(0);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
-  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [leavePending, setLeavePending] = useState(false);
   const setPlanNotifications = useSetCommunityEventPlanChatNotifications();
   const markPlanChatRead = useMarkCommunityEventPlanChatRead();
@@ -372,17 +394,6 @@ export default function EventChatScreen() {
     planChat.dataUpdatedAt,
     queryClient,
   ]);
-
-  useEffect(() => {
-    return () => {
-      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-      if (audioRecorder.isRecording) void audioRecorder.stop().catch(() => {});
-      setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      }).catch(() => {});
-    };
-  }, [audioRecorder]);
 
   const stopVoiceRecording = async () => {
     if (recordTimerRef.current) {

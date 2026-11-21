@@ -734,7 +734,33 @@ function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioRecorderRef = useRef<ReturnType<typeof useAudioRecorder> | null>(null);
+
+  // Run before useAudioRecorder's shared-object release effect on unmount.
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) {
+        clearInterval(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      const recorder = audioRecorderRef.current;
+      if (recorder) {
+        try {
+          if (recorder.isRecording) void recorder.stop().catch(() => {});
+        } catch {
+          // The screen is leaving; do not let native cleanup interrupt navigation.
+        }
+      }
+      setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => {});
+    };
+  }, []);
+
   const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  audioRecorderRef.current = audioRecorder;
   const { allEncounters, authedUid, profile } = useApp();
   const [showReviewModal, setShowReviewModal] = useState(false);
   const storeDemo = isStoreDemoEnabled();
@@ -792,28 +818,15 @@ function ChatScreen() {
   const imagePickerInProgressRef = useRef(false);
   const imagePickerRequestIdRef = useRef(0);
   const photoPreparationIdRef = useRef(0);
-  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Clean up any active recording when the screen unmounts (e.g. user navigates
-  // away mid-recording). Without this the iOS audio session can remain in
-  // recording mode and interfere with later playback or recording.
+  // Invalidate async image operations when the screen unmounts.
   useEffect(() => {
     return () => {
-      if (recordTimerRef.current) {
-        clearInterval(recordTimerRef.current);
-        recordTimerRef.current = null;
-      }
-      if (audioRecorder.isRecording) void audioRecorder.stop().catch(() => {});
       imagePickerRequestIdRef.current += 1;
       photoPreparationIdRef.current += 1;
       pendingImageUploadRef.current?.handle.cancel();
       pendingImageUploadRef.current = null;
-      setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-      }).catch(() => {});
     };
-  }, [audioRecorder]);
+  }, []);
 
   const listRef = useRef<FlatList<ListItem>>(null);
 
