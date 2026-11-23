@@ -14,6 +14,8 @@ const mockSetParams = jest.fn();
 const mockQueryClient = { invalidateQueries: jest.fn() };
 let mockEventsFeed: EventFeedItem[] = [];
 let mockRouteParams: Record<string, string> = {};
+let mockNearbyParams: Record<string, unknown> = {};
+let mockAppStateListener: ((state: string) => void) | null = null;
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, setParams: mockSetParams }),
@@ -49,7 +51,10 @@ jest.mock("@/hooks/useColors", () => ({
 
 jest.mock("@/lib/i18n", () => ({
   useT: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, unknown>) =>
+      key === "tabs.events.distanceAway" && options?.distance
+        ? `${key}: ${options.distance}`
+        : key,
     lang: "en",
     rtl: false,
   }),
@@ -72,13 +77,16 @@ jest.mock("@workspace/api-client-react", () => ({
     isRefetching: false,
     refetch: jest.fn(),
   }),
-  useGetNearbyHangouts: () => ({
-    data: { events: [], nextOffset: null },
-    isLoading: false,
-    isFetching: false,
-    isError: false,
-    refetch: jest.fn(),
-  }),
+  useGetNearbyHangouts: (params: Record<string, unknown>) => {
+    mockNearbyParams = params;
+    return {
+      data: { events: [], nextOffset: null },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      refetch: jest.fn(),
+    };
+  },
   useGetMyPastHangouts: () => ({
     data: { events: [] },
     isLoading: false,
@@ -121,6 +129,21 @@ function hangout(id: number): EventFeedItem {
   } as EventFeedItem;
 }
 
+function venueEvent(
+  id: number,
+  latitude: number | null = 13.7653,
+  longitude: number | null = 100.5018,
+): EventFeedItem {
+  return {
+    ...hangout(id),
+    eventType: "venue",
+    joinApprovalRequired: false,
+    latitude,
+    longitude,
+    venueName: "City venue",
+  } as EventFeedItem;
+}
+
 describe("Hangouts discovery", () => {
   beforeEach(() => {
     jest.restoreAllMocks();
@@ -129,6 +152,8 @@ describe("Hangouts discovery", () => {
     mockQueryClient.invalidateQueries.mockClear();
     mockEventsFeed = [];
     mockRouteParams = {};
+    mockNearbyParams = {};
+    mockAppStateListener = null;
     (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
       granted: false,
       canAskAgain: true,
@@ -142,7 +167,13 @@ describe("Hangouts discovery", () => {
     (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValue({
       coords: { latitude: 13.7563, longitude: 100.5018 },
     });
-    jest.spyOn(AppState, "addEventListener").mockReturnValue({ remove: jest.fn() } as never);
+    (Location.getForegroundPermissionsAsync as jest.Mock).mockClear();
+    (Location.requestForegroundPermissionsAsync as jest.Mock).mockClear();
+    (Location.getCurrentPositionAsync as jest.Mock).mockClear();
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_event, listener) => {
+      mockAppStateListener = listener as (state: string) => void;
+      return { remove: jest.fn() } as never;
+    });
     Object.defineProperty(Platform, "OS", {
       configurable: true,
       writable: true,
@@ -240,6 +271,54 @@ describe("Hangouts discovery", () => {
     act(() => root.unmount());
   });
 
+  it("shows a rounded distance on event cards without sharing coordinates", async () => {
+    mockRouteParams = { view: "events" };
+    mockEventsFeed = [venueEvent(91), venueEvent(92, null, null)];
+    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+      granted: true,
+      canAskAgain: true,
+      status: "granted",
+    });
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventsScreen />);
+      await Promise.resolve();
+    });
+
+    expect(root.root.findAllByProps({ testID: "event-card-distance-91" })).toHaveLength(0);
+    await act(async () => {
+      root.root.findByProps({ testID: "events-enable-nearby-sorting" }).props.onPress();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(root.root.findByProps({ testID: "event-card-distance-91" }).props.children)
+      .toBe("tabs.events.distanceAway: ~1 km");
+    expect(root.root.findAllByProps({ testID: "event-card-distance-92" })).toHaveLength(0);
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+    act(() => {
+      root.root.findByProps({ testID: "event-card-venue-91" }).props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith("/event-details/venue/91");
+    expect(mockPush.mock.calls[0][0]).not.toContain("13.7653");
+    expect(mockPush.mock.calls[0][0]).not.toContain("100.5018");
+    act(() => root.unmount());
+  });
+
+  it("hides event-card distance and does not request location when location is unavailable", async () => {
+    mockRouteParams = { view: "events" };
+    mockEventsFeed = [venueEvent(93)];
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventsScreen />);
+      await Promise.resolve();
+    });
+
+    expect(root.root.findAllByProps({ testID: "event-card-distance-93" })).toHaveLength(0);
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+    expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
   it("keeps public Hangouts out of the private Plans screen", () => {
     mockEventsFeed = [
       hangout(82),
@@ -279,6 +358,79 @@ describe("Hangouts discovery", () => {
 
     expect(Location.requestForegroundPermissionsAsync).toHaveBeenCalledTimes(1);
     expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+  });
+
+  it("refreshes location and nearby Hangouts when returning to the foreground", async () => {
+    mockRouteParams = { view: "hangouts" };
+    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+      granted: true,
+      canAskAgain: true,
+      status: "granted",
+    });
+    (Location.getCurrentPositionAsync as jest.Mock)
+      .mockResolvedValueOnce({ coords: { latitude: 13.7563, longitude: 100.5018 } })
+      .mockResolvedValueOnce({ coords: { latitude: 13.8, longitude: 100.52 } });
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventsScreen />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mockNearbyParams).toMatchObject({
+      latitude: 13.7563,
+      longitude: 100.5018,
+    });
+    expect(mockAppStateListener).not.toBeNull();
+    await act(async () => {
+      mockAppStateListener?.("background");
+      mockAppStateListener?.("active");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(2);
+    expect(mockNearbyParams).toMatchObject({
+      latitude: 13.8,
+      longitude: 100.52,
+    });
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+    expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["nearby-hangouts"],
+    });
+    act(() => root.unmount());
+  });
+
+  it("clears an old location without prompting if permission is unavailable on resume", async () => {
+    mockRouteParams = { view: "hangouts" };
+    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+      granted: true,
+      canAskAgain: true,
+      status: "granted",
+    });
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventsScreen />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mockNearbyParams).toMatchObject({
+      latitude: 13.7563,
+      longitude: 100.5018,
+    });
+    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+      granted: false,
+      canAskAgain: true,
+      status: "denied",
+    });
+    await act(async () => {
+      mockAppStateListener?.("background");
+      mockAppStateListener?.("active");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+    expect(mockNearbyParams.latitude).toBeUndefined();
+    expect(mockNearbyParams.longitude).toBeUndefined();
     act(() => root.unmount());
   });
 
@@ -325,6 +477,37 @@ describe("Hangouts discovery", () => {
     ).toBeTruthy();
     expect(root.root.findByProps({ testID: "nearby-hangout-creator-42" }).props.children)
       .toBe("Host");
+    act(() => root.unmount());
+  });
+
+  it("shows only a rounded approximate distance on nearby Hangout cards", () => {
+    const item = {
+      ...hangout(43),
+      latitude: 13.7653,
+      longitude: 100.5018,
+    } as NearbyHangoutItem;
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <HangoutsNearbyPanel
+          hangouts={[item]}
+          userLocation={{ latitude: 13.7563, longitude: 100.5018 }}
+          sortMode="nearest"
+          onSortModeChange={jest.fn()}
+          nearestFallsBackToTime={false}
+          isLoading={false}
+          isLoadingMore={false}
+          isError={false}
+          hasMore={false}
+          onLoadMore={jest.fn()}
+          onRetry={jest.fn()}
+          onPressHangout={jest.fn()}
+        />,
+      );
+    });
+
+    expect(root.root.findByProps({ testID: "nearby-hangout-distance-43" }).props.children)
+      .toBe("tabs.events.distanceAway: ~1 km");
     act(() => root.unmount());
   });
 

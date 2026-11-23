@@ -32,6 +32,7 @@ import { isPlanEvent } from "@/lib/eventFeedClassification";
 import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
 import {
   approximateDistanceMetersBetween,
+  formatApproximateDistance,
   type Coordinates,
   type HangoutSortMode,
 } from "@/lib/hangoutDiscovery";
@@ -236,7 +237,7 @@ function EventsScreen() {
       if (
         previousState === "active" ||
         nextState !== "active" ||
-        activeView !== "hangouts"
+        activeView === "plans"
       ) {
         return;
       }
@@ -247,10 +248,11 @@ function EventsScreen() {
             setUserLocation(null);
             return;
           }
-          if (!userLocation) {
-            setLocationLoading(true);
-            await fetchNativeLocation();
-          }
+          setLocationLoading(true);
+          await fetchNativeLocation();
+          await queryClient.invalidateQueries({
+            queryKey: getGetNearbyHangoutsQueryKey(),
+          });
         } catch {
           setUserLocation(null);
         } finally {
@@ -259,7 +261,7 @@ function EventsScreen() {
       })();
     });
     return () => subscription.remove();
-  }, [activeView, fetchNativeLocation, userLocation]);
+  }, [activeView, fetchNativeLocation, queryClient]);
 
   const selectView = useCallback((view: "plans" | "events" | "hangouts") => {
     setActiveView(view);
@@ -675,6 +677,15 @@ function EventsScreen() {
                       : [];
                   const eventPlaceLabel =
                     event.location ?? event.venueName;
+                  const eventDistance = activeView === "events"
+                    ? getApproximateHangoutDistance(event, userLocation)
+                    : null;
+                  const eventDistanceLabel = eventDistance == null
+                    ? null
+                    : formatApproximateDistance(eventDistance, lang);
+                  const eventDistanceText = eventDistanceLabel
+                    ? t("tabs.events.distanceAway", { distance: eventDistanceLabel })
+                    : null;
                   const eventAccessibilityLabel = [
                     event.title,
                     eventTypeLabel,
@@ -692,6 +703,7 @@ function EventsScreen() {
                     event.creatorName
                       ? `${t("tabs.events.createdBy")} ${event.creatorName}`
                       : undefined,
+                    eventDistanceText,
                   ]
                     .filter(Boolean)
                     .join(". ");
@@ -765,6 +777,17 @@ function EventsScreen() {
                               <Feather name="map-pin" size={13} color={colors.mutedForeground} />
                               <Text numberOfLines={1} style={[styles.eventMeta, styles.locationMetaText, { color: colors.mutedForeground }]}>
                                 {event.location ?? event.venueName}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {eventDistanceText ? (
+                            <View style={styles.locationMeta}>
+                              <Feather name="navigation" size={13} color={colors.primary} />
+                              <Text
+                                testID={`event-card-distance-${event.id}`}
+                                style={[styles.eventMeta, styles.locationMetaText, { color: colors.primary }]}
+                              >
+                                {eventDistanceText}
                               </Text>
                             </View>
                           ) : null}

@@ -13,6 +13,7 @@ import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import {
   distanceBetweenMeters,
+  formatApproximateDistance,
   type Coordinates,
   type HangoutSortMode,
 } from "@/lib/hangoutDiscovery";
@@ -118,9 +119,7 @@ export function HangoutsNearbyPanel({
                 : null;
             const distanceText = distance == null
               ? null
-              : distance < 1000
-                ? `${Math.round(distance)} m`
-                : `${new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(distance / 1000)} km`;
+              : formatApproximateDistance(distance, lang);
             const locationLabel = event.location ?? "";
             const startLabel = new Date(event.startsAt).toLocaleString(lang);
             const creatorLabel = event.creatorName ?? t("tabs.events.planHost");
@@ -150,7 +149,10 @@ export function HangoutsNearbyPanel({
                       {t("tabs.events.nearbyTab")}
                     </Text>
                     {distanceText ? (
-                      <Text style={[styles.distanceLabel, { color: colors.primary, backgroundColor: colors.card }]}>
+                      <Text
+                        testID={`nearby-hangout-distance-${event.id}`}
+                        style={[styles.distanceLabel, { color: colors.primary, backgroundColor: colors.card }]}
+                      >
                         {t("tabs.events.distanceAway", { distance: distanceText })}
                       </Text>
                     ) : null}
