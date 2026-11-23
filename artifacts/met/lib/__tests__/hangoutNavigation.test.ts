@@ -18,4 +18,14 @@ describe("getHangoutOpenPath", () => {
         .toBe("/event-details/member/42");
     },
   );
+
+  it("passes only a rounded approximate distance to Hangout Details", () => {
+    expect(getHangoutOpenPath(42, "host-uid", "guest-uid", null, 1_247))
+      .toBe("/event-details/member/42?approxDistance=1200");
+  });
+
+  it("omits the distance when it is unavailable", () => {
+    expect(getHangoutOpenPath(42, "host-uid", "guest-uid", null, null))
+      .toBe("/event-details/member/42");
+  });
 });

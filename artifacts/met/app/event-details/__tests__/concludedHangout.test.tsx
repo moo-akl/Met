@@ -1,6 +1,6 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { Image, Modal, StyleSheet, View } from "react-native";
+import { Image, Modal, StyleSheet, Text, View } from "react-native";
 import { waitFor } from "@testing-library/react-native";
 import type { EventWelcomeNoteStyle } from "@workspace/api-client-react";
 import { VENUE_GUESTBOOK_THEME } from "@/lib/venueGuestbookTheme";
@@ -37,12 +37,13 @@ const baseEvent = {
 let mockEvent: Omit<typeof baseEvent, "myRsvp"> & {
   myRsvp: "going" | "maybe" | "not_going" | null;
 } = { ...baseEvent };
-let mockRouteParams: { eventType: string; id: string } = {
+let mockRouteParams: { eventType: string; id: string; approxDistance?: string } = {
   eventType: "member",
   id: "42",
 };
 const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefined) };
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn() };
+const mockRequestLocationPermission = jest.fn();
 const mockOpenVenueManager = jest.fn();
 const mockWelcomeNoteStorage = new Map<string, string>();
 const DEFAULT_WELCOME_NOTE_STYLE = {
@@ -101,7 +102,7 @@ jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
 }));
 jest.mock("expo-location", () => ({
-  useForegroundPermissions: () => [null, jest.fn()],
+  useForegroundPermissions: () => [null, mockRequestLocationPermission],
   Accuracy: { Highest: 6 },
   getCurrentPositionAsync: jest.fn(),
 }));
@@ -200,6 +201,7 @@ describe("event detail layouts", () => {
       .mockResolvedValue({ success: true });
     mockEvent = { ...baseEvent };
     mockRouteParams = { eventType: "member", id: "42" };
+    mockRequestLocationPermission.mockClear();
   });
 
   it("shows a claimed welcome note in a dismissible card only for an accepted participant", async () => {
@@ -428,6 +430,40 @@ describe("event detail layouts", () => {
     ).toBe(photos[1]);
     expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "event-detail-standard-hero" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("shows an approximate distance passed from nearby Hangout discovery without requesting location", () => {
+    mockEvent = {
+      ...baseEvent,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+    mockRouteParams = { eventType: "member", id: "42", approxDistance: "1400" };
+
+    const root = renderScreen();
+
+    expect(
+      root.root
+        .findByProps({ testID: "event-detail-hangout-distance" })
+        .findByType(Text).props.children,
+    ).toBe("tabs.events.distanceAway");
+    expect(mockRequestLocationPermission).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it("does not change Hangout details when no approximate distance is available", () => {
+    mockEvent = {
+      ...baseEvent,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+    };
+
+    const root = renderScreen();
+
+    expect(root.root.findAllByProps({ testID: "event-detail-hangout-distance" }))
+      .toHaveLength(0);
+    expect(mockRequestLocationPermission).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 

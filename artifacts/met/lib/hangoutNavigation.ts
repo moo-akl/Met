@@ -11,6 +11,7 @@ export function getHangoutOpenPath(
   ownerUid: string | null | undefined,
   viewerUid: string | null | undefined,
   joinRequestStatus: HangoutJoinRequestStatus,
+  approximateDistanceMeters?: number | null,
 ): string {
   if (
     (ownerUid && viewerUid && ownerUid === viewerUid) ||
@@ -18,5 +19,11 @@ export function getHangoutOpenPath(
   ) {
     return `/event-chat/${eventId}`;
   }
-  return `/event-details/member/${eventId}`;
+  const distanceQuery =
+    approximateDistanceMeters != null &&
+    Number.isFinite(approximateDistanceMeters) &&
+    approximateDistanceMeters >= 0
+      ? `?approxDistance=${Math.round(approximateDistanceMeters / 100) * 100}`
+      : "";
+  return `/event-details/member/${eventId}${distanceQuery}`;
 }

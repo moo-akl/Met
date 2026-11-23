@@ -30,7 +30,11 @@ import { getHangoutOpenPath } from "@/lib/hangoutNavigation";
 import { groupEventsByDate } from "@/lib/eventDateGroups";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
 import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
-import { type HangoutSortMode } from "@/lib/hangoutDiscovery";
+import {
+  approximateDistanceMetersBetween,
+  type Coordinates,
+  type HangoutSortMode,
+} from "@/lib/hangoutDiscovery";
 import {
   getGetEventsFeedQueryKey,
   getGetNearbyHangoutsQueryKey,
@@ -42,6 +46,26 @@ import {
 } from "@workspace/api-client-react";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
+
+function getApproximateHangoutDistance(
+  event: Pick<EventFeedItem, "latitude" | "longitude">,
+  userLocation: Coordinates | null,
+): number | null {
+  if (
+    !userLocation ||
+    event.latitude == null ||
+    event.longitude == null ||
+    !Number.isFinite(event.latitude) ||
+    !Number.isFinite(event.longitude)
+  ) {
+    return null;
+  }
+
+  return approximateDistanceMetersBetween(userLocation, {
+    latitude: event.latitude,
+    longitude: event.longitude,
+  });
+}
 
 function getBrowserLocation(): Promise<{ latitude: number; longitude: number }> {
   return new Promise((resolve, reject) => {
@@ -537,6 +561,7 @@ function EventsScreen() {
               event.ownerUid,
               authedUid,
               event.myJoinRequestStatus,
+              getApproximateHangoutDistance(event, userLocation),
             ) as never)}
           />
         ) : visibleEvents.length === 0 ? (
@@ -684,6 +709,7 @@ function EventsScreen() {
                                 event.ownerUid,
                                 authedUid,
                                 event.myJoinRequestStatus,
+                                getApproximateHangoutDistance(event, userLocation),
                               ) as never
                             : `/event-details/${event.eventType}/${event.id}` as never,
                         )}

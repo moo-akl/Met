@@ -32,6 +32,7 @@ import { EventPhotoCarousel } from "@/components/EventPhotoCarousel";
 import { EventReviewSection } from "@/components/EventReviewSection";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
+import { formatApproximateDistance } from "@/lib/hangoutDiscovery";
 import {
   DEFAULT_EVENT_WELCOME_NOTE_STYLE,
   resolveEventWelcomeNoteStyle,
@@ -75,6 +76,7 @@ export default function EventDetailsScreen() {
   const params = useLocalSearchParams<{
     eventType?: string | string[];
     id?: string | string[];
+    approxDistance?: string | string[];
   }>();
   const rawType = Array.isArray(params.eventType) ? params.eventType[0] : params.eventType;
   const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -391,6 +393,20 @@ export default function EventDetailsScreen() {
         event.myRsvp === "maybe"),
   );
   const location = event?.location ?? event?.venueName ?? null;
+  const rawApproximateDistance = Array.isArray(params.approxDistance)
+    ? params.approxDistance[0]
+    : params.approxDistance;
+  const approximateDistanceMeters =
+    isHangout &&
+    !isConcludedHangout &&
+    rawApproximateDistance &&
+    /^\d+$/.test(rawApproximateDistance)
+      ? Number(rawApproximateDistance)
+      : null;
+  const approximateDistanceText =
+    approximateDistanceMeters == null
+      ? null
+      : formatApproximateDistance(approximateDistanceMeters, lang);
   const eventPhotos = event
     ? event.galleryPhotos?.length
       ? event.galleryPhotos
@@ -904,6 +920,14 @@ export default function EventDetailsScreen() {
                 <Text numberOfLines={1} style={[styles.locationText, { color: colors.text }]}>{location}</Text>
                 <Feather name="navigation" size={18} color={colors.primary} />
               </Pressable>
+            ) : null}
+            {approximateDistanceText ? (
+              <View testID="event-detail-hangout-distance" style={styles.metaRow}>
+                <Feather name="map-pin" size={16} color={colors.mutedForeground} />
+                <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                  {t("tabs.events.distanceAway", { distance: approximateDistanceText })}
+                </Text>
+              </View>
             ) : null}
             {eventType === "member" ? (
               <View style={styles.creatorCard}>
