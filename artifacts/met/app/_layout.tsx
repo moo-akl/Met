@@ -28,6 +28,11 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import {
+  captureStartupError,
+  markStartupPhase,
+  markStartupReady,
+} from "../startup/state";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AccountRecoveryScreen } from "@/components/AccountRecoveryScreen";
@@ -67,7 +72,10 @@ import {
   isVenueOwnerPathAllowed,
 } from "@/lib/venueOwnerLifecycle";
 
-SplashScreen.preventAutoHideAsync();
+markStartupPhase("root-layout-module");
+void SplashScreen.preventAutoHideAsync().catch((error) => {
+  captureStartupError(error);
+});
 
 const queryClient = new QueryClient();
 const FONT_LOAD_TIMEOUT_MS = 8_000;
@@ -667,6 +675,14 @@ export default function RootLayout() {
   // Android heads-up) doesn't also pop up as a banner.
   const tappedIdsRef = useRef<Set<string>>(new Set());
 
+  useEffect(() => {
+    if (fontsLoaded || fontError || fontLoadTimedOut) {
+      markStartupReady();
+    } else {
+      markStartupPhase("font-loading");
+    }
+  }, [fontsLoaded, fontError, fontLoadTimedOut]);
+
   // Capture initial / live deep links. Referrals are stashed for onboarding;
   // network invites and venue-owner registration links navigate directly.
   useEffect(() => {
@@ -751,7 +767,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
+      <ErrorBoundary onError={captureStartupError}>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <ThemeProvider>
