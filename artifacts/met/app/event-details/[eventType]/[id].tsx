@@ -52,6 +52,7 @@ import {
   getGetEventsFeedQueryKey,
   checkInEventByLocation,
   useDeleteCommunityEvent,
+  useDeleteVenueOwnerMeEvent,
   useCreateCommunityEventInviteLink,
   useCreateVenueOwnerEventInviteLink,
   useReportCommunityEvent,
@@ -158,21 +159,43 @@ export default function EventDetailsScreen() {
   const acknowledgeEventWelcomeNote = useAcknowledgeEventWelcomeNote();
   const requestToJoin = useRequestToJoinCommunityEvent();
   const withdrawJoinRequest = useWithdrawCommunityEventJoinRequest();
-  const deleteEvent = useDeleteCommunityEvent({
+  const handleDeleteSuccess = async () => {
+    if (authedUid) {
+      await cancelEventReminder(authedUid, eventType, eventId).catch(() => {});
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() }),
+      queryClient.invalidateQueries({
+        queryKey: getGetEventDetailsQueryKey(eventType, eventId),
+      }),
+      eventType === "venue"
+        ? queryClient.invalidateQueries({
+            queryKey: getGetVenueOwnerMeEventQueryKey(eventId),
+          })
+        : Promise.resolve(),
+    ]);
+    router.replace("/(tabs)/events" as never);
+  };
+  const handleDeleteError = (error: unknown) => {
+    setActionError(
+      error instanceof Error ? error.message : t("tabs.events.eventActionError"),
+    );
+    setConfirmDelete(false);
+  };
+  const deleteMemberEvent = useDeleteCommunityEvent({
     mutation: {
-      onSuccess: async () => {
-        if (authedUid) {
-          await cancelEventReminder(authedUid, "member", eventId).catch(() => {});
-        }
-        await queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() });
-        router.replace("/(tabs)/events" as never);
-      },
-      onError: (error) => {
-        setActionError(error instanceof Error ? error.message : "Could not delete the event.");
-        setConfirmDelete(false);
-      },
+      onSuccess: handleDeleteSuccess,
+      onError: handleDeleteError,
     },
   });
+  const deleteVenueEvent = useDeleteVenueOwnerMeEvent({
+    request: { headers: venueBusinessHeaders },
+    mutation: {
+      onSuccess: handleDeleteSuccess,
+      onError: handleDeleteError,
+    },
+  });
+  const isDeletePending = deleteMemberEvent.isPending || deleteVenueEvent.isPending;
 
   const event = eventQuery.data;
   const eventStartKey = event ? `${event.eventType}:${event.id}:${event.startsAt}` : "";
@@ -686,8 +709,12 @@ export default function EventDetailsScreen() {
   };
 
   const doDelete = () => {
-    if (event?.eventType !== "member" || !isOwner) return;
-    deleteEvent.mutate({ eventId: event.id });
+    if (!event || !isOwner) return;
+    if (event.eventType === "venue") {
+      deleteVenueEvent.mutate({ eventId: event.id });
+      return;
+    }
+    deleteMemberEvent.mutate({ eventId: event.id });
   };
 
   return (
@@ -767,10 +794,15 @@ export default function EventDetailsScreen() {
             <View testID="event-detail-hangout-hero" style={[styles.hangoutHero, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {isConcludedHangout || !eventPhotos.length ? (
                 <View style={[styles.hangoutPlaceholder, { backgroundColor: colors.primarySoft }]}>
-                  <Feather name="users" size={34} color={colors.primary} />
-                  <Text style={[styles.hangoutPlaceholderText, { color: colors.primary }]}>
-                    {t("tabs.events.hangoutDetailsTitle")}
-                  </Text>
+                  <View style={[styles.hangoutSun, { backgroundColor: colors.primary }]} />
+                  <View style={[styles.hangoutHillBack, { backgroundColor: colors.card }]} />
+                  <View style={[styles.hangoutHillFront, { backgroundColor: colors.primarySoft }]} />
+                  <View style={styles.hangoutPlaceholderContent}>
+                    <Feather name="users" size={30} color={colors.primary} />
+                    <Text style={[styles.hangoutPlaceholderText, { color: colors.primary }]}>
+                      {t("tabs.events.hangoutDetailsTitle")}
+                    </Text>
+                  </View>
                 </View>
               ) : (
                 <EventPhotoCarousel
@@ -1406,11 +1438,11 @@ export default function EventDetailsScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={t("tabs.events.deleteEvent")}
                         testID="button-confirm-delete-event"
-                        disabled={deleteEvent.isPending}
+                        disabled={isDeletePending}
                         onPress={doDelete}
                         style={[styles.confirmButton, { backgroundColor: colors.destructive }]}
                       >
-                        {deleteEvent.isPending ? (
+                        {isDeletePending ? (
                           <ActivityIndicator size="small" color={colors.primaryForeground} />
                         ) : (
                           <Text style={[styles.confirmButtonText, { color: colors.primaryForeground }]}>
@@ -1515,8 +1547,12 @@ const styles = StyleSheet.create({
   hangoutHero: { marginHorizontal: 18, marginTop: 18, borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 24, overflow: "hidden" },
   hangoutPhotoRow: { gap: 8, padding: 8 },
   hangoutCover: { width: 286, height: 190, borderTopLeftRadius: 24, borderBottomRightRadius: 20 },
-  hangoutPlaceholder: { minHeight: 170, alignItems: "center", justifyContent: "center", gap: 10 },
-  hangoutPlaceholderText: { fontSize: 13, fontWeight: "700" },
+  hangoutPlaceholder: { minHeight: 190, alignItems: "center", justifyContent: "center", gap: 10, overflow: "hidden" },
+  hangoutSun: { position: "absolute", width: 46, height: 46, borderRadius: 23, right: 44, top: 31, opacity: 0.2 },
+  hangoutHillBack: { position: "absolute", width: 250, height: 98, borderRadius: 90, left: -54, bottom: -58, transform: [{ rotate: "-13deg" }] },
+  hangoutHillFront: { position: "absolute", width: 270, height: 105, borderRadius: 90, right: -62, bottom: -68, transform: [{ rotate: "13deg" }] },
+  hangoutPlaceholderContent: { alignItems: "center", justifyContent: "center", gap: 9, zIndex: 1 },
+  hangoutPlaceholderText: { fontFamily: "serif", fontSize: 17, fontWeight: "400" },
   hangoutHeroFooter: { flexDirection: "row", alignItems: "center", gap: 11, padding: 13 },
   hangoutHeroIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   hangoutHeroCopy: { flex: 1, gap: 3 },
@@ -1536,7 +1572,7 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
   badge: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99 },
   privateBadge: { fontSize: 11, fontWeight: "600" },
-  title: { fontSize: 26, lineHeight: 32, fontWeight: "700", marginBottom: 15 },
+  title: { fontFamily: "serif", fontSize: 32, lineHeight: 38, fontWeight: "400", letterSpacing: -0.6, marginBottom: 17 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 9 },
   meta: { fontSize: 14, lineHeight: 20, flex: 1 },
   recurrenceCard: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, marginTop: 4, marginBottom: 10 },

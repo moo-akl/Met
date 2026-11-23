@@ -107,9 +107,11 @@ export default function PlansScreen() {
           </View>
         ) : (
           <View style={styles.list}>
-            {plans.map((event) => {
+            {plans.map((event, index) => {
               const date = new Date(event.startsAt);
               const owner = event.ownerUid === authedUid;
+              const isFeatured = index === 0;
+              const artwork = event.galleryPhotos?.[0] ?? event.imageUrl;
               return (
                 <Pressable
                   key={`${event.eventType}:${event.id}`}
@@ -117,49 +119,76 @@ export default function PlansScreen() {
                   accessibilityLabel={t("plans.openChatTitleA11y", { title: event.title })}
                   testID={`plan-row-${event.id}`}
                   onPress={() => openPlan(event)}
-                  style={({ pressed }) => [styles.plan, { borderTopColor: colors.border, opacity: pressed ? 0.78 : 1 }]}
+                  style={({ pressed }) => [
+                    styles.plan,
+                    isFeatured ? styles.featuredPlan : styles.standardPlan,
+                    { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.82 : 1 },
+                  ]}
                 >
-                  <View style={styles.dateColumn}>
-                    <View style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}>
-                    <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
-                    <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
-                    </View>
-                    <View style={[styles.datePin, { backgroundColor: colors.primary }]} />
-                  </View>
-                  <View style={styles.planCopy}>
-                    <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
-                    <Text style={[styles.planTitle, { color: colors.text }]} numberOfLines={2}>{event.title}</Text>
-                    {event.location ? (
-                      <View style={styles.locationRow}>
-                        <Feather name="map-pin" size={13} color={colors.mutedForeground} />
-                        <Text numberOfLines={1} style={[styles.locationText, { color: colors.mutedForeground }]}>{event.location}</Text>
-                      </View>
-                    ) : null}
-                    <View style={styles.creatorRow}>
-                      {event.creatorPhotoUrl ? (
-                        <Image
-                          source={{ uri: event.creatorPhotoUrl }}
-                          accessibilityLabel={event.creatorName ?? t("tabs.events.planHost")}
-                          style={styles.creatorAvatar}
-                        />
+                  {isFeatured ? (
+                    <View style={[styles.featuredArtwork, { backgroundColor: colors.primarySoft }]}>
+                      {artwork ? (
+                        <Image source={{ uri: artwork }} accessibilityLabel={event.title} style={styles.featuredImage} />
                       ) : (
-                        <View style={[styles.creatorAvatar, { backgroundColor: colors.primarySoft }]}>
-                          <Feather name="user" size={13} color={colors.primary} />
+                        <View style={styles.orbitArtwork}>
+                          <View style={[styles.orbitRing, styles.orbitRingOuter, { borderColor: colors.primary }]} />
+                          <View style={[styles.orbitRing, styles.orbitRingInner, { borderColor: colors.primary }]} />
+                          <View style={[styles.orbitCore, { backgroundColor: colors.card }]}>
+                            <Feather name="sun" size={23} color={colors.primary} />
+                          </View>
                         </View>
                       )}
-                      <Text numberOfLines={1} style={[styles.meta, { color: colors.mutedForeground }]}>
-                        {event.creatorName ?? t("tabs.events.planHost")}
+                      <View style={[styles.featuredDate, { backgroundColor: colors.card }]}>
+                        <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
+                        <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  <View style={[styles.planDetails, !isFeatured && styles.standardDetails]}>
+                    {!isFeatured ? (
+                      <View style={styles.dateColumn}>
+                        <View style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}>
+                          <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
+                          <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
+                        </View>
+                        <View style={[styles.datePin, { backgroundColor: colors.primary }]} />
+                      </View>
+                    ) : null}
+                    <View style={styles.planCopy}>
+                      <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
+                      <Text style={[styles.planTitle, { color: colors.text }]} numberOfLines={2}>{event.title}</Text>
+                      {event.location ? (
+                        <View style={styles.locationRow}>
+                          <Feather name="map-pin" size={13} color={colors.mutedForeground} />
+                          <Text numberOfLines={1} style={[styles.locationText, { color: colors.mutedForeground }]}>{event.location}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.creatorRow}>
+                        {event.creatorPhotoUrl ? (
+                          <Image
+                            source={{ uri: event.creatorPhotoUrl }}
+                            accessibilityLabel={event.creatorName ?? t("tabs.events.planHost")}
+                            style={styles.creatorAvatar}
+                          />
+                        ) : (
+                          <View style={[styles.creatorAvatar, { backgroundColor: colors.primarySoft }]}>
+                            <Feather name="user" size={13} color={colors.primary} />
+                          </View>
+                        )}
+                        <Text numberOfLines={1} style={[styles.meta, { color: colors.mutedForeground }]}>
+                          {event.creatorName ?? t("tabs.events.planHost")}
+                        </Text>
+                      </View>
+                      <Text style={[styles.host, { color: colors.primary }]}>
+                        {owner
+                          ? t("plans.hosting")
+                          : event.myRsvp === "going" || event.myRsvp === "maybe"
+                            ? t("tabs.events.planInvitationAccepted")
+                            : t("tabs.events.invited")}
                       </Text>
                     </View>
-                    <Text style={[styles.host, { color: colors.primary }]}>
-                      {owner
-                        ? t("plans.hosting")
-                        : event.myRsvp === "going" || event.myRsvp === "maybe"
-                          ? t("tabs.events.planInvitationAccepted")
-                          : t("tabs.events.invited")}
-                    </Text>
+                    <View style={styles.chatMark}><Feather name="message-circle" size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
                   </View>
-                  <View style={styles.chatMark}><Feather name="message-circle" size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
                 </Pressable>
               );
             })}
@@ -187,14 +216,26 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
   emptyAction: { marginTop: 8, minHeight: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 7 },
   actionText: { fontSize: 13, fontWeight: "700" },
-  list: { gap: 0, paddingLeft: 2 },
-  plan: { minHeight: 116, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 3, paddingVertical: 17, flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  list: { gap: 14, paddingLeft: 2 },
+  plan: { overflow: "hidden" },
+  featuredPlan: { borderWidth: 1, borderTopLeftRadius: 28, borderBottomRightRadius: 26, padding: 10, gap: 12 },
+  standardPlan: { minHeight: 116, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 3, paddingVertical: 17 },
+  featuredArtwork: { height: 158, borderTopLeftRadius: 21, borderBottomRightRadius: 18, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  featuredImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  orbitArtwork: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  orbitRing: { position: "absolute", borderWidth: 1, borderRadius: 999, opacity: 0.32 },
+  orbitRingOuter: { width: 190, height: 82, transform: [{ rotate: "-24deg" }] },
+  orbitRingInner: { width: 145, height: 66, transform: [{ rotate: "30deg" }] },
+  orbitCore: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
+  featuredDate: { position: "absolute", top: 10, right: 10, width: 48, height: 55, borderTopLeftRadius: 17, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
+  planDetails: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 2, paddingBottom: 2 },
+  standardDetails: { paddingHorizontal: 0 },
   dateColumn: { width: 54, alignItems: "center", paddingTop: 2 },
   dateBadge: { width: 48, height: 53, borderTopLeftRadius: 18, borderBottomRightRadius: 18, alignItems: "center", justifyContent: "center" },
   datePin: { width: 5, height: 5, borderRadius: 3, marginTop: 9 },
   month: { fontSize: 9, fontWeight: "700", letterSpacing: 1 },
   day: { fontFamily: "serif", fontSize: 23, fontWeight: "400", lineHeight: 27 },
-  planCopy: { flex: 1, gap: 5, paddingTop: 2 },
+  planCopy: { flex: 1, minWidth: 0, gap: 5, paddingTop: 2 },
   planTitle: { fontFamily: "serif", fontSize: 20, lineHeight: 25, fontWeight: "400", marginTop: 1 },
   meta: { fontSize: 11, lineHeight: 16 },
   locationRow: { minHeight: 20, flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },

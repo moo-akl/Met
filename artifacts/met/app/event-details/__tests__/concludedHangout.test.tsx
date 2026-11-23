@@ -46,6 +46,8 @@ const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn() };
 const mockRequestLocationPermission = jest.fn();
 const mockOpenVenueManager = jest.fn();
 const mockWelcomeNoteStorage = new Map<string, string>();
+const mockDeleteMemberEvent = jest.fn();
+const mockDeleteVenueEvent = jest.fn();
 const DEFAULT_WELCOME_NOTE_STYLE = {
   font: "classic",
   color: "ink",
@@ -162,7 +164,8 @@ jest.mock("@workspace/api-client-react", () => ({
   getGetVenueOwnerMeEventQueryOptions: () => ({ queryKey: ["venue-owner-event-options"] }),
   getGetEventsFeedQueryKey: () => ["events-feed"],
   checkInEventByLocation: jest.fn(),
-  useDeleteCommunityEvent: () => ({ mutate: jest.fn(), isPending: false }),
+  useDeleteCommunityEvent: () => ({ mutate: mockDeleteMemberEvent, isPending: false }),
+  useDeleteVenueOwnerMeEvent: () => ({ mutate: mockDeleteVenueEvent, isPending: false }),
   useCreateCommunityEventInviteLink: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useCreateVenueOwnerEventInviteLink: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useReportCommunityEvent: () => ({ mutateAsync: jest.fn(), isPending: false }),
@@ -525,6 +528,33 @@ describe("event detail layouts", () => {
     });
     expect(root.root.findByProps({ testID: "button-confirm-delete-event" })).toBeTruthy();
 
+    act(() => root.unmount());
+  });
+
+  it("deletes a venue event through the venue-owner endpoint", () => {
+    mockEvent = {
+      ...baseEvent,
+      eventType: "venue",
+      ownerUid: "guest-user",
+      joinApprovalRequired: false,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      placeId: "venue-42",
+      visibility: "public",
+    };
+    mockRouteParams = { eventType: "venue", id: "42" };
+
+    const root = renderScreen();
+
+    act(() => {
+      root.root.findByProps({ testID: "button-delete-event" }).props.onPress();
+    });
+    act(() => {
+      root.root.findByProps({ testID: "button-confirm-delete-event" }).props.onPress();
+    });
+
+    expect(mockDeleteVenueEvent).toHaveBeenCalledWith({ eventId: 42 });
+    expect(mockDeleteMemberEvent).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 

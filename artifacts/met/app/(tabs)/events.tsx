@@ -458,7 +458,7 @@ function EventsScreen() {
               testID="events-past-hangouts"
               onPress={() => router.push("/plans" as never)}
               hitSlop={8}
-              style={styles.topBarIcon}
+              style={[styles.topBarIcon, { backgroundColor: colors.primarySoft }]}
             >
               <Feather name="clock" size={20} color={colors.primary} />
             </Pressable>
@@ -468,7 +468,7 @@ function EventsScreen() {
               testID="events-networks"
               onPress={() => router.push("/(tabs)/networks")}
               hitSlop={8}
-              style={styles.topBarIcon}
+              style={[styles.topBarIcon, { backgroundColor: colors.primarySoft }]}
             >
               <Feather name="users" size={20} color={colors.primary} />
             </Pressable>
@@ -508,7 +508,7 @@ function EventsScreen() {
                 onPress={() => selectView(view)}
                 style={[
                   styles.viewTab,
-                  selected && { backgroundColor: colors.primarySoft, borderBottomColor: colors.primary },
+                  selected && { backgroundColor: colors.primarySoft },
                 ]}
               >
                 <Feather name={icon} size={16} color={selected ? colors.primary : colors.mutedForeground} />
@@ -708,7 +708,7 @@ function EventsScreen() {
                     .filter(Boolean)
                     .join(". ");
                   return (
-                    <View key={key} style={[styles.eventCard, { borderBottomColor: colors.border }]}>
+                    <View key={key} style={[styles.eventCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={eventAccessibilityLabel}
@@ -879,18 +879,18 @@ function EventsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingHorizontal: 20, gap: 15 },
-  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 2 },
+  content: { paddingHorizontal: 20, gap: 18 },
+  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 3 },
   headerCopy: { flex: 1, minWidth: 0, paddingRight: 8 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 3 },
-  title: { fontFamily: "serif", fontSize: 23, lineHeight: 28, fontWeight: "400", letterSpacing: -0.35 },
-  subtitle: { fontSize: 14, lineHeight: 20, marginTop: 4 },
-  viewTabs: { flexDirection: "row", borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, padding: 0, gap: 4 },
-  viewTab: { flex: 1, minHeight: 44, borderRadius: 0, borderBottomWidth: 2, borderBottomColor: "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 5 },
-  viewTabText: { fontSize: 12, fontWeight: "700" },
+  title: { fontFamily: "serif", fontSize: 35, lineHeight: 40, fontWeight: "400", letterSpacing: -0.8 },
+  subtitle: { fontSize: 13, lineHeight: 19, marginTop: 5 },
+  viewTabs: { flexDirection: "row", borderWidth: 1, borderRadius: 24, padding: 4, gap: 3 },
+  viewTab: { flex: 1, minHeight: 40, borderRadius: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 4 },
+  viewTabText: { fontSize: 11, fontWeight: "700" },
   locationAction: { fontSize: 12, fontWeight: "700", marginTop: 6 },
   locationHint: { fontSize: 12, fontWeight: "600", marginTop: 6 },
-  topBarIcon: { width: 36, height: 40, alignItems: "center", justifyContent: "center" },
+  topBarIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   errorText: { fontSize: 13, fontWeight: "600" },
   loading: { paddingVertical: 56, alignItems: "center" },
@@ -899,15 +899,15 @@ const styles = StyleSheet.create({
   emptyAction: { minHeight: 42, borderTopLeftRadius: 20, borderBottomRightRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
   emptyActionText: { fontSize: 13, fontWeight: "700" },
   emptyActions: { width: "100%", gap: 7, marginTop: 4 },
-  eventList: { gap: 0, paddingTop: 3 },
+  eventList: { gap: 0, paddingTop: 5 },
   eventDateGroup: { gap: 0, borderLeftWidth: 1, paddingLeft: 14, marginLeft: 6 },
   eventDateGroupLtr: { borderLeftWidth: 1, borderRightWidth: 0, paddingLeft: 14, paddingRight: 0, marginLeft: 6, marginRight: 0 },
   eventDateGroupRtl: { borderLeftWidth: 0, borderRightWidth: 1, paddingLeft: 0, paddingRight: 14, marginLeft: 0, marginRight: 6 },
-  eventDateHeading: { fontFamily: "serif", fontSize: 19, fontWeight: "400", marginTop: 10, marginBottom: 8 },
-  eventCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 15, marginBottom: 8 },
+  eventDateHeading: { fontFamily: "serif", fontSize: 18, fontWeight: "400", marginTop: 11, marginBottom: 12 },
+  eventCard: { borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 22, overflow: "hidden", marginBottom: 14 },
   eventPhotoGallery: { width: "100%", overflow: "hidden" },
-  cover: { width: "100%", height: 154, borderTopRightRadius: 30, borderBottomLeftRadius: 22 },
-  eventBody: { paddingTop: 12, paddingBottom: 5 },
+  cover: { width: "100%", height: 188 },
+  eventBody: { paddingHorizontal: 15, paddingTop: 14, paddingBottom: 13 },
   badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 7 },
   badge: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", paddingHorizontal: 0, paddingVertical: 0 },
   privateBadge: { fontSize: 11, fontWeight: "600" },
@@ -923,7 +923,7 @@ const styles = StyleSheet.create({
   description: { fontSize: 14, lineHeight: 20, marginTop: 9 },
   detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 10 },
   detailsLinkText: { fontSize: 12, fontWeight: "700" },
-  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, paddingBottom: 1 },
+  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 15, paddingTop: 12, paddingBottom: 14 },
   rsvpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   rsvpCount: { flexGrow: 1, flexBasis: 58, fontSize: 11 },
   rsvpButton: { flexGrow: 1, flexBasis: 65, minWidth: 0, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, paddingVertical: 7, borderRadius: 18, borderWidth: 1 },
