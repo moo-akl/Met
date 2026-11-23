@@ -165,6 +165,7 @@ export default function PaywallScreen() {
     proOffering,
     isLoading,
     tier,
+    isSubscriptionReady,
     isProSubscriber,
     isPlusSubscriber,
     purchase,
@@ -172,6 +173,10 @@ export default function PaywallScreen() {
     restore,
     isRestoring,
     purchaseError,
+    isRevenueCatIdentityReady,
+    revenueCatIdentityStatus,
+    hasAuthenticatedAccount,
+    retryRevenueCatIdentity,
     refetch,
   } = useSubscription();
 
@@ -198,6 +203,7 @@ export default function PaywallScreen() {
   };
 
   const [billing, setBilling] = useState<Billing>("yearly");
+  const [restoreFailed, setRestoreFailed] = useState(false);
 
   const offeringFor = (t: PaidTier): PurchasesOffering | null =>
     t === "pro" ? proOffering : plusOffering;
@@ -271,6 +277,8 @@ export default function PaywallScreen() {
   }, [isProSubscriber, isPlusSubscriber, selectedTier, billing, selectedPackage]);
 
   const ctaDisabled =
+    !isRevenueCatIdentityReady ||
+    !isSubscriptionReady ||
     isProSubscriber ||
     (isPlusSubscriber && selectedTier === "plus") ||
     !selectedPackage ||
@@ -280,7 +288,7 @@ export default function PaywallScreen() {
   const [confirmTest, setConfirmTest] = useState(false);
 
   const runPurchase = async () => {
-    if (!selectedPackage) return;
+    if (!isRevenueCatIdentityReady || !isSubscriptionReady || !selectedPackage) return;
     try {
       await purchase(selectedPackage);
       // Track the purchase in TikTok Events Manager.
@@ -306,6 +314,16 @@ export default function PaywallScreen() {
   const confirmPurchase = async () => {
     setConfirmTest(false);
     await runPurchase();
+  };
+
+  const handleRestore = async () => {
+    if (!isRevenueCatIdentityReady) return;
+    setRestoreFailed(false);
+    try {
+      await restore();
+    } catch {
+      setRestoreFailed(true);
+    }
   };
 
   const close = () => router.back();
@@ -537,10 +555,43 @@ export default function PaywallScreen() {
               <Text style={styles.ctaText}>Done</Text>
             </Pressable>
           </View>
+        ) : !isRevenueCatIdentityReady ? (
+          <Pressable
+            onPress={() => {
+              if (hasAuthenticatedAccount && revenueCatIdentityStatus === "error") {
+                void retryRevenueCatIdentity();
+              }
+            }}
+            disabled={!hasAuthenticatedAccount || revenueCatIdentityStatus !== "error"}
+            testID="paywall-identity-status"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.legal, { color: colors.mutedForeground }]}>
+              {!hasAuthenticatedAccount
+                ? "Sign in before purchasing a subscription."
+                : revenueCatIdentityStatus === "error"
+                  ? "We couldn’t verify your account. Tap to retry."
+                  : "Verifying your account…"}
+            </Text>
+          </Pressable>
         ) : isLoading ? (
           <Text style={[styles.legal, { color: colors.mutedForeground }]}>
             Loading plans…
           </Text>
+        ) : !isSubscriptionReady ? (
+          <Pressable
+            onPress={refetch}
+            style={{ alignItems: "center", gap: 4 }}
+            testID="paywall-subscription-retry"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.legal, { color: colors.destructive }]}>
+              Couldn’t verify your subscription.
+            </Text>
+            <Text style={[styles.legal, { color: colors.primary, textDecorationLine: "underline" }]}>
+              Tap to retry
+            </Text>
+          </Pressable>
         ) : !plusOffering && !proOffering ? (
           <Pressable onPress={refetch} style={{ alignItems: "center", gap: 4 }}>
             <Text style={[styles.legal, { color: colors.destructive }]}>
@@ -562,6 +613,8 @@ export default function PaywallScreen() {
             <Pressable
               onPress={startPurchase}
               disabled={ctaDisabled}
+              testID="paywall-purchase-button"
+              accessibilityRole="button"
               style={({ pressed }) => [
                 styles.cta,
                 {
@@ -576,9 +629,20 @@ export default function PaywallScreen() {
               </Text>
             </Pressable>
 
+            {restoreFailed ? (
+              <Text
+                style={[styles.errorText, { color: colors.destructive }]}
+                testID="paywall-restore-error"
+                accessibilityRole="alert"
+              >
+                Couldn’t restore purchases. Check your connection, then tap Restore purchases to try again.
+              </Text>
+            ) : null}
             <Pressable
-              onPress={() => restore()}
-              disabled={isRestoring}
+              onPress={() => void handleRestore()}
+              disabled={isRestoring || !isRevenueCatIdentityReady}
+              testID="paywall-restore-button"
+              accessibilityRole="button"
               style={{ alignItems: "center", paddingVertical: 6 }}
             >
               <Text style={[styles.restore, { color: colors.mutedForeground }]}>

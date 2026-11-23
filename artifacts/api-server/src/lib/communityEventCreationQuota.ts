@@ -1,4 +1,4 @@
-import { and, count, eq, gte, lt } from "drizzle-orm";
+import { and, count, eq, gte, isNull, lt, or } from "drizzle-orm";
 import {
   communityEventsTable,
   db,
@@ -68,6 +68,7 @@ export async function readCommunityEventCreationUsage(
   reader: UsageReader,
   uid: string,
   now = new Date(),
+  accountId = uid,
 ) {
   const { start, end } = getUtcMonthWindow(now);
   const [subscription] = await reader
@@ -77,14 +78,25 @@ export async function readCommunityEventCreationUsage(
       expiryDate: subscriptionsTable.expiryDate,
     })
     .from(subscriptionsTable)
-    .where(eq(subscriptionsTable.userUid, uid))
+    .where(
+      or(
+        eq(subscriptionsTable.accountId, accountId),
+        eq(subscriptionsTable.userUid, uid),
+      ),
+    )
     .limit(1);
   const [eventCount] = await reader
     .select({ used: count() })
     .from(communityEventsTable)
     .where(
       and(
-        eq(communityEventsTable.ownerUid, uid),
+        or(
+          eq(communityEventsTable.accountId, accountId),
+          and(
+            isNull(communityEventsTable.accountId),
+            eq(communityEventsTable.ownerUid, uid),
+          ),
+        ),
         gte(communityEventsTable.createdAt, start),
         lt(communityEventsTable.createdAt, end),
       ),

@@ -172,7 +172,8 @@ export type NotifData = {
     | "hangout_updated"
     | "hangout_cancelled"
     | "hangout_host_rating_prompt"
-    | "event_reminder";
+    | "event_reminder"
+    | "account_deletion_reminder";
   fromUid?: string;
   encounterId?: string;
   chatPeerUid?: string;
@@ -205,6 +206,12 @@ export interface NotifRouter {
  * Returns false (and does nothing) when the payload lacks the required uid.
  */
 export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
+  if (data.type === "account_deletion_reminder") {
+    // Do not trust notification data to identify an account. Sign-in restores
+    // the verified identity, after which the lifecycle gate shows recovery.
+    router.push("/onboarding");
+    return true;
+  }
   if (
     data.type === "venue_owner_approved" ||
     data.type === "venue_owner_rejected" ||

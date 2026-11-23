@@ -2238,13 +2238,14 @@ router.post(
     // Verify the tier server-side using the RevenueCat API. This ensures a
     // user cannot self-upgrade by crafting a POST with tier:"pro". If RC is
     // unavailable, getVerifiedTier falls back to "free" (safe default).
-    const tier = await getVerifiedTier(uid);
+    const tier = await getVerifiedTier(req.accountId!);
     const status = tier === "free" ? "inactive" : "active";
 
     await db
       .insert(subscriptionsTable)
       .values({
         userUid: uid,
+        accountId: req.accountId!,
         tier,
         status,
         expiryDate: expiryDate ? new Date(expiryDate) : null,
@@ -2255,6 +2256,7 @@ router.post(
         set: {
           tier,
           status,
+          accountId: req.accountId!,
           expiryDate: expiryDate ? new Date(expiryDate) : null,
           updatedAt: new Date(),
         },
@@ -2290,6 +2292,7 @@ if (process.env.NODE_ENV !== "production") {
         .insert(subscriptionsTable)
         .values({
           userUid: uid,
+          accountId: req.accountId!,
           tier,
           status: isActive ? "active" : "inactive",
           expiryDate: null,
@@ -2300,6 +2303,7 @@ if (process.env.NODE_ENV !== "production") {
           set: {
             tier,
             status: isActive ? "active" : "inactive",
+            accountId: req.accountId!,
             expiryDate: null,
             updatedAt: new Date(),
           },

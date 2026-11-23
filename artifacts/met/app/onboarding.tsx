@@ -160,7 +160,13 @@ export default function OnboardingScreen() {
   const colors = useColors();
   const slides = getSlides(colors.primary, colors.border);
   const router = useRouter();
-  const { setProfile, setPermissionsCompleted, permissionsCompleted, profile: currentProfile } = useApp();
+  const {
+    setProfile,
+    setPermissionsCompleted,
+    permissionsCompleted,
+    profile: currentProfile,
+    refreshAccountLifecycle,
+  } = useApp();
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
   // When opened from the home-page permissions banner with
@@ -484,6 +490,19 @@ export default function OnboardingScreen() {
   };
 
   const goToProfileSetup = async (method: "email" | "google" | "apple") => {
+    const uid = await getCurrentUserId();
+    if (uid && api.isConfigured()) {
+      try {
+        const account = await api.getAccountStatus({ uid });
+        if (account.status !== "active") {
+          await refreshAccountLifecycle();
+          return;
+        }
+      } catch {
+        Alert.alert(t("onboarding.signInError"), t("onboarding.signInErrorBody"));
+        return;
+      }
+    }
     const restored = await tryRestoreExistingProfile();
     if (!restored) {
       // New user — registration is complete (they passed auth).

@@ -7,6 +7,7 @@ import {
 import { cleanupExpiredPlanChatMedia } from "./lib/planChatMediaCleanup";
 import { advanceDueRecurringFriendPlans } from "./lib/communityEventRecurrence";
 import { cleanupExpiredEventPhotos } from "./lib/eventPhotoCleanup";
+import { runAccountDeletionSweep } from "./lib/accountDeletion";
 
 const rawPort = process.env["PORT"];
 
@@ -37,6 +38,7 @@ app.listen(port, (err) => {
         runDueCommunityEventHostRatingPrompts(),
         cleanupExpiredPlanChatMedia(),
         cleanupExpiredEventPhotos(),
+        runAccountDeletionSweep(),
       ]);
     })().catch((error: unknown) => {
       logger.error({ error }, "Notification/media cleanup sweep failed");

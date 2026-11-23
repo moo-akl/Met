@@ -36,16 +36,19 @@ const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 export async function sendPushWithStatus(
   token: string | null | undefined,
   payload: PushPayload,
+  options: { persistInInbox?: boolean } = {},
 ): Promise<{ sent: boolean; reason?: string }> {
   if (!token) return { sent: false, reason: "no_token" };
   try {
-    try {
-      await recordNotificationForPushToken(token, payload);
-    } catch (err) {
-      logger.warn(
-        { err },
-        "Could not save push notification to the inbox",
-      );
+    if (options.persistInInbox !== false) {
+      try {
+        await recordNotificationForPushToken(token, payload);
+      } catch (err) {
+        logger.warn(
+          { err },
+          "Could not save push notification to the inbox",
+        );
+      }
     }
 
     if (token.startsWith("ExponentPushToken[") || token.startsWith("ExpoPushToken[")) {

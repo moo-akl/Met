@@ -2,6 +2,23 @@ import type { LocaleTree } from "./en";
 import { interestLocales } from "@workspace/interests";
 
 export const es: LocaleTree = {
+  accountRecovery: {
+    title: "La eliminación de la cuenta está pendiente",
+    body: "Tu cuenta y tus datos se pueden recuperar hasta el {{date}}. Inicia sesión dentro de 30 días para restaurar tu perfil, conexiones, eventos y la asociación de tu suscripción. Eliminar tu cuenta de Met no cancela una suscripción de Apple o Google Play.",
+    restore: "Restaurar mi cuenta",
+    restoring: "Restaurando…",
+    signOut: "Cerrar sesión",
+    dateUnknown: "el final del período de recuperación",
+    syncPending: "Tu cuenta está bloqueada mientras se sincronizan los cambios de privacidad.",
+    checking: "Comprobando el estado de tu cuenta…",
+    statusUnavailable: "No podemos verificar tu cuenta ahora. Inténtalo de nuevo.",
+    retry: "Intentar de nuevo",
+    expiredTitle: "Se está eliminando tu cuenta",
+    expiredBody: "El período de recuperación terminó. Los datos se están eliminando permanentemente y ya no se pueden restaurar.",
+    purgeFailedTitle: "La eliminación de la cuenta sigue en curso",
+    purgeFailedBody: "El período de recuperación terminó, pero algunos pasos de eliminación deben intentarse de nuevo. Tu cuenta seguirá bloqueada mientras se repite la limpieza. Contacta con soporte si continúa.",
+    restoreFailed: "No pudimos restaurar tu cuenta. Revisa tu conexión e inténtalo de nuevo.",
+  },
   common: {
     cancel: "Cancelar",
     done: "Hecho",
@@ -1118,6 +1135,11 @@ export const es: LocaleTree = {
     planUpgrade: "Mejorar tu plan",
     planUpgradeSub:
       "Más revelaciones, mensajes de apertura, hasta 6 fotos, insignias",
+    subscriptionRenewsOn: "Se renueva el {{date}}",
+    subscriptionCanceledUntil: "Cancelada · acceso hasta el {{date}}",
+    subscriptionCanceled: "Cancelada",
+    subscriptionAccessEnds: "No se renueva · acceso hasta el {{date}}",
+    subscriptionDateUnavailable: "Fecha de facturación no disponible",
     referrals: "Invitar amigos",
     referralsProgress: "{{count}} de 3 amigos se han unido",
     referralsRewardEarned: "Recompensa desbloqueada — Met Plus activo",
@@ -1178,7 +1200,7 @@ export const es: LocaleTree = {
       "Los encuentros y conexiones bloqueados aparecerán aquí para que puedas desbloquearlos.",
     unblock: "Desbloquear",
     deleteAccountConfirmBody:
-      "Esto borra tu perfil, historial de encuentros, conexiones y preferencias de este dispositivo. Volverás a la pantalla de bienvenida y podrás empezar de cero. No se puede deshacer.",
+      "Tu cuenta se ocultará ahora y se eliminará permanentemente después de 30 días. Inicia sesión dentro de 30 días para restaurar tu perfil, conexiones, eventos y la asociación de tu suscripción. Esto no cancela una suscripción de Apple o Google Play.",
     deleteAccountConfirmAction: "Eliminar cuenta",
     profile: "Perfil",
     visibilityOn: "Baliza activa — visible cerca",
@@ -1214,10 +1236,10 @@ export const es: LocaleTree = {
     verifiedOn: "Verificada el {{date}}",
     notVerified: "Aún no verificada",
     deleteAccount: "Eliminar cuenta",
-    deleteAccountSub: "Borrar todo de este dispositivo",
+    deleteAccountSub: "Iniciar la eliminación con 30 días para recuperarla",
     deleteAccountConfirmTitle: "¿Eliminar cuenta?",
     deleteAccountConfirmSub:
-      "Esto borra tu perfil, historial de encuentros, conexiones y preferencias de este dispositivo. Volverás a la pantalla de bienvenida y podrás empezar de cero. No se puede deshacer.",
+      "Tu cuenta se ocultará ahora y se eliminará permanentemente después de 30 días. Inicia sesión dentro de 30 días para restaurar tu perfil, conexiones, eventos y la asociación de tu suscripción. Esto no cancela una suscripción de Apple o Google Play.",
     confirmDelete: "Eliminar cuenta",
     deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Política de privacidad",

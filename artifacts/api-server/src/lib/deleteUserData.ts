@@ -23,29 +23,69 @@ import {
   communityEventWelcomeNoteDeliveriesTable,
   venueQrVerificationsTable,
   venueReviewsTable,
+  communityEventsTable,
+  communityEventRsvpsTable,
+  communityEventPlanMessagesTable,
+  communityEventPlanMediaUploadsTable,
+  communityEventPlanNotificationPreferencesTable,
+  communityEventJoinRequestsTable,
+  communityEventHostRatingsTable,
+  eventAttendanceTable,
+  eventAttendanceCorrectionsTable,
 } from "@workspace/db";
-import { eq, or } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { adminAuth, adminDb, adminStorage } from "./firebaseAdmin";
 import { venueGuestbookTable, venueGuestbookBlocksTable } from "@workspace/db";
 import { logger } from "./logger";
 
 /**
  * Fully deletes all data belonging to a user across Postgres and Firestore.
- * Used by DELETE /api/profiles/me (user-initiated) and the admin cleanup job.
+ * Used by the scheduled account purge and admin cleanup.
  *
  * Postgres changes are wrapped in a single transaction for atomicity.
  * Firebase Auth deletion is best-effort — it may already be gone (that is
  * exactly the case when the admin cleanup job calls this function).
  */
-export async function deleteUserData(uid: string): Promise<void> {
-  await deletePostgresUserData(uid);
+export async function deleteUserData(
+  uid: string,
+  options: { accountId?: string; strictCleanup?: boolean } = {},
+): Promise<void> {
+  const mediaPaths = await deletePostgresUserData(uid, options.accountId);
   await deleteFirestoreUserData(uid);
-  await deleteStorageAssets(uid);
-  await deleteFirebaseAuthUser(uid);
+  await deleteStorageAssets(uid, mediaPaths, options.strictCleanup === true);
+  await deleteFirebaseAuthUser(uid, options.strictCleanup === true);
 }
 
-async function deletePostgresUserData(uid: string): Promise<void> {
-  await db.transaction(async (tx) => {
+async function deletePostgresUserData(uid: string, accountId?: string): Promise<string[]> {
+  return db.transaction(async (tx) => {
+    const ownedEvents = accountId
+      ? or(
+          eq(communityEventsTable.ownerUid, uid),
+          eq(communityEventsTable.accountId, accountId),
+        )
+      : eq(communityEventsTable.ownerUid, uid);
+    const ownedEventIds = tx
+      .select({ id: communityEventsTable.id })
+      .from(communityEventsTable)
+      .where(ownedEvents);
+    const mediaPathRows = await tx
+      .select({ mediaObjectPath: communityEventPlanMessagesTable.mediaObjectPath })
+      .from(communityEventPlanMessagesTable)
+      .where(eq(communityEventPlanMessagesTable.senderUid, uid));
+    const uploadPathRows = await tx
+      .select({ objectPath: communityEventPlanMediaUploadsTable.objectPath })
+      .from(communityEventPlanMediaUploadsTable)
+      .where(
+        or(
+          eq(communityEventPlanMediaUploadsTable.ownerUid, uid),
+          inArray(communityEventPlanMediaUploadsTable.eventId, ownedEventIds),
+        ),
+      );
+    const mediaPaths = [
+      ...mediaPathRows.map((row) => row.mediaObjectPath),
+      ...uploadPathRows.map((row) => row.objectPath),
+    ].filter((path): path is string => Boolean(path));
+
     await tx.delete(venueGuestbookTable).where(eq(venueGuestbookTable.authorUid, uid));
     await tx.delete(venueGuestbookBlocksTable).where(or(
       eq(venueGuestbookBlocksTable.blockerUid, uid), eq(venueGuestbookBlocksTable.blockedUid, uid),
@@ -74,6 +114,65 @@ async function deletePostgresUserData(uid: string): Promise<void> {
     await tx
       .delete(communityEventWelcomeNoteDeliveriesTable)
       .where(eq(communityEventWelcomeNoteDeliveriesTable.userUid, uid));
+    await tx
+      .delete(communityEventRsvpsTable)
+      .where(
+        or(
+          eq(communityEventRsvpsTable.userUid, uid),
+          inArray(communityEventRsvpsTable.eventId, ownedEventIds),
+        ),
+      );
+    await tx
+      .delete(communityEventPlanMessagesTable)
+      .where(eq(communityEventPlanMessagesTable.senderUid, uid));
+    await tx
+      .delete(communityEventPlanMediaUploadsTable)
+      .where(
+        or(
+          eq(communityEventPlanMediaUploadsTable.ownerUid, uid),
+          inArray(communityEventPlanMediaUploadsTable.eventId, ownedEventIds),
+        ),
+      );
+    await tx
+      .delete(communityEventPlanNotificationPreferencesTable)
+      .where(eq(communityEventPlanNotificationPreferencesTable.userUid, uid));
+    await tx
+      .delete(communityEventJoinRequestsTable)
+      .where(eq(communityEventJoinRequestsTable.userUid, uid));
+    await tx
+      .delete(communityEventHostRatingsTable)
+      .where(eq(communityEventHostRatingsTable.reviewerUid, uid));
+    await tx
+      .delete(eventAttendanceTable)
+      .where(
+        or(
+          eq(eventAttendanceTable.userUid, uid),
+          and(
+            eq(eventAttendanceTable.eventType, "member"),
+            inArray(eventAttendanceTable.eventId, ownedEventIds),
+          ),
+        ),
+      );
+    await tx
+      .delete(eventAttendanceCorrectionsTable)
+      .where(
+        or(
+          eq(eventAttendanceCorrectionsTable.userUid, uid),
+          eq(eventAttendanceCorrectionsTable.actorUid, uid),
+          and(
+            eq(eventAttendanceCorrectionsTable.eventType, "member"),
+            inArray(eventAttendanceCorrectionsTable.eventId, ownedEventIds),
+          ),
+        ),
+      );
+    await tx
+      .update(communityEventsTable)
+      .set({
+        inviteeUids: sql`array_remove(${communityEventsTable.inviteeUids}, ${uid})`,
+        updatedAt: new Date(),
+      })
+      .where(sql`${uid} = ANY(${communityEventsTable.inviteeUids})`);
+    await tx.delete(communityEventsTable).where(ownedEvents);
     await tx
       .delete(profileViewsTable)
       .where(
@@ -164,6 +263,7 @@ async function deletePostgresUserData(uid: string): Promise<void> {
 
     // Profile is last (most tables reference it)
     await tx.delete(profilesTable).where(eq(profilesTable.uid, uid));
+    return mediaPaths;
   });
 }
 
@@ -186,7 +286,11 @@ async function deleteFirestoreUserData(uid: string): Promise<void> {
   await userRef.delete();
 }
 
-async function deleteStorageAssets(uid: string): Promise<void> {
+async function deleteStorageAssets(
+  uid: string,
+  mediaPaths: string[],
+  strict: boolean,
+): Promise<void> {
   const failedFiles: string[] = [];
   let listFailed = false;
 
@@ -204,8 +308,11 @@ async function deleteStorageAssets(uid: string): Promise<void> {
     }
     const files = [...byName.values()];
 
+    const extraFiles = [...new Set(mediaPaths)]
+      .filter((path) => path.startsWith("community-event-plan-media/"))
+      .map((path) => bucket.file(path));
     await Promise.all(
-      files.map(async (f) => {
+      [...files, ...extraFiles].map(async (f) => {
         try {
           await f.delete();
         } catch (err: unknown) {
@@ -245,12 +352,23 @@ async function deleteStorageAssets(uid: string): Promise<void> {
         "Could not persist failed-storage-cleanup record to Firestore",
       );
     }
+    if (strict) {
+      throw new Error(
+        listFailed
+          ? "Storage assets could not be listed during account purge."
+          : `Failed to delete ${failedFiles.length} Storage asset(s) during account purge.`,
+      );
+    }
   }
 }
 
-async function deleteFirebaseAuthUser(uid: string): Promise<void> {
+async function deleteFirebaseAuthUser(uid: string, strict: boolean): Promise<void> {
   try {
-    await adminAuth().deleteUser(uid);
+    const auth = adminAuth();
+    if (typeof auth.revokeRefreshTokens === "function") {
+      await auth.revokeRefreshTokens(uid);
+    }
+    await auth.deleteUser(uid);
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;
     if (code === "auth/user-not-found") {
@@ -258,5 +376,6 @@ async function deleteFirebaseAuthUser(uid: string): Promise<void> {
       return;
     }
     logger.warn({ err, uid }, "Failed to delete Firebase Auth user during cleanup");
+    if (strict) throw new Error("Firebase Auth identity could not be deleted.");
   }
 }

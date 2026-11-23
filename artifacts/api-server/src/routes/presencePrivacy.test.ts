@@ -17,6 +17,15 @@ const dbMocks = vi.hoisted(() => {
   return { chain };
 });
 
+vi.mock("../lib/userAccountIdentity", () => ({
+  ensureUserAccount: async (uid: string) => ({
+    accountId: uid,
+    firebaseUid: uid,
+    status: "active",
+    purgeAfter: null,
+  }),
+}));
+
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
   presenceTable: {},

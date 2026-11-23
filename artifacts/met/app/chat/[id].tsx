@@ -2063,12 +2063,6 @@ const styles = StyleSheet.create({
   bubble: { paddingHorizontal: 14, paddingVertical: 10, marginBottom: 3 },
   bubbleMine: { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 5 },
   bubbleTheirs: { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomRightRadius: 22, borderBottomLeftRadius: 5 },
-  bubblePhoto: {
-    padding: 0,
-    backgroundColor: "transparent",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
   bubbleDeleted: { opacity: 0.7 },
   bubbleText: {
     fontFamily: "Inter_400Regular",

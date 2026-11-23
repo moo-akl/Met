@@ -2,6 +2,23 @@ import type { LocaleTree } from "./en";
 import { interestLocales } from "@workspace/interests";
 
 export const fr: LocaleTree = {
+  accountRecovery: {
+    title: "La suppression du compte est en attente",
+    body: "Votre compte et vos données peuvent être restaurés jusqu’au {{date}}. Reconnectez-vous dans les 30 jours pour retrouver votre profil, vos connexions, l’historique des événements et votre abonnement associé. La suppression de votre compte Met n’annule pas un abonnement Apple ou Google Play.",
+    restore: "Restaurer mon compte",
+    restoring: "Restauration…",
+    signOut: "Se déconnecter",
+    dateUnknown: "la fin de la période de récupération",
+    syncPending: "Votre compte est bloqué pendant la synchronisation des paramètres de confidentialité.",
+    checking: "Vérification de l’état de votre compte…",
+    statusUnavailable: "Impossible de vérifier votre compte pour le moment. Réessayez.",
+    retry: "Réessayer",
+    expiredTitle: "Votre compte est en cours de suppression",
+    expiredBody: "La période de récupération est terminée. Les données du compte sont supprimées définitivement et ne peuvent plus être restaurées.",
+    purgeFailedTitle: "La suppression du compte est toujours en cours",
+    purgeFailedBody: "La période de récupération est terminée, mais certaines étapes de suppression doivent être réessayées. Votre compte reste bloqué pendant les nouvelles tentatives. Contactez l’assistance si le problème persiste.",
+    restoreFailed: "Impossible de restaurer votre compte. Vérifiez votre connexion et réessayez.",
+  },
   common: {
     cancel: "Annuler",
     done: "Terminé",
@@ -1131,6 +1148,11 @@ export const fr: LocaleTree = {
     planUpgrade: "Améliorer votre plan",
     planUpgradeSub:
       "Plus de révélations, messages d'ouverture, jusqu'à 6 photos, badges",
+    subscriptionRenewsOn: "Renouvellement le {{date}}",
+    subscriptionCanceledUntil: "Abonnement résilié · accès jusqu’au {{date}}",
+    subscriptionCanceled: "Abonnement résilié",
+    subscriptionAccessEnds: "Ne se renouvelle pas · accès jusqu’au {{date}}",
+    subscriptionDateUnavailable: "Date de facturation indisponible",
     referrals: "Inviter des amis",
     referralsProgress: "{{count}} amis sur 3 ont rejoint",
     referralsRewardEarned: "Récompense débloquée — Met Plus actif",
@@ -1192,7 +1214,7 @@ export const fr: LocaleTree = {
       "Les rencontres et connexions bloquées apparaîtront ici pour que vous puissiez les débloquer.",
     unblock: "Débloquer",
     deleteAccountConfirmBody:
-      "Cela efface votre profil, l'historique des rencontres, les connexions et préférences de cet appareil. Vous reviendrez à l'écran d'accueil et pourrez repartir à zéro. Action irréversible.",
+      "Votre compte sera masqué maintenant et supprimé définitivement après 30 jours. Reconnectez-vous dans les 30 jours pour retrouver votre profil, vos connexions, vos événements et votre abonnement associé. Cela n’annule pas un abonnement Apple ou Google Play.",
     deleteAccountConfirmAction: "Supprimer le compte",
     profile: "Profil",
     visibilityOn: "Balise active — détectable à proximité",
@@ -1229,10 +1251,10 @@ export const fr: LocaleTree = {
     verifiedOn: "Vérifiée le {{date}}",
     notVerified: "Pas encore vérifiée",
     deleteAccount: "Supprimer le compte",
-    deleteAccountSub: "Effacer tout de cet appareil",
+    deleteAccountSub: "Lancer la suppression avec 30 jours pour récupérer le compte",
     deleteAccountConfirmTitle: "Supprimer le compte ?",
     deleteAccountConfirmSub:
-      "Cela efface votre profil, l'historique, les connexions et préférences de cet appareil. Vous reviendrez à l'accueil et pourrez repartir à zéro. Irréversible.",
+      "Votre compte sera masqué maintenant et supprimé définitivement après 30 jours. Reconnectez-vous dans les 30 jours pour retrouver votre profil, vos connexions, vos événements et votre abonnement associé. Cela n’annule pas un abonnement Apple ou Google Play.",
     confirmDelete: "Supprimer le compte",
     deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Politique de confidentialité",

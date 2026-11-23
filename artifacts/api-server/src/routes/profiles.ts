@@ -9,6 +9,7 @@ import {
   revealRequestsTable,
   subscriptionsTable,
   venueOwnerProfilesTable,
+  userAccountsTable,
   type Profile,
 } from "@workspace/db";
 import {
@@ -30,9 +31,12 @@ import {
   withProfilePrivacyLocks,
   withProfilePrivacySessionLocks,
 } from "../lib/profilePrivacy";
-import { deleteUserData } from "../lib/deleteUserData";
-import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
-import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
+import {
+  getUserAccountById,
+  restoreAccount,
+  serializeAccountLifecycle,
+  startAccountDeletion,
+} from "../lib/accountDeletion";
 import { SUPPORTED_LOCALE_CODES } from "../lib/supportedLocales";
 
 const router: IRouter = Router();
@@ -674,40 +678,60 @@ router.get("/profiles/:uid", requireUid, async (req, res) => {
   res.json(GetProfileResponse.parse(serialize(row)));
 });
 
+// GET /api/profiles/me/account-status
+// This endpoint remains available while normal account access is suspended.
+router.get("/profiles/me/account-status", requireUid, async (req, res) => {
+  const account = await getUserAccountById(req.accountId!);
+  if (!account || account.firebaseUid !== req.uid) {
+    res.status(404).json({ message: "Account not found." });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(serializeAccountLifecycle(account));
+});
+
+// POST /api/profiles/me/recover-deletion
+router.post("/profiles/me/recover-deletion", requireUid, async (req, res) => {
+  try {
+    const result = await restoreAccount(req.uid!, req.accountId!);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(serializeAccountLifecycle(result.account));
+  } catch (err) {
+    const message = (err as Error)?.message ?? "Account recovery failed.";
+    const status = message.includes("window has ended") ? 410 : message.includes("not found") ? 404 : 503;
+    res.status(status).json({ message });
+  }
+});
+
 // DELETE /api/profiles/me
-// Permanently deletes the authenticated user's account and all associated data
-// from Postgres, Firestore, and Firebase Auth. Irreversible.
-// Body: { deleteVenueProfile?: boolean } — when true, also removes the venue
-// owner profile and all its events, rewards, and announcements.
+// Starts a 30-day recovery window. Account data, subscription association,
+// and the Firebase identity remain intact until the scheduled purge.
 router.delete("/profiles/me", requireUid, async (req, res) => {
   const uid = req.uid!;
-  if (req.body?.deleteVenueProfile === true) {
-    // Look up the owner profile so we have both id and ownerUid for the cascade.
-    const [ownerProfile] = await db
-      .select()
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
-      .limit(1);
-
-    if (ownerProfile) {
-      // Delete only this venue's records and exclusively referenced files.
-      let venueFileUrls: string[] = [];
-      await db.transaction(async (tx) => {
-        venueFileUrls = await deleteVenueOwnerProfile(tx, ownerProfile);
-      });
-
-      // Best-effort: delete Storage files for venue cover photo, logo, and event
-      // images. Only URLs that target the configured default bucket and begin
-      // with a known venue-generated prefix are acted on; others are skipped.
-      await deleteVenueStorageFiles(
-        venueFileUrls,
-        { uid },
-      );
-    }
+  if (
+    req.body?.deleteVenueProfile !== undefined &&
+    typeof req.body.deleteVenueProfile !== "boolean"
+  ) {
+    res.status(400).json({ message: "deleteVenueProfile must be a boolean." });
+    return;
   }
-  await deleteUserData(uid);
-  req.log.info({ uid, deletedVenueProfile: !!req.body?.deleteVenueProfile }, "User account fully deleted");
-  res.status(204).send();
+  const account = await startAccountDeletion(
+    uid,
+    req.accountId!,
+    req.body?.deleteVenueProfile === true,
+  );
+  req.log.info(
+    {
+      uid,
+      accountId: account.accountId,
+      purgeAfter: account.purgeAfter?.toISOString(),
+      deleteVenueProfile: account.deleteVenueProfile,
+      firestoreSyncPending: account.firestoreSyncPending,
+    },
+    "User account deletion scheduled",
+  );
+  res.setHeader("Cache-Control", "no-store");
+  res.status(202).json(serializeAccountLifecycle(account));
 });
 
 export default router;

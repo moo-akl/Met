@@ -37,7 +37,11 @@ import {
   useT,
 } from "@/lib/i18n";
 import { useReferrals } from "@/lib/referrals";
-import { useSubscription } from "@/lib/revenuecat";
+import {
+  REVENUECAT_PLUS_ENTITLEMENT,
+  REVENUECAT_PRO_ENTITLEMENT,
+  useSubscription,
+} from "@/lib/revenuecat";
 import {
   type AutoCleanupDays,
   type DiscoveryRange,
@@ -222,6 +226,24 @@ function formatVerifiedDate(
   }
 }
 
+function formatSubscriptionDate(
+  value: string | null | undefined,
+  lang: string,
+): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  try {
+    return date.toLocaleDateString(lang, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function SettingsSheet({ visible, onClose }: Props) {
   const colors = useColors();
   const { theme, toggleTheme, isDark } = useTheme();
@@ -260,7 +282,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   ) => {
     updatePreferences(partial);
   };
-  const { tier, promoPlusActive } = useSubscription();
+  const { tier, promoPlusActive, customerInfo } = useSubscription();
   const referrals = useReferrals();
   const router = useRouter();
   const {
@@ -371,6 +393,30 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const appVersion =
     (Constants.expoConfig?.version as string | undefined) ?? "1.0.0";
 
+  const activePlanEntitlement =
+    tier === "pro"
+      ? customerInfo?.entitlements.active?.[REVENUECAT_PRO_ENTITLEMENT]
+      : tier === "plus"
+        ? customerInfo?.entitlements.active?.[REVENUECAT_PLUS_ENTITLEMENT]
+        : undefined;
+  const subscriptionDate = formatSubscriptionDate(
+    activePlanEntitlement?.expirationDate,
+    lang,
+  );
+  const subscriptionBillingLabel = activePlanEntitlement
+    ? activePlanEntitlement.willRenew
+      ? subscriptionDate
+        ? t("settings.subscriptionRenewsOn", { date: subscriptionDate })
+        : t("settings.subscriptionDateUnavailable")
+      : activePlanEntitlement.unsubscribeDetectedAt
+        ? subscriptionDate
+          ? t("settings.subscriptionCanceledUntil", { date: subscriptionDate })
+          : t("settings.subscriptionCanceled")
+        : subscriptionDate
+          ? t("settings.subscriptionAccessEnds", { date: subscriptionDate })
+          : t("settings.subscriptionDateUnavailable")
+    : null;
+
   const openLink = (url: string) => {
     WebBrowser.openBrowserAsync(url).catch(() => {});
   };
@@ -480,6 +526,15 @@ export function SettingsSheet({ visible, onClose }: Props) {
                         ? t("settings.planPlusSub")
                         : t("settings.planUpgradeSub")}
                   </Text>
+                  {subscriptionBillingLabel ? (
+                    <Text
+                      testID="settings-subscription-billing"
+                      style={styles.plusBilling}
+                      numberOfLines={2}
+                    >
+                      {subscriptionBillingLabel}
+                    </Text>
+                  ) : null}
                 </View>
                 <Feather name="chevron-right" size={20} color="#FFFFFF" />
               </Pressable>
@@ -1068,26 +1123,23 @@ export function SettingsSheet({ visible, onClose }: Props) {
                         if (deletingAccount) return;
                         setDeletingAccount(true);
                         try {
-                          // Wipe Postgres, Firestore, and Firebase Auth
-                          // server-side first. If the call fails, surface
-                          // an error and keep the account intact so the
-                          // user can retry.
-                          if (authedUid && api.isConfigured()) {
-                            await api.deleteMe(
-                              { uid: authedUid },
-                              venueOwnerProfile != null
-                                ? { deleteVenueProfile: keepVenueProfile === false }
-                                : undefined,
-                            );
+                          if (!authedUid || !api.isConfigured()) {
+                            throw new Error("Account deletion service is unavailable.");
                           }
-                          // Clear local storage and sign out of Firebase.
-                          // ProfileGate then routes to /onboarding.
+                          await api.deleteMe(
+                            { uid: authedUid },
+                            venueOwnerProfile != null
+                              ? { deleteVenueProfile: keepVenueProfile === false }
+                              : undefined,
+                          );
+                          // The server keeps the Firebase identity and account
+                          // data for 30 days so the same sign-in can recover it.
                           await signOutAndClear();
                           close();
                         } catch {
                           setDeletingAccount(false);
                           Alert.alert(
-                            "Couldn't delete account",
+                            "Couldn't start account deletion",
                             "Something went wrong. Please check your connection and try again.",
                           );
                         }
@@ -1944,6 +1996,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.92)",
     marginTop: 2,
+  },
+  plusBilling: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    color: "rgba(255,255,255,0.96)",
+    marginTop: 4,
   },
   notesHint: {
     fontFamily: "Inter_400Regular",

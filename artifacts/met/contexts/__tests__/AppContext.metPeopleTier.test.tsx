@@ -82,6 +82,7 @@ jest.mock("@/lib/api/client", () => ({
   },
   api: {
     isConfigured: jest.fn().mockReturnValue(true),
+    getAccountStatus: jest.fn(),
     syncNotificationPrefs: jest.fn().mockResolvedValue(undefined),
     getMyProfile: jest.fn().mockResolvedValue(undefined),
     upsertMyProfile: jest.fn().mockResolvedValue(undefined),
@@ -225,11 +226,15 @@ function makeEncounter(id: string): Encounter {
 // TestConsumer — exposes encounters from context.
 // ---------------------------------------------------------------------------
 
-type EncountersCapture = { value: Encounter[] };
+type EncountersCapture = {
+  value: Encounter[];
+  revenueCatIdentity: ReturnType<typeof useApp>["revenueCatIdentity"];
+};
 
 function TestConsumer({ capture }: { capture: EncountersCapture }) {
   const ctx = useApp();
   capture.value = ctx.encounters;
+  capture.revenueCatIdentity = ctx.revenueCatIdentity;
   return null;
 }
 
@@ -283,7 +288,10 @@ async function renderAppAndAwaitListener(
     },
   );
 
-  const capture: EncountersCapture = { value: [] };
+  const capture: EncountersCapture = {
+    value: [],
+    revenueCatIdentity: { status: "loading", uid: null, accountId: null },
+  };
 
   // Step 1: Mount the tree. Effects fire during act(), including
   // subscribeToAuthState which stores capturedAuthCallback.
@@ -416,10 +424,14 @@ beforeEach(() => {
     },
   );
   (authLib.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
+  (
+    jest.requireMock("react-native-purchases").default.logIn as jest.Mock
+  ).mockResolvedValue(undefined);
 
   const apiMod = jest.requireMock("@/lib/api/client") as {
     api: {
       isConfigured: jest.Mock;
+      getAccountStatus: jest.Mock;
       getMyProfile: jest.Mock;
       upsertMyProfile: jest.Mock;
       uploadProfilePhoto: jest.Mock;
@@ -433,6 +445,14 @@ beforeEach(() => {
     };
   };
   apiMod.api.isConfigured.mockReturnValue(true);
+  apiMod.api.getAccountStatus.mockResolvedValue({
+    accountId: "account-me",
+    status: "active",
+    deletionRequestedAt: null,
+    purgeAfter: null,
+    firestoreSyncPending: false,
+    recoveryWindowDays: 30,
+  });
   apiMod.api.getMyProfile.mockResolvedValue(undefined);
   apiMod.api.upsertMyProfile.mockResolvedValue(undefined);
   apiMod.api.uploadProfilePhoto.mockResolvedValue({ photoUrl: "" });
@@ -476,6 +496,50 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("AppContext met_people subscription — tier field mapping", () => {
+  it("waits for RevenueCat account login before marking subscription identity ready", async () => {
+    const purchases = jest.requireMock("react-native-purchases").default as {
+      logIn: jest.Mock;
+    };
+    const login = deferred<void>();
+    purchases.logIn.mockReturnValue(login.promise);
+
+    const { capture } = await renderAppAndAwaitListener("me-uid");
+    expect(purchases.logIn).toHaveBeenCalledWith("account-me");
+    expect(capture.revenueCatIdentity).toEqual({
+      status: "loading",
+      uid: "me-uid",
+      accountId: "account-me",
+    });
+
+    await TestRenderer.act(async () => {
+      login.resolve(undefined);
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(capture.revenueCatIdentity).toEqual({
+      status: "ready",
+      uid: "me-uid",
+      accountId: "account-me",
+    });
+  });
+
+  it("keeps subscription identity unavailable when RevenueCat login fails", async () => {
+    const purchases = jest.requireMock("react-native-purchases").default as {
+      logIn: jest.Mock;
+    };
+    purchases.logIn.mockRejectedValue(new Error("RevenueCat offline"));
+
+    const { capture } = await renderAppAndAwaitListener("me-uid");
+    await TestRenderer.act(async () => {
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+
+    expect(capture.revenueCatIdentity).toEqual({
+      status: "error",
+      uid: "me-uid",
+      accountId: "account-me",
+    });
+  });
+
   it('patches tier: "pro" onto a matching existing encounter', async () => {
     seedEncounters([makeEncounter("peer-uid-1")]);
 
@@ -764,7 +828,7 @@ describe("AppContext visibility startup reconciliation", () => {
     );
   });
 
-  it("fails closed and reports unresolved account-wide hiding after a failed read", async () => {
+  it("preserves the saved Visible preference but pauses discovery after a failed read", async () => {
     seedProfile(true);
     const apiMod = jest.requireMock("@/lib/api/client") as {
       api: {
@@ -772,11 +836,16 @@ describe("AppContext visibility startup reconciliation", () => {
         upsertMyProfile: jest.Mock;
       };
     };
+    const proximityMod = jest.requireMock("@/lib/proximity/presence") as {
+      startProximity: jest.Mock;
+      stopProximity: jest.Mock;
+    };
+    const firestoreMod = jest.requireMock("@/lib/firestore/presence") as {
+      startFirestoreProximity: jest.Mock;
+      stopFirestoreProximity: jest.Mock;
+      suppressFirestorePresence: jest.Mock;
+    };
     apiMod.api.getMyProfile.mockRejectedValue(new Error("offline"));
-    apiMod.api.upsertMyProfile
-      .mockRejectedValueOnce(new Error("remote hide unavailable"))
-      .mockResolvedValue({ isVisible: false });
-    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
     const capture: VisibilityCapture = { profile: null, ready: false };
 
     await TestRenderer.act(async () => {
@@ -796,17 +865,14 @@ describe("AppContext visibility startup reconciliation", () => {
     });
 
     expect(capture.ready).toBe(true);
-    expect(capture.profile?.isVisible).toBe(false);
+    expect(capture.profile?.isVisible).toBe(true);
     expect(apiMod.api.getMyProfile).toHaveBeenCalledWith({ uid: "me-uid" });
-    expect(apiMod.api.upsertMyProfile).toHaveBeenCalledWith(
-      { uid: "me-uid" },
-      expect.objectContaining({ isVisible: false }),
-    );
-    expect(alertSpy).toHaveBeenCalledWith(
-      "You're hidden on this device",
-      expect.stringContaining("account's remote visibility may still be active"),
-    );
-
-    alertSpy.mockRestore();
+    expect(apiMod.api.upsertMyProfile).not.toHaveBeenCalled();
+    expect(JSON.parse(store[PROFILE_KEY]).isVisible).toBe(true);
+    expect(proximityMod.stopProximity).toHaveBeenCalled();
+    expect(firestoreMod.stopFirestoreProximity).toHaveBeenCalledWith("me-uid");
+    expect(firestoreMod.suppressFirestorePresence).toHaveBeenCalledWith("me-uid");
+    expect(proximityMod.startProximity).not.toHaveBeenCalled();
+    expect(firestoreMod.startFirestoreProximity).not.toHaveBeenCalled();
   });
 });

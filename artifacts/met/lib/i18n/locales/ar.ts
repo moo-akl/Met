@@ -2,6 +2,23 @@ import type { LocaleTree } from "./en";
 import { interestLocales } from "@workspace/interests";
 
 export const ar: LocaleTree = {
+  accountRecovery: {
+    title: "حذف الحساب قيد الانتظار",
+    body: "يمكن استعادة حسابك وبياناتك حتى {{date}}. سجّل الدخول خلال 30 يومًا لاستعادة ملفك ومعارفك وسجل الفعاليات وارتباط اشتراكك. حذف حساب Met لا يلغي اشتراك Apple أو Google Play.",
+    restore: "استعادة حسابي",
+    restoring: "جارٍ الاستعادة…",
+    signOut: "تسجيل الخروج",
+    dateUnknown: "نهاية فترة الاسترداد",
+    syncPending: "حسابك محظور حتى اكتمال مزامنة تحديثات الخصوصية.",
+    checking: "جارٍ التحقق من حالة حسابك…",
+    statusUnavailable: "لا يمكننا التحقق من حسابك الآن. يرجى المحاولة مرة أخرى.",
+    retry: "حاول مرة أخرى",
+    expiredTitle: "يجري حذف حسابك",
+    expiredBody: "انتهت فترة الاسترداد. يجري حذف بيانات الحساب نهائيًا ولا يمكن استعادتها.",
+    purgeFailedTitle: "لا يزال حذف الحساب جاريًا",
+    purgeFailedBody: "انتهت فترة الاسترداد، لكن بعض خطوات الحذف تحتاج إلى إعادة المحاولة. سيظل حسابك محظورًا أثناء تكرار التنظيف. تواصل مع الدعم إذا استمرت المشكلة.",
+    restoreFailed: "تعذرت استعادة حسابك. تحقق من الاتصال وحاول مرة أخرى.",
+  },
   common: {
     cancel: "إلغاء",
     done: "تم",
@@ -1124,6 +1141,11 @@ export const ar: LocaleTree = {
     planUpgrade: "ترقية خطتك",
     planUpgradeSub:
       "كشوفات أكثر، رسائل افتتاح، حتى 6 صور، شارات",
+    subscriptionRenewsOn: "يتجدد في {{date}}",
+    subscriptionCanceledUntil: "ملغى · الوصول متاح حتى {{date}}",
+    subscriptionCanceled: "ملغى",
+    subscriptionAccessEnds: "لن يتجدد · الوصول متاح حتى {{date}}",
+    subscriptionDateUnavailable: "تاريخ الفوترة غير متاح",
     referrals: "ادعُ أصدقاء",
     referralsProgress: "{{count}} من 3 أصدقاء انضمّوا",
     referralsRewardEarned: "تم فتح المكافأة — Met Plus مفعّل",
@@ -1184,7 +1206,7 @@ export const ar: LocaleTree = {
       "ستظهر اللقاءات والمعارف المحظورة هنا حتى تتمكن من إلغاء حظرهم.",
     unblock: "إلغاء الحظر",
     deleteAccountConfirmBody:
-      "هذا يمحو ملفك وسجل اللقاءات والمعارف والتفضيلات من هذا الجهاز. ستعود إلى شاشة الترحيب وتستطيع البدء من جديد. لا يمكن التراجع.",
+      "سيُخفى حسابك الآن ويُحذف نهائيًا بعد 30 يومًا. سجّل الدخول خلال 30 يومًا لاستعادة ملفك ومعارفك وسجل الفعاليات وارتباط اشتراكك. هذا لا يلغي اشتراك Apple أو Google Play.",
     deleteAccountConfirmAction: "حذف الحساب",
     profile: "الملف الشخصي",
     visibilityOn: "الإشارة مفعّلة — قابل للاكتشاف بالقرب",
@@ -1221,10 +1243,10 @@ export const ar: LocaleTree = {
     verifiedOn: "تم التوثيق في {{date}}",
     notVerified: "لم تُوثّق بعد",
     deleteAccount: "حذف الحساب",
-    deleteAccountSub: "محو كل شيء من هذا الجهاز",
+    deleteAccountSub: "بدء حذف الحساب مع فترة استرداد مدتها 30 يومًا",
     deleteAccountConfirmTitle: "حذف الحساب؟",
     deleteAccountConfirmSub:
-      "هذا يمحو ملفك وسجلك ومعارفك وتفضيلاتك من هذا الجهاز. ستعود إلى شاشة الترحيب وتستطيع البدء من جديد. لا يمكن التراجع.",
+      "سيُخفى حسابك الآن ويُحذف نهائيًا بعد 30 يومًا. سجّل الدخول خلال 30 يومًا لاستعادة ملفك ومعارفك وسجل الفعاليات وارتباط اشتراكك. هذا لا يلغي اشتراك Apple أو Google Play.",
     confirmDelete: "حذف الحساب",
     deleteAccountDeleting: "Deleting…",
     privacyPolicy: "سياسة الخصوصية",

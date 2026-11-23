@@ -916,6 +916,7 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
 
   const eventValues = {
     ownerUid: uid,
+    accountId: req.accountId!,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     welcomeNote: parsed.data.welcomeNote?.trim() || null,
@@ -953,8 +954,13 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
   const outcome = await db.transaction(async (tx) => {
     // Serialize this user's create attempts so simultaneous requests cannot
     // pass the same remaining monthly slot.
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${uid}))`);
-    const usage = await readCommunityEventCreationUsage(tx, uid);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${req.accountId!}))`);
+    const usage = await readCommunityEventCreationUsage(
+      tx,
+      uid,
+      new Date(),
+      req.accountId!,
+    );
     if (usage.remaining === 0) {
       return { kind: "limit" as const, usage };
     }
@@ -1023,7 +1029,12 @@ router.get(
   "/events/creation-usage",
   requireUid,
   async (req, res): Promise<void> => {
-    const usage = await readCommunityEventCreationUsage(db, req.uid!);
+    const usage = await readCommunityEventCreationUsage(
+      db,
+      req.uid!,
+      new Date(),
+      req.accountId!,
+    );
     res.json(usage);
   },
 );

@@ -1,6 +1,26 @@
 import { interestLocales } from "@workspace/interests";
 
 export const en = {
+  accountRecovery: {
+    title: "Account deletion is pending",
+    body:
+      "Your account and data are recoverable until {{date}}. Sign in and restore within 30 days to return to your existing profile, connections, event history, and subscription association. Deleting your Met account does not cancel an Apple or Google Play subscription.",
+    restore: "Restore my account",
+    restoring: "Restoring…",
+    signOut: "Sign out",
+    dateUnknown: "the end of the recovery window",
+    syncPending: "Your account is blocked while privacy updates finish syncing.",
+    checking: "Checking your account status…",
+    statusUnavailable: "We can't verify your account right now. Please try again.",
+    retry: "Try again",
+    expiredTitle: "Your account is being deleted",
+    expiredBody:
+      "The recovery window has ended. Account data is being permanently removed and can no longer be restored.",
+    purgeFailedTitle: "Account deletion is still in progress",
+    purgeFailedBody:
+      "The recovery window has ended, but some deletion steps need another attempt. Your account remains blocked while cleanup retries. Contact support if this continues.",
+    restoreFailed: "We couldn't restore your account. Check your connection and try again.",
+  },
   common: {
     cancel: "Cancel",
     done: "Done",
@@ -1163,6 +1183,11 @@ export const en = {
     planUpgrade: "Upgrade your plan",
     planUpgradeSub:
       "More reveals, opening messages, up to 6 photos, badges",
+    subscriptionRenewsOn: "Renews {{date}}",
+    subscriptionCanceledUntil: "Canceled · access until {{date}}",
+    subscriptionCanceled: "Canceled",
+    subscriptionAccessEnds: "Does not renew · access until {{date}}",
+    subscriptionDateUnavailable: "Billing date unavailable",
     referrals: "Invite friends",
     referralsProgress: "{{count}} of 3 friends joined",
     referralsRewardEarned: "Reward unlocked — Met Plus active",
@@ -1222,7 +1247,7 @@ export const en = {
       "Blocked encounters and connections will show up here so you can unblock them.",
     unblock: "Unblock",
     deleteAccountConfirmBody:
-      "This wipes your profile, encounter history, connections, and preferences from this device. You'll be returned to the welcome screen and can start fresh. This cannot be undone.",
+      "Your account will be hidden now and permanently deleted after 30 days. Sign in within 30 days to restore your profile, connections, event history, and subscription association. This does not cancel an Apple or Google Play subscription.",
     deleteAccountConfirmAction: "Delete account",
     profile: "Profile",
     visibilityOn: "Beacon on — discoverable nearby",
@@ -1257,10 +1282,10 @@ export const en = {
     verifiedOn: "Verified on {{date}}",
     notVerified: "Not verified yet",
     deleteAccount: "Delete account",
-    deleteAccountSub: "Permanently delete your account and all data",
+    deleteAccountSub: "Start account deletion with a 30-day recovery window",
     deleteAccountConfirmTitle: "Delete account?",
     deleteAccountConfirmSub:
-      "This wipes your profile, encounter history, connections, and preferences from this device. You'll be returned to the welcome screen and can start fresh. This cannot be undone.",
+      "Your account will be hidden now and permanently deleted after 30 days. Sign in within 30 days to restore your profile, connections, event history, and subscription association. This does not cancel an Apple or Google Play subscription.",
     confirmDelete: "Delete account",
     deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Privacy policy",

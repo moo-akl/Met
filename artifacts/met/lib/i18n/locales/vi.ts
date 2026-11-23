@@ -2,6 +2,23 @@ import type { LocaleTree } from "./en";
 import { interestLocales } from "@workspace/interests";
 
 export const vi: LocaleTree = {
+  accountRecovery: {
+    title: "Tài khoản đang chờ xoá",
+    body: "Bạn có thể khôi phục tài khoản và dữ liệu cho đến {{date}}. Đăng nhập lại trong vòng 30 ngày để lấy lại hồ sơ, kết nối, lịch sử sự kiện và liên kết gói đăng ký. Xoá tài khoản Met không huỷ gói đăng ký Apple hoặc Google Play.",
+    restore: "Khôi phục tài khoản",
+    restoring: "Đang khôi phục…",
+    signOut: "Đăng xuất",
+    dateUnknown: "kết thúc thời hạn khôi phục",
+    syncPending: "Tài khoản đang bị chặn trong khi cập nhật quyền riêng tư được đồng bộ.",
+    checking: "Đang kiểm tra trạng thái tài khoản…",
+    statusUnavailable: "Hiện không thể xác minh tài khoản. Vui lòng thử lại.",
+    retry: "Thử lại",
+    expiredTitle: "Tài khoản đang được xoá",
+    expiredBody: "Thời hạn khôi phục đã kết thúc. Dữ liệu tài khoản đang bị xoá vĩnh viễn và không thể khôi phục.",
+    purgeFailedTitle: "Tài khoản vẫn đang được xoá",
+    purgeFailedBody: "Thời hạn khôi phục đã kết thúc, nhưng một số bước xoá cần được thử lại. Tài khoản vẫn bị chặn trong khi hệ thống tiếp tục dọn dẹp. Hãy liên hệ hỗ trợ nếu tình trạng này tiếp diễn.",
+    restoreFailed: "Không thể khôi phục tài khoản. Hãy kiểm tra kết nối rồi thử lại.",
+  },
   common: {
     cancel: "Huỷ",
     done: "Xong",
@@ -1124,6 +1141,11 @@ export const vi: LocaleTree = {
     planUpgrade: "Nâng cấp gói",
     planUpgradeSub:
       "Thêm lộ diện, tin nhắn mở đầu, tới 6 ảnh, huy hiệu",
+    subscriptionRenewsOn: "Gia hạn vào {{date}}",
+    subscriptionCanceledUntil: "Đã hủy · dùng đến {{date}}",
+    subscriptionCanceled: "Đã hủy",
+    subscriptionAccessEnds: "Không gia hạn · dùng đến {{date}}",
+    subscriptionDateUnavailable: "Chưa có ngày thanh toán",
     referrals: "Mời bạn bè",
     referralsProgress: "{{count}} trên 3 người bạn đã tham gia",
     referralsRewardEarned: "Đã mở khoá phần thưởng — Met Plus đang bật",
@@ -1184,7 +1206,7 @@ export const vi: LocaleTree = {
       "Các cuộc gặp và kết nối bị chặn sẽ xuất hiện ở đây để bạn bỏ chặn.",
     unblock: "Bỏ chặn",
     deleteAccountConfirmBody:
-      "Việc này xoá hồ sơ, lịch sử gặp gỡ, kết nối và tuỳ chọn khỏi thiết bị này. Bạn sẽ trở về màn hình chào và có thể bắt đầu lại. Không thể hoàn tác.",
+      "Tài khoản sẽ bị ẩn ngay và xoá vĩnh viễn sau 30 ngày. Đăng nhập trong vòng 30 ngày để khôi phục hồ sơ, kết nối, sự kiện và liên kết gói đăng ký. Việc này không huỷ gói đăng ký Apple hoặc Google Play.",
     deleteAccountConfirmAction: "Xoá tài khoản",
     profile: "Hồ sơ",
     visibilityOn: "Đèn hiệu bật — có thể được phát hiện gần bạn",
@@ -1221,10 +1243,10 @@ export const vi: LocaleTree = {
     verifiedOn: "Đã xác minh vào {{date}}",
     notVerified: "Chưa xác minh",
     deleteAccount: "Xoá tài khoản",
-    deleteAccountSub: "Xoá tất cả khỏi thiết bị này",
+    deleteAccountSub: "Bắt đầu xoá với thời hạn khôi phục 30 ngày",
     deleteAccountConfirmTitle: "Xoá tài khoản?",
     deleteAccountConfirmSub:
-      "Việc này xoá hồ sơ, lịch sử, kết nối và tuỳ chọn khỏi thiết bị. Bạn sẽ trở về màn hình chào và có thể bắt đầu lại. Không thể hoàn tác.",
+      "Tài khoản sẽ bị ẩn ngay và xoá vĩnh viễn sau 30 ngày. Đăng nhập trong vòng 30 ngày để khôi phục hồ sơ, kết nối, sự kiện và liên kết gói đăng ký. Việc này không huỷ gói đăng ký Apple hoặc Google Play.",
     confirmDelete: "Xoá tài khoản",
     deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Chính sách quyền riêng tư",

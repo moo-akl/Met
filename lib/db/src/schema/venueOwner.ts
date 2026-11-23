@@ -503,6 +503,8 @@ export const communityEventsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     ownerUid: text("owner_uid").notNull(),
+    /** Stable Met account identity used for member-creation quota accounting. */
+    accountId: text("account_id"),
     title: text("title").notNull(),
     description: text("description"),
     welcomeNote: text("welcome_note"),
@@ -545,6 +547,10 @@ export const communityEventsTable = pgTable(
     checkinTokenEncrypted: text("checkin_token_encrypted"),
     ratingPromptSentAt: timestamp("rating_prompt_sent_at", { withTimezone: true }),
     isHidden: boolean("is_hidden").notNull().default(false),
+    /** True only when deletion flow hid an event that was previously visible. */
+    hiddenByAccountDeletion: boolean("hidden_by_account_deletion")
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -554,6 +560,10 @@ export const communityEventsTable = pgTable(
   },
   (t) => ({
     ownerUidIdx: index("community_events_owner_uid_idx").on(t.ownerUid),
+    accountIdCreatedAtIdx: index("community_events_account_created_at_idx").on(
+      t.accountId,
+      t.createdAt,
+    ),
     startsAtIdx: index("community_events_starts_at_idx").on(t.startsAt),
     visibilityIdx: index("community_events_visibility_idx").on(t.visibility),
     inviteTokenHashUniq: uniqueIndex("community_events_invite_token_hash_uniq").on(

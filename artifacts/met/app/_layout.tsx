@@ -22,19 +22,16 @@ import {
 } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform } from "react-native";
+import { ActivityIndicator, AppState, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
-import {
-  captureStartupError,
-  markStartupPhase,
-  markStartupReady,
-} from "../startup/state";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AccountRecoveryScreen } from "@/components/AccountRecoveryScreen";
+import { AccountLifecycleLoadingScreen } from "@/components/AccountLifecycleLoadingScreen";
 import { useColors } from "@/hooks/useColors";
 import {
   ChatBannerPayload,
@@ -70,10 +67,7 @@ import {
   isVenueOwnerPathAllowed,
 } from "@/lib/venueOwnerLifecycle";
 
-markStartupPhase("root-layout-module");
-void SplashScreen.preventAutoHideAsync().catch((error) => {
-  captureStartupError(error);
-});
+SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 const FONT_LOAD_TIMEOUT_MS = 8_000;
@@ -358,17 +352,17 @@ function ChatBannerController({
  */
 function SubscriptionSyncer() {
   const { tier, isSubscriptionReady } = useSubscription();
-  const { authedUid } = useApp();
+  const { authedUid, accountLifecycle } = useApp();
 
   useEffect(() => {
-    if (!authedUid || !isSubscriptionReady) return;
+    if (!authedUid || accountLifecycle.status !== "active" || !isSubscriptionReady) return;
     api
       .syncSubscription(
         { uid: authedUid },
         { tier, status: tier === "free" ? "inactive" : "active" },
       )
       .catch(() => {});
-  }, [authedUid, tier, isSubscriptionReady]);
+  }, [authedUid, accountLifecycle.status, tier, isSubscriptionReady]);
 
   return null;
 }
@@ -381,18 +375,18 @@ function SubscriptionSyncer() {
  * Must live inside AppProvider so it can read profile from context.
  */
 function PushTokenRegistrar() {
-  const { authedUid } = useApp();
+  const { authedUid, accountLifecycle } = useApp();
   const lastAttemptAt = useRef(0);
 
   const registerToken = useCallback(async () => {
-    if (!authedUid) return;
+    if (!authedUid || accountLifecycle.status !== "active") return;
     try {
       const granted = await getNotificationPermissionGranted();
       if (!granted || Date.now() - lastAttemptAt.current < 5 * 60_000) return;
       const token = await registerAndUploadPushToken(authedUid);
       if (token) lastAttemptAt.current = Date.now();
     } catch {}
-  }, [authedUid]);
+  }, [authedUid, accountLifecycle.status]);
 
   useEffect(() => {
     void registerToken();
@@ -409,7 +403,7 @@ function PushTokenRegistrar() {
   // OS reinstall). Re-upload whenever the token changes so the server always
   // has a valid FCM token.
   useEffect(() => {
-    if (!authedUid || Platform.OS === "web") return;
+    if (!authedUid || accountLifecycle.status !== "active" || Platform.OS === "web") return;
     let cancelled = false;
     let unsubscribe = () => {};
     void import("@react-native-firebase/messaging")
@@ -429,18 +423,18 @@ function PushTokenRegistrar() {
       cancelled = true;
       unsubscribe();
     };
-  }, [authedUid]);
+  }, [authedUid, accountLifecycle.status]);
 
   return null;
 }
 
 function ProfileGate() {
-  const { ready, profile, permissionsCompleted, authedUid } = useApp();
+  const { ready, profile, permissionsCompleted, authedUid, accountLifecycle } = useApp();
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || (authedUid && accountLifecycle.status !== "active")) return;
     if (authedUid) {
       const pendingInviteRoute = consumePendingEventInviteRoute();
       if (pendingInviteRoute) {
@@ -465,7 +459,7 @@ function ProfileGate() {
       permissionsCompleted,
     });
     if (target) router.replace(target as never);
-  }, [ready, profile, permissionsCompleted, authedUid, segments, router]);
+  }, [ready, profile, permissionsCompleted, authedUid, accountLifecycle.status, segments, router]);
 
   return null;
 }
@@ -476,7 +470,7 @@ function ProfileGate() {
  * target screen because a reviewer may have changed the status since.
  */
 function VenueOwnerLifecycleGate() {
-  const { ready, authedUid } = useApp();
+  const { ready, authedUid, accountLifecycle } = useApp();
   const { profile, isLoading, error, refetch } = useVenueOwner();
   const router = useRouter();
   const pathname = usePathname();
@@ -492,7 +486,7 @@ function VenueOwnerLifecycleGate() {
   useEffect(() => { refetchRef.current = refetch; });
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || (authedUid && accountLifecycle.status !== "active")) return;
 
     // Outside the venue-owner section: reset so the next entry always starts
     // with a fresh load (handles navigate-away-and-back round trips).
@@ -528,13 +522,29 @@ function VenueOwnerLifecycleGate() {
     if (!isVenueOwnerPathAllowed(pathname, target, reapply, branch)) {
       router.replace(target);
     }
-  }, [authedUid, branch, error, isLoading, pathname, profile, ready, reapply, router]);
+  }, [authedUid, accountLifecycle.status, branch, error, isLoading, pathname, profile, ready, reapply, router]);
 
   return null;
 }
 
 function RootLayoutNav() {
   const colors = useColors();
+  const { authedUid, accountLifecycle } = useApp();
+  if (
+    authedUid &&
+    ["pending_deletion", "purging", "purge_failed", "purged"].includes(
+      accountLifecycle.status,
+    )
+  ) {
+    return <AccountRecoveryScreen />;
+  }
+  if (
+    authedUid &&
+    accountLifecycle.status !== "active" &&
+    accountLifecycle.status !== "pending_deletion"
+  ) {
+    return <AccountLifecycleLoadingScreen />;
+  }
   return (
     <Stack
       screenOptions={{
@@ -606,18 +616,6 @@ function RootLayoutNav() {
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen
-        name="venue-owner/setup"
-        options={{ presentation: "card", animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="venue-owner/pending"
-        options={{ presentation: "card", animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="venue-owner/rejected"
-        options={{ presentation: "card", animation: "slide_from_right" }}
-      />
-      <Stack.Screen
         name="venue-owner/dashboard"
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
@@ -668,14 +666,6 @@ export default function RootLayout() {
   // the in-app banner so a notification that was immediately tapped (e.g.
   // Android heads-up) doesn't also pop up as a banner.
   const tappedIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (fontsLoaded || fontError || fontLoadTimedOut) {
-      markStartupReady();
-    } else {
-      markStartupPhase("font-loading");
-    }
-  }, [fontsLoaded, fontError, fontLoadTimedOut]);
 
   // Capture initial / live deep links. Referrals are stashed for onboarding;
   // network invites and venue-owner registration links navigate directly.
@@ -761,13 +751,13 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary onError={captureStartupError}>
+      <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <ThemeProvider>
             <KeyboardProvider>
-              <SubscriptionProvider>
-                <AppProvider>
+              <AppProvider>
+                <SubscriptionProvider>
                   <SubscriptionSyncer />
                   <PushTokenRegistrar />
                   <ProfileGate />
@@ -779,8 +769,8 @@ export default function RootLayout() {
                     tappedIdsRef={tappedIdsRef}
                     onNavigate={handleBannerNavigate}
                   />
-                </AppProvider>
-              </SubscriptionProvider>
+                </SubscriptionProvider>
+              </AppProvider>
             </KeyboardProvider>
             </ThemeProvider>
           </GestureHandlerRootView>

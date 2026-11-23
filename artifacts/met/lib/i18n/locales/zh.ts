@@ -2,6 +2,23 @@ import type { LocaleTree } from "./en";
 import { interestLocales } from "@workspace/interests";
 
 export const zh: LocaleTree = {
+  accountRecovery: {
+    title: "账户删除已安排",
+    body: "你的账户和数据可在 {{date}} 前恢复。请在 30 天内登录，以恢复个人资料、联系人、活动记录和订阅关联。删除 Met 账户不会取消 Apple 或 Google Play 订阅。",
+    restore: "恢复我的账户",
+    restoring: "正在恢复…",
+    signOut: "退出登录",
+    dateUnknown: "恢复期限结束",
+    syncPending: "隐私设置正在同步，账户暂时无法使用。",
+    checking: "正在检查账户状态…",
+    statusUnavailable: "目前无法验证你的账户，请重试。",
+    retry: "重试",
+    expiredTitle: "账户正在删除",
+    expiredBody: "恢复期限已结束。账户数据正在永久删除，无法再恢复。",
+    purgeFailedTitle: "账户删除仍在进行",
+    purgeFailedBody: "恢复期限已结束，但部分删除步骤需要重试。清理重试期间，账户仍会被限制使用。如果问题持续，请联系支持团队。",
+    restoreFailed: "无法恢复账户。请检查网络连接后重试。",
+  },
   common: {
     cancel: "取消",
     done: "完成",
@@ -1081,6 +1098,11 @@ export const zh: LocaleTree = {
     planPlusSub: "点按与 Met Pro 比较(6 张照片、Boost)",
     planUpgrade: "升级你的方案",
     planUpgradeSub: "更多公开、开场消息、最多 6 张照片、徽章",
+    subscriptionRenewsOn: "于 {{date}} 续订",
+    subscriptionCanceledUntil: "已取消 · 可使用至 {{date}}",
+    subscriptionCanceled: "已取消",
+    subscriptionAccessEnds: "不会续订 · 可使用至 {{date}}",
+    subscriptionDateUnavailable: "账单日期不可用",
     referrals: "邀请朋友",
     referralsProgress: "已有 {{count}}/3 位朋友加入",
     referralsRewardEarned: "奖励已解锁 — Met Plus 已开通",
@@ -1140,7 +1162,7 @@ export const zh: LocaleTree = {
       "被屏蔽的相遇和联系人会显示在这里,你可以取消屏蔽。",
     unblock: "取消屏蔽",
     deleteAccountConfirmBody:
-      "这将从此设备清除你的资料、相遇历史、联系人和偏好。你将返回欢迎屏幕,可重新开始。此操作无法撤销。",
+      "你的账户会立即隐藏，并在 30 天后永久删除。请在 30 天内登录，以恢复个人资料、联系人、活动记录和订阅关联。此操作不会取消 Apple 或 Google Play 订阅。",
     deleteAccountConfirmAction: "删除账户",
     profile: "个人资料",
     visibilityOn: "信标已开启 — 附近可被发现",
@@ -1175,10 +1197,10 @@ export const zh: LocaleTree = {
     verifiedOn: "于 {{date}} 验证",
     notVerified: "尚未验证",
     deleteAccount: "删除账户",
-    deleteAccountSub: "从此设备清除一切",
+    deleteAccountSub: "开始删除，保留 30 天恢复期",
     deleteAccountConfirmTitle: "删除账户?",
     deleteAccountConfirmSub:
-      "这将从此设备清除你的资料、历史、联系人和偏好。你将返回欢迎屏幕,可重新开始。此操作无法撤销。",
+      "你的账户会立即隐藏，并在 30 天后永久删除。请在 30 天内登录，以恢复个人资料、联系人、活动记录和订阅关联。此操作不会取消 Apple 或 Google Play 订阅。",
     confirmDelete: "删除账户",
     deleteAccountDeleting: "Deleting…",
     privacyPolicy: "隐私政策",

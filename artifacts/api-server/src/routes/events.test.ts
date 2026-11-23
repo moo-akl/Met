@@ -70,7 +70,12 @@ vi.mock("../middlewares/rateLimit", () => ({
 
 vi.mock("../middlewares/requireUid", () => ({
   requireUid: (
-    req: { uid?: string; header: (name: string) => string | undefined },
+    req: {
+      uid?: string;
+      accountId?: string;
+      accountStatus?: string;
+      header: (name: string) => string | undefined;
+    },
     res: { status: (code: number) => { json: (body: unknown) => void } },
     next: () => void,
   ) => {
@@ -80,6 +85,8 @@ vi.mock("../middlewares/requireUid", () => ({
       return;
     }
     req.uid = uid;
+    req.accountId = uid;
+    req.accountStatus = "active";
     next();
   },
 }));

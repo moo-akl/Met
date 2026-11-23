@@ -1,7 +1,7 @@
 // RevenueCat connector — client-side subscription provider.
 // Uses the RevenueCat integration's public API keys (EXPO_PUBLIC_REVENUECAT_*).
 import React, { createContext, useContext } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import Purchases, {
   type CustomerInfo,
   type PurchasesOffering,
@@ -10,6 +10,7 @@ import Purchases, {
 } from "react-native-purchases";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReferrals } from "./referrals";
+import { useApp } from "@/contexts/AppContext";
 
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
@@ -73,6 +74,19 @@ function deriveTier(info: CustomerInfo | undefined): Tier {
 
 function useSubscriptionContext() {
   const queryClient = useQueryClient();
+  const {
+    authedUid,
+    accountLifecycle,
+    revenueCatIdentity,
+    refreshAccountLifecycle,
+  } = useApp();
+  const accountId = accountLifecycle.accountId;
+  const isRevenueCatIdentityReady =
+    !!authedUid &&
+    accountLifecycle.status === "active" &&
+    revenueCatIdentity.status === "ready" &&
+    revenueCatIdentity.uid === authedUid &&
+    revenueCatIdentity.accountId === accountId;
   // Local promotional Plus from the referral program. We OR this with the
   // RevenueCat entitlement so a real Pro/Plus subscriber is never demoted,
   // and a referral-rewarded user gets Plus-level access without a backend.
@@ -84,10 +98,69 @@ function useSubscriptionContext() {
   const promoPlusActive = promoPlusUntil !== null;
 
   const customerInfoQuery = useQuery<CustomerInfo>({
-    queryKey: ["revenuecat", "customer-info"],
+    queryKey: ["revenuecat", "customer-info", accountId],
     queryFn: async () => Purchases.getCustomerInfo(),
     staleTime: 60 * 1000,
+    enabled: isRevenueCatIdentityReady && accountId !== null,
   });
+
+  // Never reuse one customer's cached entitlements for another identity.
+  // Login completion also forces a fresh RevenueCat read for that account.
+  React.useEffect(() => {
+    if (!isRevenueCatIdentityReady || !accountId) {
+      queryClient.removeQueries({
+        queryKey: ["revenuecat", "customer-info"],
+      });
+      return;
+    }
+    void queryClient.invalidateQueries({
+      queryKey: ["revenuecat", "customer-info", accountId],
+      exact: true,
+    });
+  }, [
+    accountId,
+    authedUid,
+    isRevenueCatIdentityReady,
+    queryClient,
+    revenueCatIdentity.status,
+  ]);
+
+  React.useEffect(() => {
+    if (!isRevenueCatIdentityReady || !accountId) return;
+
+    let isCurrentIdentity = true;
+    const queryKey = ["revenuecat", "customer-info", accountId] as const;
+    const customerInfoListener = (updatedInfo: CustomerInfo) => {
+      if (!isCurrentIdentity) return;
+      void queryClient
+        .cancelQueries({ queryKey, exact: true })
+        .then(() => {
+          if (isCurrentIdentity) {
+            queryClient.setQueryData<CustomerInfo>(queryKey, updatedInfo);
+          }
+        });
+    };
+    Purchases.addCustomerInfoUpdateListener(customerInfoListener);
+
+    return () => {
+      isCurrentIdentity = false;
+      Purchases.removeCustomerInfoUpdateListener(customerInfoListener);
+    };
+  }, [accountId, isRevenueCatIdentityReady, queryClient]);
+
+  React.useEffect(() => {
+    if (!isRevenueCatIdentityReady || !accountId) return;
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void queryClient.invalidateQueries({
+          queryKey: ["revenuecat", "customer-info", accountId],
+          exact: true,
+        });
+      }
+    });
+    return () => subscription.remove();
+  }, [accountId, isRevenueCatIdentityReady, queryClient]);
 
   const offeringsQuery = useQuery<PurchasesOfferings>({
     queryKey: ["revenuecat", "offerings"],
@@ -109,7 +182,8 @@ function useSubscriptionContext() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["revenuecat", "customer-info"],
+        queryKey: ["revenuecat", "customer-info", accountId],
+        exact: true,
       });
     },
   });
@@ -118,7 +192,8 @@ function useSubscriptionContext() {
     mutationFn: async () => Purchases.restorePurchases(),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["revenuecat", "customer-info"],
+        queryKey: ["revenuecat", "customer-info", accountId],
+        exact: true,
       });
     },
   });
@@ -127,7 +202,7 @@ function useSubscriptionContext() {
   // cold-start latency. `tier` is "free" by default, but `isSubscriptionReady`
   // tells callers whether that "free" is a real verdict yet.
   const subscriptionStatus: "unknown" | "active" | "inactive" =
-    customerInfoQuery.data === undefined
+    !isRevenueCatIdentityReady || customerInfoQuery.data === undefined
       ? "unknown"
       : customerInfoQuery.data.entitlements.active?.[
             REVENUECAT_PLUS_ENTITLEMENT
@@ -138,7 +213,9 @@ function useSubscriptionContext() {
         ? "active"
         : "inactive";
 
-  const rcTier: Tier = deriveTier(customerInfoQuery.data);
+  const rcTier: Tier = deriveTier(
+    isRevenueCatIdentityReady ? customerInfoQuery.data : undefined,
+  );
   // Promo can only ever upgrade free → plus. Real Pro stays Pro.
   const tier: Tier =
     rcTier === "pro" ? "pro" : promoPlusActive ? "plus" : rcTier;
@@ -166,18 +243,35 @@ function useSubscriptionContext() {
     isProSubscriber,
     isPlusSubscriber,
     isSubscriptionReady,
+    isRevenueCatIdentityReady,
+    revenueCatIdentityStatus: revenueCatIdentity.status,
+    hasAuthenticatedAccount: !!authedUid,
     promoPlusUntil,
     promoPlusActive,
-    isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    isLoading:
+      (isRevenueCatIdentityReady && customerInfoQuery.isLoading) ||
+      offeringsQuery.isLoading,
     error: customerInfoQuery.error ?? offeringsQuery.error,
-    purchase: purchaseMutation.mutateAsync,
-    restore: restoreMutation.mutateAsync,
+    purchase: async (packageToPurchase: PurchasesPackage) => {
+      if (!isRevenueCatIdentityReady) {
+        throw new Error("Sign in before starting a purchase.");
+      }
+      return purchaseMutation.mutateAsync(packageToPurchase);
+    },
+    restore: async () => {
+      if (!isRevenueCatIdentityReady) {
+        throw new Error("Sign in before restoring purchases.");
+      }
+      return restoreMutation.mutateAsync();
+    },
     isPurchasing: purchaseMutation.isPending,
     isRestoring: restoreMutation.isPending,
     purchaseError: purchaseMutation.error,
+    restoreError: restoreMutation.error,
+    retryRevenueCatIdentity: refreshAccountLifecycle,
     refetch: () => {
-      customerInfoQuery.refetch();
-      offeringsQuery.refetch();
+      if (isRevenueCatIdentityReady) void customerInfoQuery.refetch();
+      void offeringsQuery.refetch();
     },
   };
 }

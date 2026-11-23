@@ -43,6 +43,15 @@ import type { Express } from "express";
 // ---------------------------------------------------------------------------
 process.env["SESSION_SECRET"] = "itest-hub-checkin-source-secret";
 
+vi.mock("../lib/userAccountIdentity", () => ({
+  ensureUserAccount: async (uid: string) => ({
+    accountId: uid,
+    firebaseUid: uid,
+    status: "active",
+    purgeAfter: null,
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Mocks — silence noisy middleware and external calls.
 // ---------------------------------------------------------------------------

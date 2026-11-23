@@ -3,6 +3,14 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../lib/socialProfileAccess", () => ({
   canUseSocialFeatures: async () => true,
 }));
+vi.mock("../lib/userAccountIdentity", () => ({
+  ensureUserAccount: async (uid: string) => ({
+    accountId: uid,
+    firebaseUid: uid,
+    status: "active",
+    purgeAfter: null,
+  }),
+}));
 
 const dbMocks = vi.hoisted(() => {
   const chain = {

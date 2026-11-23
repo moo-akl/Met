@@ -15,13 +15,19 @@ service cloud.firestore {
 
     function isAuthed() { return request.auth != null; }
     function isOwner(userId) { return isAuthed() && request.auth.uid == userId; }
+    function accountIsActive(userId) {
+      let path = /databases/$(database)/documents/users/$(userId);
+      return !exists(path) ||
+        !('accountStatus' in get(path).data) ||
+        get(path).data.accountStatus == 'active';
+    }
 
     // New private visitors have a server-owned false flag. Older server
     // mirrors predate it, but have updatedAt (clients cannot create that).
     // A client-created suppression marker cannot grant social access.
     function hasSocialProfile() {
       let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return isAuthed() && exists(path) && (
+      return isAuthed() && accountIsActive(request.auth.uid) && exists(path) && (
         ('socialEligible' in get(path).data &&
          get(path).data.socialEligible == true) ||
         (!('socialEligible' in get(path).data) &&
@@ -42,14 +48,14 @@ service cloud.firestore {
       // user because the existing geohash range query needs collection reads.
       // The document is intentionally limited to uid, presence and visibility;
       // profile details and BLE hashes are served through the API instead.
-      allow read: if isAuthed() && (
+      allow read: if isAuthed() && accountIsActive(request.auth.uid) && (
         (hasSocialProfile() && resource.data.isVisible == true) || isOwner(userId)
       );
 
       // A client may create only a suppression marker before its profile
       // mirror exists. Server/Admin paths are responsible for publishing the
       // first visible presence document.
-      allow create: if isOwner(userId) &&
+      allow create: if isOwner(userId) && accountIsActive(userId) &&
         request.resource.data.uid == userId &&
         request.resource.data.keys().hasOnly(['uid', 'isVisible']) &&
         request.resource.data.isVisible == false;
@@ -59,7 +65,7 @@ service cloud.firestore {
       // Presence can be published only while both the current canonical
       // visibility and the resulting visibility are true. Hidden clients may
       // still clear stale presence fields or turn visibility off.
-      allow update: if isOwner(userId) &&
+      allow update: if isOwner(userId) && accountIsActive(userId) &&
         request.resource.data.uid == resource.data.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'location', 'geohash', 'lastActive', 'isVisible'
@@ -116,9 +122,9 @@ service cloud.firestore {
       // encounter list updates immediately even if the api-server is
       // slow / unreachable. Mirrors the legacy Flutter app's batch.
       match /met_people/{otherUid} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && accountIsActive(userId);
         allow create, update: if false;
-        allow delete: if isAuthed() && (
+        allow delete: if isAuthed() && accountIsActive(request.auth.uid) && (
           request.auth.uid == userId || request.auth.uid == otherUid
         );
       }
@@ -133,7 +139,7 @@ service cloud.firestore {
       // identity and direction fields are immutable. Either party may still
       // delete their pair's copy for the existing Remove / Block resilience path.
       match /requests/{otherUid} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && accountIsActive(userId);
         allow create: if false;
         allow update: if hasSocialProfile() &&
           resource.data.peerUid == otherUid &&
@@ -154,7 +160,7 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'updatedAt', 'respondedAt'
           ]);
-        allow delete: if isAuthed() && (
+        allow delete: if isAuthed() && accountIsActive(request.auth.uid) && (
           request.auth.uid == userId || request.auth.uid == otherUid
         );
       }
@@ -173,10 +179,10 @@ service cloud.firestore {
       //   - Delete: only the owner (the victim) — used to clear
       //     processed signals locally if we ever wire that up.
       match /removals/{otherUid} {
-        allow read: if isOwner(userId);
-        allow create, update: if isAuthed() &&
+        allow read: if isOwner(userId) && accountIsActive(userId);
+        allow create, update: if isAuthed() && accountIsActive(request.auth.uid) &&
           request.auth.uid == otherUid;
-        allow delete: if isOwner(userId);
+        allow delete: if isOwner(userId) && accountIsActive(userId);
       }
     }
 
@@ -219,7 +225,7 @@ service cloud.firestore {
 
       // Read chat meta doc (lastMessage, lastReadAt).
       // A missing doc is permitted for the initial conversation view.
-      allow read: if isAuthed() && (
+      allow read: if isAuthed() && accountIsActive(request.auth.uid) && (
         resource == null ||
         callerIsParticipant()
       );
@@ -255,14 +261,14 @@ service cloud.firestore {
             chatDataHasCaller(getAfter(chatPath).data);
         }
 
-        allow read: if callerIsParentChatParticipant();
+        allow read: if accountIsActive(request.auth.uid) && callerIsParentChatParticipant();
         allow create: if hasSocialProfile() &&
           request.resource.data.from == request.auth.uid &&
           callerIsParentChatParticipantAfterWrite();
 
         // Soft-delete: only the original sender may set deleted=true,
         // and ONLY that field may change (no other field mutations).
-        allow update: if isAuthed() && (
+        allow update: if isAuthed() && accountIsActive(request.auth.uid) && (
           // Sender soft-deleting their own message
           (resource.data.from == request.auth.uid &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted']) &&

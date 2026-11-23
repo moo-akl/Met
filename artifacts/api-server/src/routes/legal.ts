@@ -56,7 +56,7 @@ function sanitizeUrl(url: string): string {
 const SUPPORT_EMAIL = "metapp.contact@gmail.com";
 const COMPANY_NAME = "Met";
 const APP_NAME = "Met: We Crossed Paths";
-const LAST_UPDATED = "October 21, 2026";
+const LAST_UPDATED = "November 22, 2026";
 
 const baseStyles = `
   :root {
@@ -168,7 +168,7 @@ const supportHtml = layout(
   </div>
 
   <h2>Account &amp; sign in</h2>
-  <p>You can sign in with Apple, Google, or an email and password. To delete your account, open Settings → Account → Delete account. This permanently removes your profile and all encounter history.</p>
+  <p>You can sign in with Apple, Google, or an email and password. To delete your account, open Settings → Account → Delete account. Your account is hidden immediately and permanently deleted after a 30-day recovery window. Sign in again within 30 days to restore it. Account deletion does not cancel an Apple or Google Play subscription.</p>
 
   <h2>Subscriptions &amp; billing</h2>
   <p>${APP_NAME} is free to use. Met Plus and Met Pro are optional subscriptions billed by Apple (App Store) or Google (Play Store). To cancel:</p>
@@ -230,7 +230,7 @@ const privacyHtml = layout(
   <p>We do not share your data with anyone else.</p>
 
   <h2>6. How long we keep your data</h2>
-  <p>We keep your account data for as long as your account exists. When you delete your account from inside the app (Settings → Account → Delete account), your profile, encounter history, and connections are permanently removed within 30 days.</p>
+  <p>We keep your account data for as long as your account exists. When you request account deletion in Settings, we hide the account and retain its data, event-creation history, and subscription association for 30 days so you can restore it by signing in with the same account. After 30 days, we permanently delete account data, including member-created events and their related records. Deleting a Met account does not cancel an Apple App Store or Google Play subscription; cancel it through the store if you do not want future renewals.</p>
 
   <h2>7. Your rights</h2>
   <p>You can:</p>

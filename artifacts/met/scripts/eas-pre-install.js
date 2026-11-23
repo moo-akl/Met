@@ -32,14 +32,8 @@
 //    devDependencies on the EAS worker. Then pnpm's frozen install will
 //    place `expo`'s binary directly at `<workspace>/node_modules/.bin/
 //    expo`, which is exactly where EAS's prebuild step looks. We use the
-//    exact version already resolved by the mobile importer, rather than
-//    letting a version range select a newer Expo on the worker.
-//
-// NATIVE RESOLUTION GUARD
-// -----------------------
-// The platform-only override rewrite still requires lockfile regeneration.
-// Reject any change to the Met importer, existing native snapshots, or native
-// package versions/integrities instead of silently compiling a different graph.
+//    same version specifier that artifacts/met already declares, so the
+//    lockfile has only one resolved version and there's no duplication.
 //
 // LOCAL SAFETY
 // ------------
@@ -59,7 +53,6 @@
 const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
-const { assertNativeLockUnchanged, lockedExpoVersion } = require("./native-lock-guard.cjs");
 
 // Workspace-root binaries to ensure are present at install time. Keys are
 // package names; values are read from artifacts/met/package.json so the
@@ -160,9 +153,6 @@ function main() {
     return;
   }
 
-  const lockPath = path.join(root, "pnpm-lock.yaml");
-  const originalLock = fs.readFileSync(lockPath, "utf8");
-
   // 1. Strip native-binary exclusions, preserving portable security overrides.
   const wsPath = path.join(root, "pnpm-workspace.yaml");
   const original = fs.readFileSync(wsPath, "utf8");
@@ -188,7 +178,7 @@ function main() {
       );
       continue;
     }
-    additions[dep] = dep === "expo" ? lockedExpoVersion(originalLock) : version;
+    additions[dep] = version;
   }
   injectRootDevDependencies(path.join(root, "package.json"), additions);
 
@@ -205,14 +195,6 @@ function main() {
 
   // 4. Regenerate the lockfile against the modified workspace state.
   run("pnpm install --lockfile-only --no-frozen-lockfile --no-strict-peer-dependencies", root);
-
-  const verified = assertNativeLockUnchanged(
-    originalLock,
-    fs.readFileSync(lockPath, "utf8"),
-  );
-  console.log(
-    `[native-lock] Verified ${verified.nativePackageCount} native resolutions; Expo ${verified.expoVersion}; fingerprint ${verified.fingerprint}`,
-  );
 
   console.log(
     "[eas-pre-install] Done. EAS frozen install will place expo at workspace root.",

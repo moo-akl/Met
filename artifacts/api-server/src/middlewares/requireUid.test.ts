@@ -8,7 +8,17 @@ const mocks = vi.hoisted(() => {
     select: vi.fn().mockReturnThis(), from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(), limit,
   };
-  return { chain, verify: vi.fn(), initialize: vi.fn() };
+  return {
+    chain,
+    verify: vi.fn(),
+    initialize: vi.fn(),
+    account: {
+      accountId: "met-account-visitor",
+      status: "active",
+      purgeAfter: null as Date | null,
+      firebaseUid: "visitor",
+    },
+  };
 });
 vi.mock("@workspace/db", () => ({
   db: mocks.chain, profilesTable: { uid: "uid", displayName: "name", photoUrl: "photo" },
@@ -19,18 +29,31 @@ vi.mock("../lib/firebaseAdmin", () => ({
     return { verifyIdToken: mocks.verify };
   },
 }));
+vi.mock("../lib/userAccountIdentity", () => ({
+  ensureUserAccount: vi.fn(async (uid: string) => ({
+    ...mocks.account,
+    firebaseUid: uid,
+  })),
+}));
 import { requireUid } from "./requireUid";
 
 const app = express();
 app.use(express.json());
 app.use(requireUid);
-app.use((req, res) => { res.json({ uid: req.uid }); });
+app.use((req, res) => {
+  res.json({
+    uid: req.uid,
+    accountId: req.accountId,
+    accountStatus: req.accountStatus,
+  });
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.initialize.mockReset();
   mocks.chain.limit.mockResolvedValue([{ displayName: "Met visitor", photoUrl: null }]);
   mocks.verify.mockResolvedValue({ uid: "visitor" });
+  mocks.account.status = "active";
 });
 
 describe("authenticated private visitor enforcement", () => {
@@ -76,6 +99,26 @@ describe("authenticated private visitor enforcement", () => {
     const res = await request(app).post("/reveals").set("Authorization", "Bearer test-token");
     expect(res.status).toBe(200);
     expect(res.body.uid).toBe("visitor");
+  });
+  it("blocks normal API access while deletion is pending", async () => {
+    mocks.account.status = "pending_deletion";
+    mocks.account.purgeAfter = new Date("2026-12-22T12:00:00.000Z");
+    const res = await request(app)
+      .get("/profiles/me")
+      .set("Authorization", "Bearer test-token");
+    expect(res.status).toBe(423);
+    expect(res.body.code).toBe("ACCOUNT_PENDING_DELETION");
+    expect(res.body.purgeAfter).toBe("2026-12-22T12:00:00.000Z");
+  });
+  it.each([
+    ["get", "/profiles/me/account-status"],
+    ["post", "/profiles/me/recover-deletion"],
+  ] as const)("keeps account status and recovery available while pending: %s %s", async (method, path) => {
+    mocks.account.status = "pending_deletion";
+    const res = await request(app)[method](path)
+      .set("Authorization", "Bearer test-token");
+    expect(res.status).toBe(200);
+    expect(res.body.accountStatus).toBe("pending_deletion");
   });
   it.each([
     ["post", "/hubs/qr-verify"], ["get", "/profiles/me"],

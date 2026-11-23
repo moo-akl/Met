@@ -16,6 +16,14 @@ vi.mock("@workspace/db", async (original) => ({
 vi.mock("../middlewares/rateLimit", () => ({
   createUserRateLimiter: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
+vi.mock("../lib/userAccountIdentity", () => ({
+  ensureUserAccount: async (uid: string) => ({
+    accountId: uid,
+    firebaseUid: uid,
+    status: "active",
+    purgeAfter: null,
+  }),
+}));
 vi.mock("../lib/firebaseAdmin", () => {
   function collection(path: string): unknown {
     return {

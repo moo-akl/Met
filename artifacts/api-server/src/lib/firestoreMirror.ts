@@ -26,6 +26,41 @@ export type ProfileMirrorFields = {
 };
 
 /**
+ * Strict lifecycle mirror used by account deletion and recovery. Firestore
+ * rules treat this server-owned flag as the gate for existing signed-in
+ * clients, so callers must inspect the returned result.
+ */
+export async function mirrorAccountLifecycleToFirestore(
+  uid: string,
+  status: "active" | "pending_deletion" | "purging" | "purge_failed",
+  purgeAfter: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await adminDb()
+      .collection("users")
+      .doc(uid)
+      .set(
+        {
+          accountStatus: status,
+          accountPurgeAfter: purgeAfter,
+          isVisible: false,
+          socialEligible: false,
+          location: FieldValue.delete(),
+          geohash: FieldValue.delete(),
+          lastActive: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    return { ok: true };
+  } catch (err) {
+    const error = (err as Error)?.message ?? String(err);
+    logger.warn({ err: error, uid, status }, "Firestore account lifecycle mirror failed");
+    return { ok: false, error };
+  }
+}
+
+/**
  * Mirror only the fields required for the existing client-side nearby-user
  * query. Firestore rules cannot hide selected fields from a readable document,
  * so profile details and stable BLE hashes remain in Postgres/API responses.

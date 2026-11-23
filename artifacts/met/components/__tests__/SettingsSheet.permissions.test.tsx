@@ -24,6 +24,14 @@ import {
 var mockRouterPush = jest.fn();
 // eslint-disable-next-line no-var
 var mockUpdatePreferences = jest.fn();
+// eslint-disable-next-line no-var
+var mockSubscription: {
+  tier: string;
+  promoPlusActive: boolean;
+  customerInfo?: unknown;
+};
+// eslint-disable-next-line no-var
+var mockLang = "en";
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -110,13 +118,40 @@ jest.mock("@/hooks/useColors", () => ({
 }));
 
 jest.mock("@/lib/i18n", () => ({
-  useT: () => ({ t: (k: string) => k, lang: "en" }),
+  useT: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (!key.startsWith("settings.subscription")) {
+        return options?.date ? `${key}:${String(options.date)}` : key;
+      }
+      const locales = {
+        en: require("@/lib/i18n/locales/en").en,
+        fr: require("@/lib/i18n/locales/fr").fr,
+        ar: require("@/lib/i18n/locales/ar").ar,
+        zh: require("@/lib/i18n/locales/zh").zh,
+      };
+      const source =
+        locales[mockLang as keyof typeof locales] ??
+        locales.en;
+      const translation = key
+        .split(".")
+        .reduce((value: any, part) => value?.[part], source);
+      if (typeof translation !== "string") return key;
+      return translation.replace(/\{\{(\w+)\}\}/g, (_match, name: string) =>
+        options?.[name] === undefined
+          ? `{{${name}}}`
+          : String(options[name]),
+      );
+    },
+    lang: mockLang,
+  }),
   setLanguage: jest.fn().mockResolvedValue({ rtlChanged: false }),
   SUPPORTED_LANGUAGES: [],
 }));
 
 jest.mock("@/lib/revenuecat", () => ({
-  useSubscription: () => ({ tier: "free", promoPlusActive: false }),
+  REVENUECAT_PLUS_ENTITLEMENT: "plus",
+  REVENUECAT_PRO_ENTITLEMENT: "pro",
+  useSubscription: () => mockSubscription,
 }));
 
 jest.mock("@/lib/referrals", () => ({
@@ -192,6 +227,12 @@ beforeEach(() => {
   // cannot bleed into the next.
   jest.useFakeTimers();
   jest.clearAllMocks();
+  mockLang = "en";
+  mockSubscription = {
+    tier: "free",
+    promoPlusActive: false,
+    customerInfo: undefined,
+  };
 });
 
 afterEach(() => {
@@ -200,6 +241,7 @@ afterEach(() => {
   cleanup();
   jest.clearAllTimers();
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 // ── Helper ────────────────────────────────────────────────────────────────────
@@ -209,6 +251,54 @@ async function renderSheet(onClose = jest.fn()) {
     render(<SettingsSheet visible onClose={onClose} />);
   });
   return { onClose };
+}
+
+function setBillingSubscription(
+  tier: "plus" | "pro",
+  details: {
+    willRenew: boolean;
+    unsubscribeDetectedAt: string | null;
+    expirationDate: string | null;
+  },
+) {
+  mockSubscription = {
+    tier,
+    promoPlusActive: false,
+    customerInfo: {
+      entitlements: {
+        active: {
+          [tier]: {
+            isActive: true,
+            ...details,
+          },
+        },
+      },
+    },
+  };
+}
+
+function formatDateInZone(value: string, locale: string, timeZone: string) {
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  }).format(new Date(value));
+}
+
+function mockDeviceTimeZone(timeZone: string) {
+  jest
+    .spyOn(Date.prototype, "toLocaleDateString")
+    .mockImplementation(function (
+      this: Date,
+      locales?: Intl.LocalesArgument,
+      options?: Intl.DateTimeFormatOptions,
+    ) {
+      return new Intl.DateTimeFormat(locales, {
+        ...options,
+        timeZone,
+      }).format(this);
+    });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -288,6 +378,156 @@ describe("SettingsSheet — event history NavRow", () => {
     expect(mockRouterPush).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).toHaveBeenCalledWith("/past-meetings");
   });
+});
+
+describe("SettingsSheet — subscription billing status", () => {
+  const expirationDate = "2027-01-15T00:00:00.000Z";
+  const formattedDate = new Date(expirationDate).toLocaleDateString("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  it("shows the renewal date for an active renewing plan", async () => {
+    mockSubscription = {
+      tier: "plus",
+      promoPlusActive: false,
+      customerInfo: {
+        entitlements: {
+          active: {
+            plus: {
+              isActive: true,
+              willRenew: true,
+              unsubscribeDetectedAt: null,
+              expirationDate,
+            },
+          },
+        },
+      },
+    };
+
+    await renderSheet();
+
+    expect(screen.getByText("settings.planPlusActive")).toBeTruthy();
+    expect(screen.getByText(`Renews ${formattedDate}`)).toBeTruthy();
+  });
+
+  it("shows that a canceled plan remains active until its access end date", async () => {
+    mockSubscription = {
+      tier: "pro",
+      promoPlusActive: false,
+      customerInfo: {
+        entitlements: {
+          active: {
+            pro: {
+              isActive: true,
+              willRenew: false,
+              unsubscribeDetectedAt: "2026-11-01T00:00:00.000Z",
+              expirationDate,
+            },
+          },
+        },
+      },
+    };
+
+    await renderSheet();
+
+    expect(screen.getByText("settings.planProActive")).toBeTruthy();
+    expect(
+      screen.getByText(`Canceled · access until ${formattedDate}`),
+    ).toBeTruthy();
+  });
+
+  it("shows an unavailable-date message rather than inventing a date", async () => {
+    mockSubscription = {
+      tier: "plus",
+      promoPlusActive: false,
+      customerInfo: {
+        entitlements: {
+          active: {
+            plus: {
+              isActive: true,
+              willRenew: true,
+              unsubscribeDetectedAt: null,
+              expirationDate: null,
+            },
+          },
+        },
+      },
+    };
+
+    await renderSheet();
+
+    expect(screen.getByText("Billing date unavailable")).toBeTruthy();
+    expect(screen.queryByText(/^Renews /)).toBeNull();
+  });
+
+  const boundaryDate = "2027-01-14T18:30:00.000Z";
+  const localizedSubscriptionLabels = [
+    {
+      lang: "fr",
+      renewalTemplate: "Renouvellement le {{date}}",
+      canceledTemplate: "Abonnement résilié · accès jusqu’au {{date}}",
+    },
+    {
+      lang: "ar",
+      renewalTemplate: "يتجدد في {{date}}",
+      canceledTemplate: "ملغى · الوصول متاح حتى {{date}}",
+    },
+    {
+      lang: "zh",
+      renewalTemplate: "于 {{date}} 续订",
+      canceledTemplate: "已取消 · 可使用至 {{date}}",
+    },
+  ] as const;
+
+  it.each(localizedSubscriptionLabels)(
+    "formats renewal dates for $lang in the device timezone",
+    async ({ lang, renewalTemplate }) => {
+      mockLang = lang;
+      mockDeviceTimeZone("Asia/Bangkok");
+      setBillingSubscription("plus", {
+        willRenew: true,
+        unsubscribeDetectedAt: null,
+        expirationDate: boundaryDate,
+      });
+      const localizedDate = formatDateInZone(
+        boundaryDate,
+        lang,
+        "Asia/Bangkok",
+      );
+      const utcDate = formatDateInZone(boundaryDate, lang, "UTC");
+      expect(localizedDate).not.toBe(utcDate);
+
+      await renderSheet();
+
+      expect(screen.getByTestId("settings-subscription-billing").props.children)
+        .toBe(renewalTemplate.replace("{{date}}", localizedDate));
+    },
+  );
+
+  it.each(localizedSubscriptionLabels)(
+    "keeps the canceled access-end date localized for $lang",
+    async ({ lang, canceledTemplate }) => {
+      mockLang = lang;
+      mockDeviceTimeZone("Asia/Bangkok");
+      setBillingSubscription("pro", {
+        willRenew: false,
+        unsubscribeDetectedAt: "2026-11-01T00:00:00.000Z",
+        expirationDate: boundaryDate,
+      });
+      const localizedDate = formatDateInZone(
+        boundaryDate,
+        lang,
+        "Asia/Bangkok",
+      );
+
+      await renderSheet();
+
+      expect(screen.getByTestId("settings-subscription-billing").props.children)
+        .toBe(canceledTemplate.replace("{{date}}", localizedDate));
+    },
+  );
 });
 
 describe("SettingsSheet — optional notification controls", () => {

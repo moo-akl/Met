@@ -119,6 +119,15 @@ describe("routeNotifTap", () => {
     expect(push).toHaveBeenCalledWith("/chat/user-abc");
   });
 
+  it("routes account removal reminders through sign-in without trusting account data", () => {
+    const result = routeNotifTap({
+      type: "account_deletion_reminder",
+      fromUid: "untrusted-uid",
+    }, { push });
+    expect(result).toBe(true);
+    expect(push).toHaveBeenCalledWith("/onboarding");
+  });
+
   it("routes venue event notifications to the event detail screen", () => {
     const result = routeNotifTap({
       type: "venue_event_notification",

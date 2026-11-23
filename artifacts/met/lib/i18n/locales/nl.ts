@@ -2,6 +2,23 @@ import type { LocaleTree } from "./en";
 import { interestLocales } from "@workspace/interests";
 
 export const nl: LocaleTree = {
+  accountRecovery: {
+    title: "Accountverwijdering is ingepland",
+    body: "Je account en gegevens kunnen tot {{date}} worden hersteld. Log binnen 30 dagen in om je profiel, connecties, evenementgeschiedenis en gekoppelde abonnement terug te krijgen. Je Met-account verwijderen zegt een Apple- of Google Play-abonnement niet op.",
+    restore: "Mijn account herstellen",
+    restoring: "Herstellen…",
+    signOut: "Uitloggen",
+    dateUnknown: "het einde van de herstelperiode",
+    syncPending: "Je account is geblokkeerd terwijl privacywijzigingen worden gesynchroniseerd.",
+    checking: "Accountstatus controleren…",
+    statusUnavailable: "We kunnen je account nu niet controleren. Probeer het opnieuw.",
+    retry: "Opnieuw proberen",
+    expiredTitle: "Je account wordt verwijderd",
+    expiredBody: "De herstelperiode is afgelopen. Accountgegevens worden permanent verwijderd en kunnen niet meer worden hersteld.",
+    purgeFailedTitle: "Accountverwijdering is nog bezig",
+    purgeFailedBody: "De herstelperiode is afgelopen, maar sommige verwijderstappen moeten opnieuw worden geprobeerd. Je account blijft geblokkeerd terwijl de opschoning opnieuw wordt uitgevoerd. Neem contact op met support als dit aanhoudt.",
+    restoreFailed: "We konden je account niet herstellen. Controleer je verbinding en probeer het opnieuw.",
+  },
   common: {
     cancel: "Annuleren",
     done: "Klaar",
@@ -1125,6 +1142,11 @@ export const nl: LocaleTree = {
     planUpgrade: "Upgrade je plan",
     planUpgradeSub:
       "Meer onthullingen, openingsberichten, tot 6 foto's, badges",
+    subscriptionRenewsOn: "Verlengt op {{date}}",
+    subscriptionCanceledUntil: "Geannuleerd · toegang tot {{date}}",
+    subscriptionCanceled: "Geannuleerd",
+    subscriptionAccessEnds: "Verlengt niet · toegang tot {{date}}",
+    subscriptionDateUnavailable: "Factuurdatum niet beschikbaar",
     referrals: "Vrienden uitnodigen",
     referralsProgress: "{{count}} van 3 vrienden meegedaan",
     referralsRewardEarned: "Beloning ontgrendeld — Met Plus actief",
@@ -1185,7 +1207,7 @@ export const nl: LocaleTree = {
       "Geblokkeerde ontmoetingen en connecties verschijnen hier zodat je ze kunt deblokkeren.",
     unblock: "Deblokkeren",
     deleteAccountConfirmBody:
-      "Dit wist je profiel, ontmoetingsgeschiedenis, connecties en voorkeuren van dit apparaat. Je gaat terug naar het welkomstscherm en kunt opnieuw beginnen. Dit is niet ongedaan te maken.",
+      "Je account wordt nu verborgen en na 30 dagen permanent verwijderd. Log binnen 30 dagen in om je profiel, connecties, evenementen en gekoppelde abonnement te herstellen. Dit zegt een Apple- of Google Play-abonnement niet op.",
     deleteAccountConfirmAction: "Account verwijderen",
     profile: "Profiel",
     visibilityOn: "Baken aan — vindbaar in de buurt",
@@ -1221,10 +1243,10 @@ export const nl: LocaleTree = {
     verifiedOn: "Geverifieerd op {{date}}",
     notVerified: "Nog niet geverifieerd",
     deleteAccount: "Account verwijderen",
-    deleteAccountSub: "Alles van dit apparaat wissen",
+    deleteAccountSub: "Verwijdering starten met 30 dagen hersteltermijn",
     deleteAccountConfirmTitle: "Account verwijderen?",
     deleteAccountConfirmSub:
-      "Dit wist je profiel, geschiedenis, connecties en voorkeuren van dit apparaat. Je gaat terug naar het welkomstscherm en kunt opnieuw beginnen. Niet ongedaan te maken.",
+      "Je account wordt nu verborgen en na 30 dagen permanent verwijderd. Log binnen 30 dagen in om je profiel, connecties, evenementen en gekoppelde abonnement te herstellen. Dit zegt een Apple- of Google Play-abonnement niet op.",
     confirmDelete: "Account verwijderen",
     deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Privacybeleid",

@@ -5,9 +5,17 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 const txMock = vi.hoisted(() => {
+  const selectChain = {
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    then: (resolve: (value: unknown[]) => unknown) => Promise.resolve([]).then(resolve),
+  };
   const tx = {
+    select: vi.fn(() => selectChain),
     delete: vi.fn().mockReturnThis(),
     where: vi.fn().mockResolvedValue(undefined),
+    update: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
   };
   return tx;
 });
@@ -84,6 +92,39 @@ vi.mock("@workspace/db", () => ({
   venueEventRsvpsTable: { _name: "venue_event_rsvps" },
   venueEventWelcomeNoteDeliveriesTable: { _name: "venue_event_welcome_note_deliveries" },
   communityEventWelcomeNoteDeliveriesTable: { _name: "community_event_welcome_note_deliveries" },
+  communityEventsTable: {
+    _name: "community_events",
+    id: "id",
+    ownerUid: "ownerUid",
+    accountId: "accountId",
+    inviteeUids: "inviteeUids",
+    updatedAt: "updatedAt",
+  },
+  communityEventRsvpsTable: { _name: "community_event_rsvps", eventId: "eventId", userUid: "userUid" },
+  communityEventPlanMessagesTable: { _name: "community_event_plan_messages", senderUid: "senderUid", mediaObjectPath: "mediaObjectPath" },
+  communityEventPlanMediaUploadsTable: { _name: "community_event_plan_media_uploads", ownerUid: "ownerUid", eventId: "eventId", objectPath: "objectPath" },
+  communityEventPlanNotificationPreferencesTable: { _name: "community_event_plan_notification_preferences", userUid: "userUid" },
+  communityEventJoinRequestsTable: { _name: "community_event_join_requests", userUid: "userUid" },
+  communityEventHostRatingsTable: { _name: "community_event_host_ratings", reviewerUid: "reviewerUid" },
+  eventAttendanceTable: { _name: "event_attendance", eventType: "eventType", eventId: "eventId", userUid: "userUid" },
+  eventAttendanceCorrectionsTable: {
+    _name: "event_attendance_corrections",
+    eventType: "eventType",
+    eventId: "eventId",
+    userUid: "userUid",
+    actorUid: "actorUid",
+  },
+}));
+
+vi.mock("drizzle-orm", () => ({
+  and: (...conditions: unknown[]) => ({ op: "and", conditions }),
+  eq: (column: unknown, value: unknown) => ({ op: "eq", column, value }),
+  inArray: (column: unknown, values: unknown) => ({ op: "inArray", column, values }),
+  or: (...conditions: unknown[]) => ({ op: "or", conditions }),
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+    { raw: (text: string) => ({ text }) },
+  ),
 }));
 
 vi.mock("./firebaseAdmin", () => ({
@@ -126,7 +167,7 @@ beforeEach(() => {
 
   // Execute the transaction callback synchronously with the tx mock.
   dbMock.transaction.mockImplementation(async (cb: (tx: typeof txMock) => Promise<void>) => {
-    await cb(txMock);
+    return await cb(txMock);
   });
 
   // Default: Storage lists no files — nothing to delete, no failures.
@@ -186,6 +227,34 @@ describe("deleteUserData — Postgres cleanup", () => {
     await deleteUserData("uid-alice");
     expect(tables).toContain(venueQrVerificationsTable);
     expect(tables).toContain(venueReviewsTable);
+  });
+  it("purges member-created events, their dependent rows, and subscription usage sources", async () => {
+    const { tables } = captureDeletedTables();
+    const {
+      communityEventsTable,
+      communityEventRsvpsTable,
+      communityEventPlanMessagesTable,
+      communityEventPlanMediaUploadsTable,
+      communityEventPlanNotificationPreferencesTable,
+      communityEventJoinRequestsTable,
+      communityEventHostRatingsTable,
+      subscriptionsTable,
+      eventAttendanceTable,
+      eventAttendanceCorrectionsTable,
+    } = await import("@workspace/db");
+
+    await deleteUserData("uid-member", { accountId: "stable-account-id", strictCleanup: true });
+
+    expect(tables).toContain(communityEventRsvpsTable);
+    expect(tables).toContain(communityEventPlanMessagesTable);
+    expect(tables).toContain(communityEventPlanMediaUploadsTable);
+    expect(tables).toContain(communityEventPlanNotificationPreferencesTable);
+    expect(tables).toContain(communityEventJoinRequestsTable);
+    expect(tables).toContain(communityEventHostRatingsTable);
+    expect(tables).toContain(communityEventsTable);
+    expect(tables).toContain(subscriptionsTable);
+    expect(tables).toContain(eventAttendanceTable);
+    expect(tables).toContain(eventAttendanceCorrectionsTable);
   });
 
   it("deletes the profile row AFTER other tables (profile is last)", async () => {

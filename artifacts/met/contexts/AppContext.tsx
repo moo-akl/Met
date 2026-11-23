@@ -10,8 +10,6 @@ import React, {
 import { Alert, AppState, Platform } from "react-native";
 
 import {
-  deleteUserAccount,
-  getCurrentUserEmail,
   signOut as firebaseSignOut,
   subscribeToAuthState,
 } from "@/lib/auth";
@@ -24,7 +22,12 @@ import {
   buildStoreDemoProfile,
 } from "@/lib/seed";
 import { isStoreDemoEnabled } from "@/lib/storeDemo";
-import { api, ApiError, type RemoteRevealRequestWithProfile } from "@/lib/api/client";
+import {
+  api,
+  ApiError,
+  type AccountLifecycleStatus,
+  type RemoteRevealRequestWithProfile,
+} from "@/lib/api/client";
 import {
   startProximity,
   stopProximity,
@@ -85,6 +88,19 @@ type AppContextValue = {
   ready: boolean;
   /** Firebase Auth UID — use this for Firestore operations, not profile.id */
   authedUid: string | null;
+  revenueCatIdentity: {
+    status: "loading" | "ready" | "error" | "signed_out";
+    uid: string | null;
+    accountId: string | null;
+  };
+  accountLifecycle: {
+    status: AccountLifecycleStatus["status"] | "loading" | "signed_out" | "unavailable";
+    accountId: string | null;
+    deletionRequestedAt: string | null;
+    purgeAfter: string | null;
+    firestoreSyncPending: boolean;
+  };
+  refreshAccountLifecycle: () => Promise<void>;
   profile: Profile | null;
   encounters: Encounter[];
   blockedEncounters: Encounter[];
@@ -218,6 +234,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // subscription that populates it lives later in this component.
   const [authedUid, setAuthedUid] = useState<string | null>(null);
   const authUidRef = useRef<string | null>(null);
+  const [revenueCatIdentity, setRevenueCatIdentity] = useState<
+    AppContextValue["revenueCatIdentity"]
+  >({ status: "loading", uid: null, accountId: null });
+  const [accountLifecycle, setAccountLifecycle] = useState<AppContextValue["accountLifecycle"]>({
+    status: "loading",
+    accountId: null,
+    deletionRequestedAt: null,
+    purgeAfter: null,
+    firestoreSyncPending: false,
+  });
   const [visibilityReconciledUid, setVisibilityReconciledUid] = useState<
     string | null
   >(null);
@@ -272,6 +298,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       authUidRef.current = null;
       setVisibilityReconciledUid(null);
       setAuthedUid(null);
+      setAccountLifecycle({
+        status: "signed_out",
+        accountId: null,
+        deletionRequestedAt: null,
+        purgeAfter: null,
+        firestoreSyncPending: false,
+      });
       setReady(true);
       return () => {
         mounted = false;
@@ -383,6 +416,107 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     preferences.notifyCrownDefense,
     preferences.notifyRewardUpdates,
   ]);
+
+  const refreshAccountLifecycle = useCallback(async (uidOverride?: string) => {
+    const uid = uidOverride ?? authUidRef.current;
+    if (!uid) {
+      setRevenueCatIdentity({ status: "signed_out", uid: null, accountId: null });
+      setAccountLifecycle({
+        status: "signed_out",
+        accountId: null,
+        deletionRequestedAt: null,
+        purgeAfter: null,
+        firestoreSyncPending: false,
+      });
+      return;
+    }
+    if (!api.isConfigured()) {
+      setRevenueCatIdentity({ status: "error", uid, accountId: null });
+      setAccountLifecycle({
+        status: "unavailable",
+        accountId: null,
+        deletionRequestedAt: null,
+        purgeAfter: null,
+        firestoreSyncPending: false,
+      });
+      return;
+    }
+    setRevenueCatIdentity((current) =>
+      current.status === "ready" && current.uid === uid
+        ? current
+        : { status: "loading", uid, accountId: current.uid === uid ? current.accountId : null },
+    );
+    if (authUidRef.current === uid) {
+      setAccountLifecycle((current) =>
+        current.status === "active" || current.status === "pending_deletion"
+          ? current
+          : { ...current, status: "loading" },
+      );
+    }
+    try {
+      const result = await api.getAccountStatus({ uid });
+      if (authUidRef.current !== uid) return;
+      setAccountLifecycle({
+        status: result.status,
+        accountId: result.accountId,
+        deletionRequestedAt: result.deletionRequestedAt,
+        purgeAfter: result.purgeAfter,
+        firestoreSyncPending: result.firestoreSyncPending,
+      });
+      setRevenueCatIdentity((current) =>
+        current.status === "ready" &&
+        current.uid === uid &&
+        current.accountId === result.accountId
+          ? current
+          : { status: "loading", uid, accountId: result.accountId },
+      );
+      try {
+        await Purchases.logIn(result.accountId);
+        if (authUidRef.current !== uid) return;
+        setRevenueCatIdentity({
+          status: "ready",
+          uid,
+          accountId: result.accountId,
+        });
+      } catch (err) {
+        if (authUidRef.current !== uid) return;
+        setRevenueCatIdentity({
+          status: "error",
+          uid,
+          accountId: result.accountId,
+        });
+        console.warn("[appcontext] RevenueCat identity could not be synchronized", err);
+      }
+      if (result.status !== "active") {
+        profileRef.current = null;
+        setProfileState(null);
+        setAllEncounters([]);
+        setVisibilityReconciledUid(null);
+        stopProximity();
+        stopBleProximity();
+        stopFirestoreProximity(uid);
+        await Promise.all([
+          clearProfile().catch(() => {}),
+          clearEncounters().catch(() => {}),
+          saveEncounters([]).catch(() => {}),
+        ]);
+      }
+    } catch (err) {
+      if (authUidRef.current !== uid) return;
+      setRevenueCatIdentity({ status: "error", uid, accountId: null });
+      setAccountLifecycle({
+        status: "unavailable",
+        accountId: null,
+        deletionRequestedAt: null,
+        purgeAfter: null,
+        firestoreSyncPending: false,
+      });
+      stopProximity();
+      stopBleProximity();
+      stopFirestoreProximity(uid);
+      console.warn("[appcontext] account status could not be refreshed", err);
+    }
+  }, []);
 
   const setProfile = useCallback(async (p: Profile) => {
     const previous = profileRef.current;
@@ -564,10 +698,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPreferencesState(DEFAULT_PREFERENCES);
       return;
     }
-    // Tear down the Firebase identity FIRST so the user truly starts
-    // fresh on next onboarding. Best-effort: never throws.
+    // Legacy local reset helper. It must not delete the Firebase identity;
+    // account deletion is scheduled through api.deleteMe in Settings.
     const previousUid = profileRef.current?.id ?? null;
-    await deleteUserAccount();
+    setRevenueCatIdentity({ status: "signed_out", uid: null, accountId: null });
+    await Purchases.logOut().catch(() => {});
+    await firebaseSignOut();
     await clearProfile();
     await clearEncounters();
     await clearPreferences();
@@ -592,14 +728,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Sign out of Firebase and wipe local app state, but DO NOT delete the
-  // Firebase account. Distinct from `resetAll` (Delete Account) because
-  // the user can sign back in later and recreate their profile under the
-  // same identity. We still clear local profile/encounters/preferences
+  // Firebase account. Account deletion is scheduled separately through the
+  // server lifecycle endpoint, so the user can sign back in and recover it.
+  // We still clear local profile/encounters/preferences
   // because everything user-specific lives on-device — leaving them in
   // place would leak the previous user's data to whoever signs in next.
   const signOutAndClear = useCallback(async () => {
     if (isStoreDemoEnabled()) return;
     const previousUid = profileRef.current?.id ?? null;
+    setRevenueCatIdentity({ status: "signed_out", uid: null, accountId: null });
     await Purchases.logOut().catch(() => {});
     await firebaseSignOut();
     await clearProfile();
@@ -797,29 +934,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isStoreDemoEnabled()) {
       setAuthedUid(null);
+      setRevenueCatIdentity({ status: "signed_out", uid: null, accountId: null });
       return;
     }
     const unsub = subscribeToAuthState((uid) => {
       if (authUidRef.current !== uid) {
         authUidRef.current = uid;
         setVisibilityReconciledUid(null);
+        setRevenueCatIdentity(
+          uid
+            ? { status: "loading", uid, accountId: null }
+            : { status: "signed_out", uid: null, accountId: null },
+        );
       }
       setAuthedUid(uid);
       if (uid) {
-        Purchases.logIn(uid).catch(() => {});
-        // Attach email as a subscriber attribute so RC can identify the
-        // customer across reinstalls and devices even when UID changes.
-        getCurrentUserEmail()
-          .then((email) => {
-            if (email) Purchases.setEmail(email).catch(() => {});
-          })
-          .catch(() => {});
+        setAccountLifecycle({
+          status: "loading",
+          accountId: null,
+          deletionRequestedAt: null,
+          purgeAfter: null,
+          firestoreSyncPending: false,
+        });
+        void refreshAccountLifecycle(uid);
       } else {
+        setRevenueCatIdentity({ status: "signed_out", uid: null, accountId: null });
+        setAccountLifecycle({
+          status: "signed_out",
+          accountId: null,
+          deletionRequestedAt: null,
+          purgeAfter: null,
+          firestoreSyncPending: false,
+        });
         Purchases.logOut().catch(() => {});
       }
     });
-    return () => unsub();
-  }, []);
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active" && authUidRef.current) {
+        void refreshAccountLifecycle(authUidRef.current);
+      }
+    });
+    return () => {
+      unsub();
+      appStateSub.remove();
+    };
+  }, [refreshAccountLifecycle]);
 
   // Local storage is only a cache. Resolve visibility from the canonical
   // server record before any saved `isVisible: true` can start discovery.
@@ -902,9 +1061,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       try {
         if (!api.isConfigured()) {
-          const hidden = await failClosedHide(profileRef.current);
-          if (hidden) finishReconciliation();
-          else retryWithoutChangingPreference();
+          const current = profileRef.current;
+          if (current?.isVisible === true) {
+            // Keep a previously consented Visible preference across a
+            // temporary API/configuration outage, but do not resume local
+            // discovery until the canonical server state is confirmed.
+            await stopLocalDiscovery();
+            retryWithoutChangingPreference();
+          } else {
+            const hidden = await failClosedHide(current);
+            if (hidden) finishReconciliation();
+            else retryWithoutChangingPreference();
+          }
           return;
         }
         const remote = await api.getMyProfile({ uid });
@@ -979,11 +1147,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           finishReconciliation();
           return;
         }
-        // If visibility cannot be verified, hide locally and ask the server
-        // to hide too. Never leave discovery active based on a stale cache.
-        const hidden = await failClosedHide(profileRef.current);
-        if (hidden) finishReconciliation();
-        else retryWithoutChangingPreference();
+        const current = profileRef.current;
+        if (current?.isVisible === true) {
+          // A failed read/acknowledgement is not a user opt-out. Preserve the
+          // saved preference, pause discovery, and retry canonical sync.
+          await stopLocalDiscovery();
+          retryWithoutChangingPreference();
+        } else {
+          // A locally hidden profile must remain fail-closed if the server
+          // cannot confirm that the account-wide opt-out has completed.
+          const hidden = await failClosedHide(current);
+          if (hidden) finishReconciliation();
+          else retryWithoutChangingPreference();
+        }
       }
     })();
     return () => {
@@ -2178,6 +2354,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ready,
       authedUid,
+      revenueCatIdentity,
+      accountLifecycle,
+      refreshAccountLifecycle,
       profile,
       encounters,
       blockedEncounters,
@@ -2205,6 +2384,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       ready,
       authedUid,
+      revenueCatIdentity,
+      accountLifecycle,
+      refreshAccountLifecycle,
       profile,
       encounters,
       blockedEncounters,

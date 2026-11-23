@@ -292,4 +292,17 @@ describe("resetAll — per-device flags are wiped", () => {
     expect(store[DISCLOSURE_LOCATION_KEY]).toBeUndefined();
     expect(store[DISCLOSURE_BLUETOOTH_KEY]).toBeUndefined();
   });
+
+  it("does not immediately delete the Firebase identity", async () => {
+    const callbacks = renderApp();
+    const auth = jest.requireMock("@/lib/auth") as {
+      deleteUserAccount: jest.Mock;
+    };
+
+    await TestRenderer.act(async () => {
+      await callbacks.resetAll!();
+    });
+
+    expect(auth.deleteUserAccount).not.toHaveBeenCalled();
+  });
 });

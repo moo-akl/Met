@@ -169,13 +169,6 @@
       "expo-font",
       "expo-web-browser",
       [
-        "expo-calendar",
-        {
-          "calendarPermission": "Met needs calendar access to add events, Hangouts, and plans to your device calendar.",
-          "remindersPermission": "Met's calendar integration checks reminders permission status. Met does not request access to your reminders."
-        }
-      ],
-      [
         "expo-splash-screen",
         {
           "image": "./assets/images/icon.png",
@@ -227,7 +220,7 @@
         }
       ],
       [
-        "./plugins/with-sdk54-maps.js",
+        "react-native-maps",
         {
           "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
         }
@@ -254,10 +247,10 @@
       "reactCompiler": true
     },
     "extra": {
-      "startupDiagnostics": true,
       "eas": {
         "projectId": "f9d35bdb-e890-408f-b9d9-4ca36cbeae23"
-      }
+      },
+      "startupDiagnostics": true
     },
     "runtimeVersion": {
       "policy": "appVersion"

@@ -669,6 +669,17 @@ export interface VenueGuestbookPage {
   eligibility: "profile" | "checkin" | null;
 }
 
+export interface AccountLifecycleStatus {
+  accountId: string;
+  status: "active" | "pending_deletion" | "purging" | "purge_failed" | "purged";
+  deletionRequestedAt: string | null;
+  purgeAfter: string | null;
+  firestoreSyncPending: boolean;
+  recoveryWindowDays: number;
+}
+
+export interface AccountDeletionRequestResult extends AccountLifecycleStatus {}
+
 export type VenueGuestbookReportReason =
   | "inappropriate"
   | "offensive_image"
@@ -683,12 +694,18 @@ export const api = {
     request<RemoteProfile>("GET", "/api/profiles/me", opts),
   upsertMyProfile: (opts: ApiOptions, input: UpsertProfileInput) =>
     request<RemoteProfile>("PUT", "/api/profiles/me", opts, input),
-  /**
-   * Permanently delete the caller's account — removes all data from
-   * Postgres, Firestore, and Firebase Auth. Cannot be undone.
-   */
+  getAccountStatus: (opts: ApiOptions) =>
+    request<AccountLifecycleStatus>("GET", "/api/profiles/me/account-status", opts),
+  recoverAccount: (opts: ApiOptions) =>
+    request<AccountLifecycleStatus>(
+      "POST",
+      "/api/profiles/me/recover-deletion",
+      opts,
+      {},
+    ),
+  /** Starts the 30-day account recovery window. */
   deleteMe: (opts: ApiOptions, body?: { deleteVenueProfile?: boolean }) =>
-    request<void>("DELETE", "/api/profiles/me", opts, body),
+    request<AccountDeletionRequestResult>("DELETE", "/api/profiles/me", opts, body),
   /**
    * Upload a profile photo as raw base64 (no `data:` prefix). Server
    * stores it in Firebase Storage at `profile-photos/{uid}.{ext}` and

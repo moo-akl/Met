@@ -304,13 +304,18 @@ export type VenueContentReport = typeof venueContentReportsTable.$inferSelect;
 export const subscriptionsTable = pgTable("subscriptions", {
   id: serial("id").primaryKey(),
   userUid: text("user_uid").notNull().unique(),
+  accountId: text("account_id"),
   tier: text("tier").notNull().default("free"),   // 'free' | 'plus' | 'pro'
   status: text("status").notNull().default("inactive"), // 'active' | 'inactive'
   expiryDate: timestamp("expiry_date", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  accountIdUnique: uniqueIndex("subscriptions_account_id_unique").on(
+    table.accountId,
+  ),
+}));
 
 export type Subscription = typeof subscriptionsTable.$inferSelect;
 

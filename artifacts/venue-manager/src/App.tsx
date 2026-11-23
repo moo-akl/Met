@@ -56,6 +56,7 @@ import {
   EventWelcomeNoteStyleFields,
 } from "./components/EventWelcomeNoteStyleFields";
 import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
+import { buildEventRsvpCsv } from "./lib/eventRsvpCsv";
 import {
   countVenueEventRsvps,
   filterVenueEventRsvps,
@@ -1529,6 +1530,7 @@ export function EventAttendanceModal({ event, businessId, csrfToken, onClose }: 
   const [rsvps, setRsvps] = useState<VenueEventRsvp[]>([]);
   const [corrections, setCorrections] = useState<VenueEventCorrection[]>([]);
   const [notificationRuns, setNotificationRuns] = useState<VenueEventNotificationRun[]>([]);
+  const [attendanceReady, setAttendanceReady] = useState(false);
   const [qrUrl, setQrUrl] = useState("");
   const [posterTheme, setPosterTheme] = useState<"garden" | "studio" | "after-hours">("garden");
   const [posterMessage, setPosterMessage] = useState("Scan to check in with Met");
@@ -1587,6 +1589,7 @@ export function EventAttendanceModal({ event, businessId, csrfToken, onClose }: 
     setRsvps(data.rsvps ?? []);
     setCorrections(data.corrections ?? []);
     setNotificationRuns(data.notificationRuns ?? []);
+    setAttendanceReady(true);
   };
   const refreshAttendance = async () => applyAttendance(await readAttendance());
 
@@ -1685,6 +1688,17 @@ export function EventAttendanceModal({ event, businessId, csrfToken, onClose }: 
   const checkedInUids = new Set(attendees.map((attendee) => attendee.uid));
   const rsvpCounts = countVenueEventRsvps(rsvps);
   const visibleRsvps = filterVenueEventRsvps(rsvps, rsvpFilter, rsvpSearch);
+  const exportRsvps = () => {
+    try {
+      const csv = buildEventRsvpCsv(rsvps, attendees);
+      downloadBlob(
+        new Blob([csv], { type: "text/csv;charset=utf-8" }),
+        `event-${event.id}-rsvps.csv`,
+      );
+    } catch {
+      setMessage("Could not export the RSVP list. Please try again.");
+    }
+  };
 
   return (
     <Modal title="Event attendance" className="vm-print-modal" onClose={onClose}>
@@ -1761,7 +1775,18 @@ export function EventAttendanceModal({ event, businessId, csrfToken, onClose }: 
           {!qrUrl && <button type="button" className="vm-primary" disabled={qrPending} data-testid="button-create-event-checkin-qr" onClick={() => void loadQr(false)}>{qrPending ? "Loading…" : "Create QR code"}</button>}
         </div>
         <section>
-          <h3 style={{ marginBottom: 6 }}>RSVP responses · {rsvps.length}</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h3 style={{ marginBottom: 6 }}>RSVP responses · {rsvps.length}</h3>
+            <button
+              type="button"
+              className="vm-secondary"
+              data-testid="button-export-event-rsvps"
+              disabled={pending || !attendanceReady}
+              onClick={exportRsvps}
+            >
+              <Download size={14} />Export CSV
+            </button>
+          </div>
           <p className="vm-subtitle">View every response by status. Check-in records remain separate from RSVP choices.</p>
           <div
             role="group"

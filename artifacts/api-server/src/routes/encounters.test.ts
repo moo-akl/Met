@@ -4,6 +4,15 @@ vi.mock("../lib/socialProfileAccess", () => ({
   canUseSocialFeatures: async () => true,
 }));
 
+vi.mock("../lib/userAccountIdentity", () => ({
+  ensureUserAccount: async (uid: string) => ({
+    accountId: uid,
+    firebaseUid: uid,
+    status: "active",
+    purgeAfter: null,
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Hoisted mock handles — defined before vi.mock() factory runs.
 // ---------------------------------------------------------------------------

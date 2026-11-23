@@ -32,6 +32,27 @@ const drizzleMocks = vi.hoisted(() => ({
 const poolMocks = vi.hoisted(() => ({
   connect: vi.fn(),
 }));
+const accountDeletionMocks = vi.hoisted(() => ({
+  account: {
+    accountId: "account-alice",
+    firebaseUid: "alice",
+    status: "active",
+    deletionRequestedAt: null as Date | null,
+    purgeAfter: null as Date | null,
+    deleteVenueProfile: false,
+    wasProfileVisible: false,
+    firestoreSyncPending: false,
+    purgeAttempts: 0,
+    lastPurgeAttemptAt: null as Date | null,
+    purgeError: null as string | null,
+    purgedAt: null as Date | null,
+    createdAt: new Date("2025-01-01T00:00:00Z"),
+    updatedAt: new Date("2025-01-01T00:00:00Z"),
+  },
+  get: vi.fn(),
+  start: vi.fn(),
+  restore: vi.fn(),
+}));
 
 // Distinct objects so we can compare table references in delete-order assertions.
 const venueTableMocks = vi.hoisted(() => ({
@@ -64,9 +85,27 @@ vi.mock("../lib/deleteUserData", () => ({
   deleteUserData: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../lib/deleteVenueOwnerProfile", () => ({
-  // Returns string[] (event image URLs) — default to empty array.
-  deleteVenueOwnerProfile: vi.fn().mockResolvedValue([]),
+vi.mock("../lib/userAccountIdentity", () => ({
+  ensureUserAccount: vi.fn(async (uid: string) => ({
+    ...accountDeletionMocks.account,
+    accountId: `account-${uid}`,
+    firebaseUid: uid,
+    status: "active",
+  })),
+}));
+
+vi.mock("../lib/accountDeletion", () => ({
+  getUserAccountById: accountDeletionMocks.get,
+  startAccountDeletion: accountDeletionMocks.start,
+  restoreAccount: accountDeletionMocks.restore,
+  serializeAccountLifecycle: (account: typeof accountDeletionMocks.account) => ({
+    accountId: account.accountId,
+    status: account.status,
+    deletionRequestedAt: account.deletionRequestedAt?.toISOString() ?? null,
+    purgeAfter: account.purgeAfter?.toISOString() ?? null,
+    firestoreSyncPending: account.firestoreSyncPending,
+    recoveryWindowDays: account.status === "pending_deletion" ? 30 : 30,
+  }),
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
@@ -84,19 +123,17 @@ vi.mock("../lib/firebaseAdmin", () => ({
   tryInitAdmin: vi.fn(() => null),
 }));
 
-vi.mock("../lib/deleteVenueStorageFiles", () => ({
-  deleteVenueStorageFiles: vi.fn().mockResolvedValue(undefined),
-}));
-
 // ---------------------------------------------------------------------------
 // App — imported after mocks are registered so mocked modules are in place.
 // ---------------------------------------------------------------------------
 
 import request from "supertest";
 import app from "../app";
-import { deleteUserData } from "../lib/deleteUserData";
-import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
-import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
+import {
+  getUserAccountById,
+  restoreAccount,
+  startAccountDeletion,
+} from "../lib/accountDeletion";
 import {
   clearEncounterMirrorsForHiddenUser,
   hideProfileFromFirestore,
@@ -209,15 +246,21 @@ beforeEach(() => {
   (clearEncounterMirrorsForHiddenUser as ReturnType<typeof vi.fn>)
     .mockReset()
     .mockResolvedValue({ ok: true });
-  (deleteUserData as ReturnType<typeof vi.fn>)
-    .mockReset()
-    .mockResolvedValue(undefined);
-  (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>)
-    .mockReset()
-    .mockResolvedValue([]);
-  (deleteVenueStorageFiles as ReturnType<typeof vi.fn>)
-    .mockReset()
-    .mockResolvedValue(undefined);
+  accountDeletionMocks.get.mockReset().mockResolvedValue(accountDeletionMocks.account);
+  accountDeletionMocks.start.mockReset().mockImplementation(
+    async (_uid: string, accountId: string, deleteVenueProfile: boolean) => ({
+      ...accountDeletionMocks.account,
+      accountId,
+      status: "pending_deletion",
+      deletionRequestedAt: new Date("2026-11-22T00:00:00Z"),
+      purgeAfter: new Date("2026-12-22T00:00:00Z"),
+      deleteVenueProfile,
+    }),
+  );
+  accountDeletionMocks.restore.mockReset().mockResolvedValue({
+    account: { ...accountDeletionMocks.account, status: "active" },
+    syncPending: false,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -954,150 +997,67 @@ describe("GET /api/profiles/:uid", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/profiles/me
+// Account deletion lifecycle
 // ---------------------------------------------------------------------------
 
-describe("DELETE /api/profiles/me", () => {
-  // Cast mocked functions to spies so we can assert calls.
-  const deleteUserDataSpy = deleteUserData as ReturnType<typeof vi.fn>;
-  const deleteVenueOwnerProfileSpy = deleteVenueOwnerProfile as ReturnType<typeof vi.fn>;
-
-  const venueOwnerProfileFixture = {
-    id: 99,
-    ownerUid: "alice",
-    placeId: "place-123",
-    placeName: "Alice's Bar",
-    businessName: "Alice's Bar Ltd",
-    applicationStatus: "approved" as const,
-    isApproved: true,
-    isVerified: true,
-    createdAt: new Date("2025-01-01"),
-    updatedAt: new Date("2025-01-01"),
-  };
-
+describe("account deletion lifecycle routes", () => {
   it("returns 401 when not authenticated", async () => {
     const res = await request(app).delete("/api/profiles/me").send({});
     expect(res.status).toBe(401);
   });
 
-  it("returns 204 and calls deleteUserData but skips venue cascade when deleteVenueProfile is absent", async () => {
-    const res = await request(app)
-      .delete("/api/profiles/me")
-      .set("x-met-uid", "alice")
-      .send({});
-
-    expect(res.status).toBe(204);
-    expect(deleteUserDataSpy).toHaveBeenCalledWith("alice");
-    // No venue table should have been targeted.
-    expect(deleteVenueOwnerProfileSpy).not.toHaveBeenCalled();
-    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
-  });
-
-  it("runs the full venue cascade and calls deleteUserData when deleteVenueProfile is true and a profile is found", async () => {
-    // The handler does: select owner profile → found → db.transaction(deleteVenueOwnerProfile)
-    // The limit() call resolves to a non-empty array so the profile is found.
-    dbMocks.chain.limit.mockResolvedValueOnce([venueOwnerProfileFixture]);
-
+  it("schedules deletion and preserves the selected venue-profile choice", async () => {
     const res = await request(app)
       .delete("/api/profiles/me")
       .set("x-met-uid", "alice")
       .send({ deleteVenueProfile: true });
 
-    expect(res.status).toBe(204);
-
-    // deleteVenueOwnerProfile must have been called inside a transaction.
-    expect(dbMocks.chain.transaction).toHaveBeenCalledTimes(1);
-    expect(deleteVenueOwnerProfileSpy).toHaveBeenCalledTimes(1);
-    // The profile object passed must include both id and ownerUid.
-    expect(deleteVenueOwnerProfileSpy).toHaveBeenCalledWith(
-      expect.anything(), // tx handle
-      expect.objectContaining({ id: 99, ownerUid: "alice" }),
-    );
-
-    // Core user data must still be cleaned up after the venue cascade.
-    expect(deleteUserDataSpy).toHaveBeenCalledWith("alice");
-  });
-
-  it("skips the venue cascade but still deletes user data when no venue profile is found", async () => {
-    // Profile lookup returns empty — user never registered as a venue owner.
-    dbMocks.chain.limit.mockResolvedValueOnce([]);
-
-    const res = await request(app)
-      .delete("/api/profiles/me")
-      .set("x-met-uid", "alice")
-      .send({ deleteVenueProfile: true });
-
-    expect(res.status).toBe(204);
-    expect(deleteVenueOwnerProfileSpy).not.toHaveBeenCalled();
-    expect(dbMocks.chain.transaction).not.toHaveBeenCalled();
-    expect(deleteUserDataSpy).toHaveBeenCalledWith("alice");
-  });
-
-  it("calls deleteUserData which cleans up RSVPs the user made as an attendee at other venues", async () => {
-    // RSVPs by userUid (attendee role) are cleaned up inside deleteUserData, not in the
-    // venue-specific block. This test verifies that deleteUserData is always called,
-    // ensuring those RSVPs are never orphaned after account deletion.
-    const res = await request(app)
-      .delete("/api/profiles/me")
-      .set("x-met-uid", "alice")
-      .send({});
-
-    expect(res.status).toBe(204);
-    // deleteUserData is responsible for removing venue_event_rsvps where userUid = alice.
-    expect(deleteUserDataSpy).toHaveBeenCalledWith("alice");
-  });
-
-  it("calls deleteVenueStorageFiles with cover photo, logo, and event image URLs when deleteVenueProfile is true", async () => {
-    const deleteVenueStorageFilesSpy = deleteVenueStorageFiles as ReturnType<typeof vi.fn>;
-
-    const coverPhotoUrl =
-      "https://storage.googleapis.com/my-bucket/venue-profile-photos/alice/cover-123.jpg";
-    const logoUrl =
-      "https://storage.googleapis.com/my-bucket/venue-profile-photos/alice/logo-456.jpg";
-    const eventImageUrl =
-      "https://storage.googleapis.com/my-bucket/venue-event-images/alice/event-789.jpg";
-
-    const profileWithPhotos = {
-      ...venueOwnerProfileFixture,
-      coverPhotoUrl,
-      logoUrl,
-    };
-    dbMocks.chain.limit.mockResolvedValueOnce([profileWithPhotos]);
-
-    // The cascade returns only URLs not reused by another venue.
-    (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>).mockResolvedValueOnce([coverPhotoUrl, logoUrl, eventImageUrl]);
-
-    const res = await request(app)
-      .delete("/api/profiles/me")
-      .set("x-met-uid", "alice")
-      .send({ deleteVenueProfile: true });
-
-    expect(res.status).toBe(204);
-
-    // deleteVenueStorageFiles must be called with all three URLs so the helper
-    // can apply its bucket/prefix validation before deleting.
-    expect(deleteVenueStorageFilesSpy).toHaveBeenCalledTimes(1);
-    expect(deleteVenueStorageFilesSpy).toHaveBeenCalledWith(
-      [coverPhotoUrl, logoUrl, eventImageUrl],
-      expect.objectContaining({ uid: "alice" }),
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({
+      accountId: "account-alice",
+      status: "pending_deletion",
+      recoveryWindowDays: 30,
+    });
+    expect(startAccountDeletion).toHaveBeenCalledWith(
+      "alice",
+      "account-alice",
+      true,
     );
   });
 
-  it("calls deleteVenueStorageFiles even when the profile has no photo URLs", async () => {
-    const deleteVenueStorageFilesSpy = deleteVenueStorageFiles as ReturnType<typeof vi.fn>;
+  it("returns account lifecycle status without exposing account data", async () => {
+    const res = await request(app)
+      .get("/api/profiles/me/account-status")
+      .set("x-met-uid", "alice");
 
-    // Profile has null for both photo columns; deleteVenueOwnerProfile returns no event images.
-    dbMocks.chain.limit.mockResolvedValueOnce([venueOwnerProfileFixture]);
-    (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      accountId: "account-alice",
+      status: "active",
+      recoveryWindowDays: 30,
+    });
+    expect(getUserAccountById).toHaveBeenCalledWith("account-alice");
+    expect(res.body).not.toHaveProperty("firebaseUid");
+  });
 
+  it("restores the account through the recovery endpoint", async () => {
+    const res = await request(app)
+      .post("/api/profiles/me/recover-deletion")
+      .set("x-met-uid", "alice")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("active");
+    expect(restoreAccount).toHaveBeenCalledWith("alice", "account-alice");
+  });
+
+  it("rejects a non-boolean venue profile choice", async () => {
     const res = await request(app)
       .delete("/api/profiles/me")
       .set("x-met-uid", "alice")
-      .send({ deleteVenueProfile: true });
+      .send({ deleteVenueProfile: "yes" });
 
-    expect(res.status).toBe(204);
-    // The helper is still called (with an all-null/empty list) — it handles
-    // skipping internally rather than the caller needing to guard.
-    expect(deleteVenueStorageFilesSpy).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(400);
+    expect(startAccountDeletion).not.toHaveBeenCalled();
   });
 });

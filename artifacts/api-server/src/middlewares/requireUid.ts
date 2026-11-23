@@ -2,17 +2,55 @@ import type { Request, Response, NextFunction } from "express";
 import { adminAuth } from "../lib/firebaseAdmin";
 import { needsSocialProfile } from "../lib/socialEligibility";
 import { canUseSocialFeatures } from "../lib/socialProfileAccess";
+import { ensureUserAccount } from "../lib/userAccountIdentity";
 
 declare global {
   namespace Express {
     interface Request {
       uid?: string;
+      accountId?: string;
+      accountStatus?: string;
     }
   }
 }
 
 const UID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const IS_PROD = process.env["NODE_ENV"] === "production";
+const RECOVERY_ROUTES = new Set([
+  "GET /profiles/me/account-status",
+  "POST /profiles/me/recover-deletion",
+]);
+
+async function authorizeAccount(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const account = await ensureUserAccount(req.uid!);
+    req.accountId = account.accountId;
+    req.accountStatus = account.status;
+    if (
+      account.status !== "active" &&
+      !RECOVERY_ROUTES.has(`${req.method.toUpperCase()} ${req.path}`)
+    ) {
+      res.status(423).json({
+        code: "ACCOUNT_PENDING_DELETION",
+        status: account.status,
+        purgeAfter: account.purgeAfter?.toISOString() ?? null,
+        message: "This account is unavailable while deletion is pending.",
+      });
+      return;
+    }
+    await authorizeProfile(req, res, next);
+  } catch (err) {
+    req.log?.error({ err }, "Could not resolve account lifecycle");
+    res.status(503).json({
+      code: "ACCOUNT_STATUS_UNAVAILABLE",
+      message: "Account status is temporarily unavailable. Please try again.",
+    });
+  }
+}
 
 async function authorizeProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (needsSocialProfile(req.method, req.path)) {
@@ -64,7 +102,7 @@ export async function requireUid(
       return;
     }
     try {
-      const decoded = await verifier.verifyIdToken(idToken);
+      const decoded = await verifier.verifyIdToken(idToken, true);
       req.uid = decoded.uid;
     } catch (err) {
       req.log?.warn(
@@ -74,7 +112,7 @@ export async function requireUid(
       res.status(401).json({ message: "Invalid or expired ID token" });
       return;
     }
-    await authorizeProfile(req, res, next);
+    await authorizeAccount(req, res, next);
     return;
   }
 
@@ -87,7 +125,7 @@ export async function requireUid(
         return;
       }
       req.uid = uid;
-      await authorizeProfile(req, res, next);
+      await authorizeAccount(req, res, next);
       return;
     }
   }
