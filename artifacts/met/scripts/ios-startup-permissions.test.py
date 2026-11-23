@@ -21,7 +21,10 @@ class StartupPermissionsTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.config = self.root / "app.json"
         self.config.write_text(json.dumps({
-            "expo": {"ios": {"bundleIdentifier": "test.met.fixture", "buildNumber": "1"}}
+            "expo": {
+                "ios": {"bundleIdentifier": "test.met.fixture", "buildNumber": "1"},
+                "plugins": ["expo-calendar"],
+            }
         }))
         self.info = {
             "CFBundleIdentifier": "test.met.fixture",
@@ -44,6 +47,30 @@ class StartupPermissionsTest(unittest.TestCase):
         for fmt in (plistlib.FMT_BINARY, plistlib.FMT_XML):
             with self.subTest(fmt=fmt):
                 validator.validate_ipa(self.archive(fmt=fmt), self.config)
+
+    def test_accepts_calendar_free_app_without_unused_permissions(self):
+        self.config.write_text(json.dumps({
+            "expo": {
+                "ios": {"bundleIdentifier": "test.met.fixture", "buildNumber": "1"},
+                "plugins": [],
+            }
+        }))
+        info = {"CFBundleIdentifier": "test.met.fixture", "CFBundleVersion": "1"}
+        validator.validate_ipa(self.archive(info), self.config)
+
+    def test_calendar_dependency_requires_descriptions_without_plugin_entry(self):
+        self.config.write_text(json.dumps({
+            "expo": {
+                "ios": {"bundleIdentifier": "test.met.fixture", "buildNumber": "1"},
+                "plugins": [],
+            }
+        }))
+        (self.root / "package.json").write_text(json.dumps({
+            "dependencies": {"expo-calendar": "15.0.8"}
+        }))
+        info = {"CFBundleIdentifier": "test.met.fixture", "CFBundleVersion": "1"}
+        with self.assertRaises(ValueError):
+            validator.validate_ipa(self.archive(info), self.config)
 
     def test_rejects_every_missing_or_invalid_usage_description(self):
         for key in validator.USAGE_KEYS:

@@ -7,6 +7,53 @@ const { test } = require("node:test");
 const appRoot = path.resolve(__dirname, "..");
 const moduleRoot = path.join(appRoot, "modules/expo-met-ble");
 
+test("Calendar permission descriptions are configured only with the native module", async () => {
+  const app = JSON.parse(fs.readFileSync(path.join(appRoot, "app.json"), "utf8")).expo;
+  const packageJson = JSON.parse(fs.readFileSync(path.join(appRoot, "package.json"), "utf8"));
+  const hasCalendarDependency = ["dependencies", "devDependencies"].some(
+    (section) => Boolean(packageJson[section]?.["expo-calendar"]),
+  );
+  const calendarPlugin = app.plugins.find(
+    (plugin) => plugin === "expo-calendar" ||
+      (Array.isArray(plugin) && plugin[0] === "expo-calendar"),
+  );
+
+  assert.equal(
+    Boolean(calendarPlugin),
+    hasCalendarDependency,
+    "expo-calendar must be both installed and configured, or absent",
+  );
+  if (!hasCalendarDependency) return;
+
+  const withCalendar = require("expo-calendar/app.plugin.js").default;
+  const options = Array.isArray(calendarPlugin) ? calendarPlugin[1] ?? {} : {};
+  const config = withCalendar({ name: app.name, slug: app.slug }, options);
+  const result = await config.mods.ios.infoPlist({
+    ...config,
+    modResults: structuredClone(app.ios.infoPlist ?? {}),
+    modRequest: { nextMod: async (value) => value },
+  });
+
+  for (const key of [
+    "NSCalendarsUsageDescription",
+    "NSCalendarsFullAccessUsageDescription",
+    "NSRemindersUsageDescription",
+    "NSRemindersFullAccessUsageDescription",
+  ]) {
+    assert.ok(
+      typeof result.modResults[key] === "string" && result.modResults[key].trim(),
+      `${key} is required when Expo Calendar is installed`,
+    );
+  }
+});
+
+test("iOS archive validator fixtures pass before the native build", () => {
+  execFileSync("python3", [path.join(__dirname, "ios-startup-permissions.test.py")], {
+    cwd: appRoot,
+    stdio: "pipe",
+  });
+});
+
 test("only generated app-level native directories are ignored", () => {
   const isIgnored = (filePath) => {
     try {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read only public app metadata; never extract signing material from an IPA."""
+"""Verify app identity and permissions for native modules present in the IPA."""
 
 import argparse
 import json
@@ -16,6 +16,28 @@ USAGE_KEYS = (
     "NSRemindersUsageDescription",
     "NSRemindersFullAccessUsageDescription",
 )
+
+
+def calendar_module_configured(config, config_path):
+    plugins = config.get("plugins", [])
+    if plugins is None:
+        plugins = []
+    if not isinstance(plugins, list):
+        raise ValueError("Expo plugins must be a list.")
+
+    configured = any(
+        plugin == "expo-calendar"
+        or (isinstance(plugin, list) and plugin and plugin[0] == "expo-calendar")
+        for plugin in plugins
+    )
+
+    package_path = Path(config_path).with_name("package.json")
+    if package_path.exists():
+        package = json.loads(package_path.read_text())
+        for section in ("dependencies", "devDependencies"):
+            if "expo-calendar" in package.get(section, {}):
+                return True
+    return configured
 
 
 def validate_ipa(ipa_path, config_path):
@@ -36,28 +58,33 @@ def validate_ipa(ipa_path, config_path):
     ):
         if info.get(key) != expected:
             raise ValueError(f"Archive {key} does not match the outgoing app configuration.")
-    for key in USAGE_KEYS:
-        value = info.get(key)
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"Archive is missing the required startup description: {key}.")
+
+    if calendar_module_configured(config, config_path):
+        for key in USAGE_KEYS:
+            value = info.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"Archive is missing the required startup description: {key}.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ipa")
-    parser.add_argument("--config", default=str(Path(__file__).resolve().parent.parent / "app.json"))
+    parser.add_argument(
+        "--config",
+        default=str(Path(__file__).resolve().parent.parent / "app.json"),
+    )
     args = parser.parse_args()
     try:
         validate_ipa(args.ipa, args.config)
     except Exception:
         # Do not dump archive data, filesystem paths, or raw parser exceptions.
         print(
-            "iOS startup permission check failed: verify archive identity and all four "
-            "Calendar/Reminders usage descriptions.",
+            "iOS archive validation failed: verify bundle identity, build number, and "
+            "usage descriptions required by configured native modules.",
             file=sys.stderr,
         )
         return 1
-    print("iOS startup permission check passed: archive identity and all four descriptions verified.")
+    print("iOS archive validation passed.")
     return 0
 
 
