@@ -130,7 +130,14 @@ export function HangoutsNearbyPanel({
               <Pressable
                 key={`${event.eventType}:${event.id}`}
                 accessibilityRole="button"
-                accessibilityLabel={[event.title, creatorLabel, startLabel, locationLabel, distanceText].filter(Boolean).join(". ")}
+                accessibilityLabel={[
+                  event.title,
+                  `${t("tabs.events.createdBy")} ${creatorLabel}`,
+                  startLabel,
+                  locationLabel,
+                  distanceText,
+                  event.description,
+                ].filter(Boolean).join(". ")}
                 accessibilityHint={t("tabs.events.hangoutDetailsView")}
                 testID={`nearby-hangout-${event.id}`}
                 onPress={() => onPressHangout(event)}
@@ -158,7 +165,10 @@ export function HangoutsNearbyPanel({
                       <Feather name="map-pin" size={26} color={colors.primary} />
                     </View>
                   )}
-                  <View style={styles.bannerTopline}>
+                  <View
+                    testID={`nearby-hangout-banner-topline-${event.id}`}
+                    style={styles.bannerTopline}
+                  >
                     <Text style={[styles.bannerBadge, { color: colors.primary, backgroundColor: colors.card }]}>
                       {t("tabs.events.nearbyTab")}
                     </Text>
@@ -190,7 +200,6 @@ export function HangoutsNearbyPanel({
                       </Text>
                       <Text
                         testID={`nearby-hangout-creator-${event.id}`}
-                        numberOfLines={1}
                         style={[styles.creatorName, { color: colors.text }]}
                       >
                         {creatorLabel}
@@ -205,7 +214,7 @@ export function HangoutsNearbyPanel({
                     <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>{locationLabel}</Text>
                   ) : null}
                   {event.description ? (
-                    <Text style={[styles.description, { color: colors.text }]} numberOfLines={2}>{event.description}</Text>
+                    <Text style={[styles.description, { color: colors.text }]}>{event.description}</Text>
                   ) : null}
                   <View style={styles.detailsLink}>
                     <Text style={[styles.detailsLinkText, { color: colors.primary }]}>{t("tabs.events.hangoutDetailsView")}</Text>
@@ -225,6 +234,8 @@ export function HangoutsNearbyPanel({
       {hasMore ? (
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={t("tabs.events.loadMoreHangouts")}
+          accessibilityState={{ busy: isLoadingMore, disabled: isLoadingMore }}
           testID="hangouts-load-more"
           disabled={isLoadingMore}
           onPress={onLoadMore}
@@ -258,14 +269,14 @@ const styles = StyleSheet.create({
   eventList: { gap: 0, paddingTop: 3 },
   hangoutCard: { borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden", paddingTop: 15, paddingBottom: 17, gap: 0 },
   featuredHangout: { paddingTop: 9 },
-  hangoutBanner: { height: 142, borderTopLeftRadius: 2, borderTopRightRadius: 25, overflow: "hidden", justifyContent: "space-between", padding: 11 },
-  featuredBanner: { height: 174, borderTopRightRadius: 29 },
+  hangoutBanner: { minHeight: 142, borderTopLeftRadius: 2, borderTopRightRadius: 25, overflow: "hidden", justifyContent: "space-between", padding: 11 },
+  featuredBanner: { minHeight: 174, borderTopRightRadius: 29 },
   bannerImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
   bannerFallback: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   fallbackSun: { position: "absolute", right: 48, top: 32, width: 40, height: 40, borderRadius: 20, opacity: 0.2 },
   fallbackHillBack: { position: "absolute", width: 210, height: 86, left: -40, bottom: -48, borderRadius: 80, transform: [{ rotate: "-14deg" }] },
   fallbackHillFront: { position: "absolute", width: 240, height: 90, right: -45, bottom: -56, borderRadius: 90, transform: [{ rotate: "12deg" }] },
-  bannerTopline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  bannerTopline: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   bannerBadge: { fontSize: 10, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 12, overflow: "hidden" },
   distanceLabel: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 12, overflow: "hidden" },
   bannerCreator: { alignSelf: "flex-start", maxWidth: "92%", minHeight: 52, flexDirection: "row", alignItems: "center", gap: 8, padding: 6, paddingRight: 12, borderTopLeftRadius: 20, borderBottomRightRadius: 18 },

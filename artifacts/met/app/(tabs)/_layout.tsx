@@ -91,6 +91,8 @@ export default function TabLayout() {
         tabBarActiveTintColor: isDark ? colors.primary : colors.brandPanel,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
+        // Keep React Navigation's default tab buttons so the localized title
+        // remains the spoken name and the focused route is announced as selected.
         tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontFamily: "Inter_500Medium",

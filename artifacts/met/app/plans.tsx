@@ -62,7 +62,12 @@ export default function PlansScreen() {
         </Pressable>
         <View style={styles.headerCopy}>
           <Text style={[styles.eyebrow, { color: colors.primary }]}>{t("plans.screenKicker")}</Text>
-          <Text style={[styles.title, { color: colors.text }]}>{t("plans.screenTitle")}</Text>
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, { color: colors.text }]}
+          >
+            {t("plans.screenTitle")}
+          </Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -119,6 +124,29 @@ export default function PlansScreen() {
             {plans.map((event, index) => {
               const date = new Date(event.startsAt);
               const owner = event.ownerUid === authedUid;
+              const accepted =
+                event.myRsvp === "going" || event.myRsvp === "maybe";
+              const attendanceLabel = owner
+                ? t("plans.hosting")
+                : accepted
+                  ? t("tabs.events.planInvitationAccepted")
+                  : t("tabs.events.invited");
+              const hasChatAccess = owner || accepted;
+              const accessibilityLabel = [
+                event.title,
+                date.toLocaleString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                }),
+                event.location,
+                event.creatorName
+                  ? `${t("tabs.events.createdBy")} ${event.creatorName}`
+                  : t("tabs.events.planHost"),
+                attendanceLabel,
+              ].filter(Boolean).join(". ");
               const isFeatured = index === 0;
               const artwork = event.galleryPhotos?.[0] ?? event.imageUrl;
               return (
@@ -131,7 +159,12 @@ export default function PlansScreen() {
                   ) : null}
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={t("plans.openChatTitleA11y", { title: event.title })}
+                    accessibilityLabel={accessibilityLabel}
+                    accessibilityHint={
+                      hasChatAccess
+                        ? t("plans.openChatTitleA11y", { title: event.title })
+                        : t("tabs.events.detailsView")
+                    }
                     testID={`plan-row-${event.id}`}
                     onPress={() => openPlan(event)}
                     style={({ pressed }) => [
@@ -167,7 +200,10 @@ export default function PlansScreen() {
                             <Text style={[styles.upNextText, { color: colors.text }]}>{t("plans.upNext")}</Text>
                           </View>
                         </View>
-                        <View style={[styles.featuredDate, { backgroundColor: colors.card }]}>
+                        <View
+                          testID={`plan-featured-date-${event.id}`}
+                          style={[styles.featuredDate, { backgroundColor: colors.card }]}
+                        >
                           <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
                           <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
                         </View>
@@ -175,8 +211,14 @@ export default function PlansScreen() {
                     ) : null}
                     <View style={[styles.planDetails, !isFeatured && styles.standardDetails]}>
                       {!isFeatured ? (
-                        <View style={styles.dateColumn}>
-                          <View style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}>
+                        <View
+                          testID={`plan-date-column-${event.id}`}
+                          style={styles.dateColumn}
+                        >
+                          <View
+                            testID={`plan-date-badge-${event.id}`}
+                            style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}
+                          >
                             <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
                             <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
                           </View>
@@ -185,11 +227,11 @@ export default function PlansScreen() {
                       ) : null}
                       <View style={styles.planCopy}>
                         <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
-                        <Text style={[styles.planTitle, { color: colors.text }]} numberOfLines={2}>{event.title}</Text>
+                        <Text style={[styles.planTitle, { color: colors.text }]}>{event.title}</Text>
                         {event.location ? (
                           <View style={styles.locationRow}>
                             <Feather name="map-pin" size={13} color={colors.mutedForeground} />
-                            <Text numberOfLines={1} style={[styles.locationText, { color: colors.mutedForeground }]}>{event.location}</Text>
+                            <Text style={[styles.locationText, { color: colors.mutedForeground }]}>{event.location}</Text>
                           </View>
                         ) : null}
                         <View style={styles.creatorRow}>
@@ -204,7 +246,7 @@ export default function PlansScreen() {
                               <Feather name="user" size={13} color={colors.primary} />
                             </View>
                           )}
-                          <Text numberOfLines={1} style={[styles.meta, { color: colors.mutedForeground }]}>
+                          <Text style={[styles.meta, styles.creatorNameText, { color: colors.mutedForeground }]}>
                             {event.creatorName ?? t("tabs.events.planHost")}
                           </Text>
                         </View>
@@ -233,7 +275,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 22, paddingBottom: 10, flexDirection: "row", alignItems: "center", gap: 12 },
   back: { width: 40, height: 44, justifyContent: "center" },
-  headerCopy: { flex: 1 },
+  headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.7, marginBottom: 4 },
   title: { fontFamily: "serif", fontSize: 39, fontWeight: "400", letterSpacing: -1 },
   create: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
@@ -251,7 +293,7 @@ const styles = StyleSheet.create({
   weekCopy: { flex: 1, minWidth: 0, gap: 4 },
   weekLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 1.5 },
   weekTitle: { fontFamily: "serif", fontSize: 19, lineHeight: 24 },
-  countMark: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", marginLeft: 12 },
+  countMark: { minWidth: 30, minHeight: 30, paddingHorizontal: 5, paddingVertical: 3, borderRadius: 15, alignItems: "center", justifyContent: "center", marginLeft: 12 },
   countText: { fontSize: 10, fontWeight: "700" },
   afterHeader: { minHeight: 40, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 3, paddingTop: 9 },
   afterLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 1.4 },
@@ -270,21 +312,22 @@ const styles = StyleSheet.create({
   orbitRingOuter: { width: 190, height: 82, transform: [{ rotate: "-24deg" }] },
   orbitRingInner: { width: 145, height: 66, transform: [{ rotate: "30deg" }] },
   orbitCore: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  featuredDate: { position: "absolute", top: 10, right: 10, width: 48, height: 55, borderTopLeftRadius: 17, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
+  featuredDate: { position: "absolute", top: 10, right: 10, minWidth: 48, minHeight: 55, paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 17, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
   planDetails: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 2, paddingBottom: 2 },
   standardDetails: { paddingHorizontal: 0 },
-  dateColumn: { width: 54, alignItems: "center", paddingTop: 2 },
-  dateBadge: { width: 48, height: 53, borderTopLeftRadius: 18, borderBottomRightRadius: 18, alignItems: "center", justifyContent: "center" },
+  dateColumn: { minWidth: 54, flexShrink: 0, alignItems: "center", paddingTop: 2 },
+  dateBadge: { minWidth: 48, minHeight: 53, paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 18, borderBottomRightRadius: 18, alignItems: "center", justifyContent: "center" },
   datePin: { width: 5, height: 5, borderRadius: 3, marginTop: 9 },
   month: { fontSize: 9, fontWeight: "700", letterSpacing: 1 },
-  day: { fontFamily: "serif", fontSize: 23, fontWeight: "400", lineHeight: 27 },
+  day: { fontFamily: "serif", fontSize: 23, fontWeight: "400" },
   planCopy: { flex: 1, minWidth: 0, gap: 5, paddingTop: 2 },
   planTitle: { fontFamily: "serif", fontSize: 20, lineHeight: 25, fontWeight: "400", marginTop: 1 },
   meta: { fontSize: 11, lineHeight: 16 },
   locationRow: { minHeight: 20, flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
-  locationText: { flex: 1, fontSize: 11, lineHeight: 16 },
+  locationText: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 3 },
   creatorAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   host: { fontSize: 10, fontWeight: "700", marginTop: 3 },
+  creatorNameText: { flex: 1, minWidth: 0 },
   chatMark: { alignItems: "center", gap: 5, paddingHorizontal: 3, paddingTop: 7 },
 });

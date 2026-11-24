@@ -10,6 +10,13 @@ export type OnboardingAuthBackTarget =
   | "intro"
   | "router";
 
+export function shouldDeferLanguagePicker(
+  isLanguagePhase: boolean,
+  isCheckingSession: boolean,
+): boolean {
+  return isLanguagePhase && isCheckingSession;
+}
+
 export function isValidAuthEmail(email: string): boolean {
   return /^\S+@\S+\.\S+$/.test(email.trim());
 }

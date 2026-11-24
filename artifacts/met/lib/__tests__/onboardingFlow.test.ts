@@ -1,6 +1,7 @@
 import {
   getOnboardingAuthBackTarget,
   isValidAuthEmail,
+  shouldDeferLanguagePicker,
 } from "../onboardingFlow";
 
 describe("onboarding auth flow", () => {
@@ -15,6 +16,12 @@ describe("onboarding auth flow", () => {
   it("returns to navigation history for a QR-first auth entry", () => {
     expect(getOnboardingAuthBackTarget("router", false)).toBe("router");
     expect(getOnboardingAuthBackTarget("language", true)).toBe("router");
+  });
+
+  it("defers the language picker only while checking a returning session", () => {
+    expect(shouldDeferLanguagePicker(true, true)).toBe(true);
+    expect(shouldDeferLanguagePicker(true, false)).toBe(false);
+    expect(shouldDeferLanguagePicker(false, true)).toBe(false);
   });
 
   it.each([

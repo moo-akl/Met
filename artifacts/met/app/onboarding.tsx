@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  ActivityIndicator,
   Animated,
   Platform,
   Pressable,
@@ -53,6 +54,7 @@ import { runGoogleSignIn } from "@/lib/onboardingGoogleAuth";
 import {
   getOnboardingAuthBackTarget,
   isValidAuthEmail,
+  shouldDeferLanguagePicker,
   type OnboardingAuthOrigin,
 } from "@/lib/onboardingFlow";
 import { ValueTour } from "@/components/ValueTour";
@@ -223,6 +225,9 @@ export default function OnboardingScreen() {
         : qr === "1"
           ? "auth"
           : "language",
+  );
+  const [sessionResumeChecking, setSessionResumeChecking] = useState(
+    !permissionsOnly && !completeProfileMode && qr !== "1",
   );
   const enterAuthFrom = (origin: Exclude<OnboardingAuthOrigin, "router">) => {
     authOriginRef.current = origin;
@@ -945,45 +950,52 @@ export default function OnboardingScreen() {
     if (resumedRef.current) return;
     let cancelled = false;
     (async () => {
-      const uid = await getCurrentUserId();
-      if (cancelled || !uid) return;
-      // If the persisted Firebase session belongs to an Apple sign-in
-      // user, pre-populate the name and skip the info step — exactly
-      // as handleApple does on a live sign-in.  This handles the case
-      // where the user was already signed in (e.g. after a local-profile
-      // wipe) and the resume effect re-runs goToProfileSetup directly.
       try {
-        const authMod = await import("@react-native-firebase/auth");
-        const fbUser = authMod.getAuth().currentUser;
-        if (fbUser) {
-          const isApple = fbUser.providerData?.some(
-            (p) => p.providerId === "apple.com",
-          );
-          if (isApple) {
-            setFromAppleSignIn(true);
-            setNameFromApple(true);
-            const firstName =
-              fbUser.displayName?.split(" ")[0]?.trim() ?? null;
-            if (firstName) setName(firstName);
+        const uid = await getCurrentUserId();
+        if (cancelled || !uid) return;
+        // If the persisted Firebase session belongs to an Apple sign-in
+        // user, pre-populate the name and skip the info step — exactly
+        // as handleApple does on a live sign-in.  This handles the case
+        // where the user was already signed in (e.g. after a local-profile
+        // wipe) and the resume effect re-runs goToProfileSetup directly.
+        try {
+          const authMod = await import("@react-native-firebase/auth");
+          const fbUser = authMod.getAuth().currentUser;
+          if (fbUser) {
+            const isApple = fbUser.providerData?.some(
+              (p) => p.providerId === "apple.com",
+            );
+            if (isApple) {
+              setFromAppleSignIn(true);
+              setNameFromApple(true);
+              const firstName =
+                fbUser.displayName?.split(" ")[0]?.trim() ?? null;
+              if (firstName) setName(firstName);
+            }
           }
+        } catch {
+          // Firebase module unavailable on this platform — no-op.
+        }
+        const email = await getCurrentUserEmail();
+        // Reload from server in case verification happened on another
+        // device since the cached user was last touched.
+        const verified = await reloadAndCheckVerified();
+        if (cancelled) return;
+        resumedRef.current = true;
+        if (email && !verified) {
+          setVerifyEmail(email);
+          setResendCooldownEndsAt(Date.now() + RESEND_COOLDOWN_MS);
+          setPhase("verify");
+        } else {
+          // Verified email, or non-email provider (Apple/Google) —
+          // try restoring from server first, otherwise show profile setup.
+          await goToProfileSetup("email");
         }
       } catch {
-        // Firebase module unavailable on this platform — no-op.
-      }
-      const email = await getCurrentUserEmail();
-      // Reload from server in case verification happened on another
-      // device since the cached user was last touched.
-      const verified = await reloadAndCheckVerified();
-      if (cancelled) return;
-      resumedRef.current = true;
-      if (email && !verified) {
-        setVerifyEmail(email);
-        setResendCooldownEndsAt(Date.now() + RESEND_COOLDOWN_MS);
-        setPhase("verify");
-      } else {
-        // Verified email, or non-email provider (Apple/Google) —
-        // try restoring from server first, otherwise show profile setup.
-        await goToProfileSetup("email");
+        // If session restoration fails, let the regular onboarding flow
+        // continue rather than leaving the language screen blocked.
+      } finally {
+        if (!cancelled) setSessionResumeChecking(false);
       }
     })();
     return () => {
@@ -1043,6 +1055,23 @@ export default function OnboardingScreen() {
     loops.forEach((l) => l.start());
     return () => loops.forEach((l) => l.stop());
   }, [phase]);
+
+  if (shouldDeferLanguagePicker(phase === "language", sessionResumeChecking)) {
+    return (
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            alignItems: "center",
+            justifyContent: "center",
+          },
+        ]}
+      >
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
 
   if (phase === "language") {
     return (

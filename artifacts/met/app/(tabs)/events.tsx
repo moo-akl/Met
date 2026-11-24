@@ -432,7 +432,11 @@ function EventsScreen() {
                     : t("tabs.events.title")}
               </Text>
             </View>
-            <Text testID="events-heading" style={[styles.title, { color: colors.text }]}>
+            <Text
+              accessibilityRole="header"
+              testID="events-heading"
+              style={[styles.title, { color: colors.text }]}
+            >
               {activeView === "plans"
                 ? t("plans.screenTitle")
                 : activeView === "hangouts"
@@ -504,7 +508,11 @@ function EventsScreen() {
           </View>
         </View>
 
-        <View style={[styles.viewTabs, { borderColor: colors.border }]}>
+        <View
+          accessibilityRole="tablist"
+          testID="events-view-tabs"
+          style={[styles.viewTabs, { borderColor: colors.border }]}
+        >
           {([
             ["plans", t("plans.screenTitle")],
             ["hangouts", t("tabs.events.nearbyTab")],
@@ -716,6 +724,7 @@ function EventsScreen() {
                       ? `${t("tabs.events.createdBy")} ${event.creatorName}`
                       : undefined,
                     eventDistanceText,
+                    event.description,
                   ]
                     .filter(Boolean)
                     .join(". ");
@@ -787,7 +796,7 @@ function EventsScreen() {
                           {(event.location || event.venueName) ? (
                             <View style={styles.locationMeta}>
                               <Feather name="map-pin" size={13} color={colors.mutedForeground} />
-                              <Text numberOfLines={1} style={[styles.eventMeta, styles.locationMetaText, { color: colors.mutedForeground }]}>
+                              <Text style={[styles.eventMeta, styles.locationMetaText, { color: colors.mutedForeground }]}>
                                 {event.location ?? event.venueName}
                               </Text>
                             </View>
@@ -816,12 +825,12 @@ function EventsScreen() {
                                   <Feather name="user" size={12} color={colors.primary} />
                                 </View>
                               )}
-                              <Text numberOfLines={1} style={[styles.creatorName, { color: colors.mutedForeground }]}>
+                              <Text style={[styles.creatorName, { color: colors.mutedForeground }]}>
                                 {t("tabs.events.createdBy")} {event.creatorName ?? t("tabs.events.planHost")}
                               </Text>
                             </View>
                           ) : null}
-                          {event.description ? <Text style={[styles.description, { color: colors.text }]} numberOfLines={3}>{event.description}</Text> : null}
+                          {event.description ? <Text style={[styles.description, { color: colors.text }]}>{event.description}</Text> : null}
                           <View style={styles.detailsLink}>
                             <Text style={[styles.detailsLinkText, { color: colors.primary }]}>
                               {t("tabs.events.detailsView")}

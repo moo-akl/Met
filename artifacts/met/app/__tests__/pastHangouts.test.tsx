@@ -122,6 +122,50 @@ describe("Past Hangouts access", () => {
     expect(view.queryByText("plans.pastHangoutsTitle")).toBeNull();
   });
 
+  it("puts the nearest Plan first and labels the remaining list", async () => {
+    mockEventsFeed.data = {
+      events: [
+        privatePlan(104, { startsAt: "2030-05-03T18:00:00.000Z" }),
+        privatePlan(105, { startsAt: "2030-05-02T18:00:00.000Z" }),
+      ],
+    };
+
+    const view = await render(<PlansScreen />);
+
+    const rowIds = view.getAllByTestId(/^plan-row-/).map((row) => row.props.testID);
+    expect(rowIds).toEqual(["plan-row-105", "plan-row-104"]);
+    expect(view.getByText("plans.homeSubtitle")).toBeTruthy();
+    expect(view.getAllByText("plans.upNext")).toHaveLength(2);
+    expect(view.getByText("plans.afterThat")).toBeTruthy();
+    expect(view.getByText("02")).toBeTruthy();
+    expect(view.getByText("01")).toBeTruthy();
+  });
+
+  it("shows the Plans empty state and keeps its create action", async () => {
+    const view = await render(<PlansScreen />);
+
+    expect(view.getByText("plans.screenEmptyTitle")).toBeTruthy();
+    expect(view.getByText("plans.screenEmptyBody")).toBeTruthy();
+    await fireEvent.press(view.getByTestId("plans-empty-create"));
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/event-create",
+      params: { mode: "friends" },
+    });
+  });
+
+  it("shows the Plans loading state", async () => {
+    mockEventsFeed.isLoading = true;
+    const view = await render(<PlansScreen />);
+    expect(view.getByText("plans.loading")).toBeTruthy();
+  });
+
+  it("keeps the Plans retry action connected to feed errors", async () => {
+    mockEventsFeed.isError = true;
+    const view = await render(<PlansScreen />);
+    await fireEvent.press(view.getByTestId("plans-retry"));
+    expect(mockEventsFeed.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it("uses the featured Plan's uploaded photo and opens its conversation for the owner", async () => {
     const photoUrl = "https://example.test/plan-cover.jpg";
     mockEventsFeed.data = {
@@ -134,7 +178,7 @@ describe("Past Hangouts access", () => {
     expect(view.getByTestId("plan-featured-photo").props.source.uri).toBe(photoUrl);
     expect(view.queryByTestId("plan-featured-fallback")).toBeNull();
 
-    fireEvent.press(view.getByTestId("plan-row-101"));
+    await fireEvent.press(view.getByTestId("plan-row-101"));
 
     expect(mockRouterPush).toHaveBeenCalledWith("/event-chat/101");
   });
@@ -150,7 +194,7 @@ describe("Past Hangouts access", () => {
     expect(view.getByTestId("plan-featured-fallback")).toBeTruthy();
     expect(view.queryByTestId("plan-featured-photo")).toBeNull();
 
-    fireEvent.press(view.getByTestId("plan-row-102"));
+    await fireEvent.press(view.getByTestId("plan-row-102"));
 
     expect(mockRouterPush).toHaveBeenCalledWith("/event-details/member/102");
   });
@@ -168,7 +212,7 @@ describe("Past Hangouts access", () => {
 
     const view = await render(<PlansScreen />);
 
-    fireEvent.press(view.getByTestId("plan-row-103"));
+    await fireEvent.press(view.getByTestId("plan-row-103"));
 
     expect(mockRouterPush).toHaveBeenCalledWith("/event-chat/103");
   });
@@ -184,7 +228,7 @@ describe("Past Hangouts access", () => {
     mockPastHangouts.isError = true;
     const view = await render(<PastHangoutsScreen />);
 
-    fireEvent.press(view.getByTestId("past-hangouts-retry"));
+    await fireEvent.press(view.getByTestId("past-hangouts-retry"));
 
     expect(mockPastHangouts.refetch).toHaveBeenCalledTimes(1);
   });
@@ -220,7 +264,7 @@ describe("Past Hangouts access", () => {
     expect(view.getByText("plans.rateHost")).toBeTruthy();
     expect(view.getByText("plans.updateHostRating · 4/5")).toBeTruthy();
 
-    fireEvent.press(view.getByTestId("past-hangout-42"));
+    await fireEvent.press(view.getByTestId("past-hangout-42"));
 
     expect(mockRouterPush).toHaveBeenCalledWith("/event-details/member/42");
   });
@@ -228,7 +272,7 @@ describe("Past Hangouts access", () => {
   it("returns from the history screen with its back button", async () => {
     const view = await render(<PastHangoutsScreen />);
 
-    fireEvent.press(view.getByTestId("past-hangouts-back"));
+    await fireEvent.press(view.getByTestId("past-hangouts-back"));
 
     expect(mockRouterBack).toHaveBeenCalledTimes(1);
   });

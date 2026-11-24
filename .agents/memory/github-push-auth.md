@@ -263,3 +263,12 @@ so a raw path comparison overcounts changed files.
 
 **How to apply:** Filter both trees to `type: "blob"` before checking the exact
 outgoing file manifest.
+
+When Replit's Git safety guard blocks a user-authorized commit or push, it gives
+the exact `DANGEROUSLY_ALLOW_GIT=1` prefix needed to retry that operation.
+
+**Why:** The guard protects `.git` index and ref changes, even when the user
+explicitly requested a narrow GitHub push.
+
+**How to apply:** Use the prefix only for the reviewed, requested Git operation;
+keep the branch non-forced and verify the remote commit and changed paths.
