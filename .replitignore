@@ -14,3 +14,4 @@ research/venue-prospects-new-100.json
 
 # Generated deliverables should not be included in published app images.
 generated-artifacts/
+artifacts/met/static-build/

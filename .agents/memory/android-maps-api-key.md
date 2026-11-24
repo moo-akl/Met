@@ -5,13 +5,17 @@ description: react-native-maps Expo plugin removes the API key from AndroidManif
 
 ## The rule
 
-Always pass `androidGoogleMapsApiKey` to the `react-native-maps` Expo plugin in `app.json`. Without it, the plugin **actively removes** `com.google.android.geo.API_KEY` from AndroidManifest.xml.
+Always preserve `androidGoogleMapsApiKey` when configuring maps in `app.json`. Without it, the upstream plugin **actively removes** `com.google.android.geo.API_KEY` from AndroidManifest.xml.
+
+For SDK 54, retain the local public-API configuration adapter rather than switching back to the upstream maps plugin merely because the package includes one.
+
+**Why:** Newer maps plugin releases import private Expo files absent from SDK 54, so an otherwise successful package installation can break publishing before Metro starts.
 
 **Why:** The Google Maps SDK for Android crashes fatally when no API key is present in the manifest. This is a native crash — no amount of JS-level timing fixes (setTimeout, InteractionManager, useFocusEffect) can prevent it.
 
-**How to apply:** In `app.json` plugins array:
+**How to apply:** Keep the existing key options when changing the plugin implementation. For the SDK 54 adapter, the `app.json` plugins entry is:
 ```json
-["react-native-maps", {
+["./plugins/with-sdk54-maps.js", {
   "androidGoogleMapsApiKey": "<the Android API key>"
 }]
 ```

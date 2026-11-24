@@ -12,6 +12,11 @@ peerDependencyRules:
   allowAny:
     - '@opentelemetry/api'
 
+packageExtensions:
+  '@react-native-firebase/app@24.1.1':
+    dependencies:
+      '@expo/config-plugins': '54.0.6'
+
 catalog:
   '@replit/vite-plugin-cartographer': ^0.5.1
   '@replit/vite-plugin-dev-banner': ^0.1.1

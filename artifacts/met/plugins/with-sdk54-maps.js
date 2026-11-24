@@ -1,4 +1,5 @@
-// SDK 54's supported react-native-maps version predates its own config plugin.
+// Configure maps through Expo's public API. The upstream maps plugin can import
+// Expo internals that are not available in SDK 54.
 // Preserve the existing plugin options while using Expo's supported native mods.
 const { AndroidConfig, IOSConfig } = require("expo/config-plugins");
 

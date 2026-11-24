@@ -220,7 +220,7 @@
         }
       ],
       [
-        "react-native-maps",
+        "./plugins/with-sdk54-maps.js",
         {
           "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
         }

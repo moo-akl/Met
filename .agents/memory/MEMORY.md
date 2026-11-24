@@ -94,3 +94,4 @@
 - [PTC shell command quoting](ptc-shell-command-quoting.md) — Split composite shell commands into simple CodeExecution steps and use ShellExec for local Git work.
 - [React Native mockup layout](rn-dom-adapter-layout.md) — Merge style arrays before applying flex defaults, and convert numeric React Native line heights to CSS pixels.
 - [Expo API codegen and Metro](expo-codegen-metro.md) — If Metro reports a missing generated API module during codegen, restart Expo after generation finishes.
+- [Expo config-plugin resolution in pnpm](expo-config-plugin-resolution.md) — Package-local dependencies can be invisible from plugin realpaths; patch missing third-party imports with targeted packageExtensions.
