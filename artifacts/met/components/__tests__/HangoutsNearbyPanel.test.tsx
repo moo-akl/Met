@@ -14,6 +14,10 @@ const mockSetParams = jest.fn();
 const mockQueryClient = { invalidateQueries: jest.fn() };
 // eslint-disable-next-line no-var
 var mockRsvpCommunityEvent = jest.fn().mockResolvedValue(undefined);
+// eslint-disable-next-line no-var
+var mockRequestJoin = jest.fn().mockResolvedValue(undefined);
+// eslint-disable-next-line no-var
+var mockWithdrawJoin = jest.fn().mockResolvedValue(undefined);
 let mockEventsFeed: EventFeedItem[] = [];
 let mockEventsFeedStatus: {
   isLoading: boolean;
@@ -103,6 +107,8 @@ jest.mock("@workspace/api-client-react", () => ({
     refetch: jest.fn(),
   }),
   useRsvpCommunityEvent: () => ({ mutateAsync: mockRsvpCommunityEvent }),
+  useRequestToJoinCommunityEvent: () => ({ mutateAsync: mockRequestJoin }),
+  useWithdrawCommunityEventJoinRequest: () => ({ mutateAsync: mockWithdrawJoin }),
 }));
 
 jest.mock("@tanstack/react-query", () => ({
@@ -160,6 +166,8 @@ describe("Hangouts discovery", () => {
     mockSetParams.mockClear();
     mockQueryClient.invalidateQueries.mockClear();
     mockRsvpCommunityEvent.mockReset().mockResolvedValue(undefined);
+    mockRequestJoin.mockReset().mockResolvedValue(undefined);
+    mockWithdrawJoin.mockReset().mockResolvedValue(undefined);
     mockEventsFeed = [];
     mockEventsFeedStatus = {
       isLoading: false,
@@ -311,6 +319,68 @@ describe("Hangouts discovery", () => {
       (node) => node.props.children === "Meet for coffee and conversation",
     );
     expect(description?.props.numberOfLines).toBeUndefined();
+    act(() => root.unmount());
+  });
+
+  it("filters Events by venue, community, and the next seven days", async () => {
+    mockRouteParams = { view: "events" };
+    mockEventsFeed = [
+      venueEvent(67, null, null),
+      {
+        ...hangout(68),
+        joinApprovalRequired: false,
+        startsAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        ...venueEvent(69, null, null),
+        startsAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ];
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventsScreen />);
+      await Promise.resolve();
+    });
+
+    expect(root.root.findByProps({ testID: "events-filter-forYou" }).props.accessibilityState.selected)
+      .toBe(true);
+    act(() => root.root.findByProps({ testID: "events-filter-venue" }).props.onPress());
+    expect(root.root.findByProps({ testID: "event-card-venue-67" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "event-card-venue-69" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "event-card-member-68" })).toHaveLength(0);
+
+    act(() => root.root.findByProps({ testID: "events-filter-community" }).props.onPress());
+    expect(root.root.findByProps({ testID: "event-card-member-68" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "event-card-venue-67" })).toHaveLength(0);
+
+    act(() => root.root.findByProps({ testID: "events-filter-thisWeek" }).props.onPress());
+    expect(root.root.findByProps({ testID: "event-card-member-68" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "event-card-venue-69" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
+  it("sends and withdraws Hangout requests from the discovery list", async () => {
+    mockRouteParams = { view: "hangouts" };
+    mockNearbyHangouts = [
+      {
+        ...hangout(70),
+        myJoinRequestStatus: null,
+        verifiedExplorersOnly: false,
+        isVerifiedExplorerHost: false,
+      } as NearbyHangoutItem,
+    ];
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<EventsScreen />);
+      await Promise.resolve();
+    });
+    const button = root.root.findByProps({ testID: "nearby-hangout-request-70" });
+    await act(async () => {
+      button.props.onPress({ stopPropagation: jest.fn() });
+      await Promise.resolve();
+    });
+    expect(mockRequestJoin).toHaveBeenCalledWith({ eventId: 70 });
+    expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["nearby-hangouts"] });
     act(() => root.unmount());
   });
 
@@ -512,6 +582,47 @@ describe("Hangouts discovery", () => {
     )).toBe(true);
     act(() => root.root.findByProps({ testID: "nearby-hangout-44" }).props.onPress());
     expect(onPressHangout).toHaveBeenCalledWith(first);
+    act(() => root.unmount());
+  });
+
+  it("sends or withdraws a join request directly from a Hangout card", () => {
+    const item = {
+      ...hangout(46),
+      eventType: "member",
+      myJoinRequestStatus: "pending",
+      verifiedExplorersOnly: false,
+      isVerifiedExplorerHost: false,
+    } as NearbyHangoutItem;
+    const onToggleJoinRequest = jest.fn();
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <HangoutsNearbyPanel
+          hangouts={[item]}
+          userLocation={null}
+          sortMode="nearest"
+          onSortModeChange={jest.fn()}
+          nearestFallsBackToTime={false}
+          isLoading={false}
+          isLoadingMore={false}
+          isError={false}
+          hasMore={false}
+          onLoadMore={jest.fn()}
+          onRetry={jest.fn()}
+          onPressHangout={jest.fn()}
+          onToggleJoinRequest={onToggleJoinRequest}
+          pendingJoinRequestId={null}
+          currentUserUid="test-user"
+        />,
+      );
+    });
+
+    const button = root.root.findByProps({ testID: "nearby-hangout-request-46" });
+    expect(button.props.accessibilityLabel).toBe("tabs.events.cancelJoinRequest");
+    const stopPropagation = jest.fn();
+    act(() => button.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    expect(onToggleJoinRequest).toHaveBeenCalledWith(item);
     act(() => root.unmount());
   });
 

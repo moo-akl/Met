@@ -492,7 +492,7 @@ describe("event detail layouts", () => {
     act(() => root.unmount());
   });
 
-  it("gives invite-only Plans their own date-first visual hero", () => {
+  it("gives invite-only Plans an image-led hero with a swipeable gallery", () => {
     const photos = [
       "https://example.test/plan-1.jpg",
       "https://example.test/plan-2.jpg",

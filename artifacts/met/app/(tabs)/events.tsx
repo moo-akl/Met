@@ -39,6 +39,8 @@ import {
 import {
   getGetEventsFeedQueryKey,
   getGetNearbyHangoutsQueryKey,
+  useRequestToJoinCommunityEvent,
+  useWithdrawCommunityEventJoinRequest,
   useGetEventsFeed,
   useGetNearbyHangouts,
   useRsvpCommunityEvent,
@@ -47,6 +49,7 @@ import {
 } from "@workspace/api-client-react";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
+type EventFilter = "forYou" | "thisWeek" | "venue" | "community";
 
 function getApproximateHangoutDistance(
   event: Pick<EventFeedItem, "latitude" | "longitude">,
@@ -101,10 +104,12 @@ function EventsScreen() {
   );
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<RsvpStatus | null>(null);
+  const [pendingHangoutId, setPendingHangoutId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [sortMode, setSortMode] = useState<HangoutSortMode>("nearest");
+  const [eventFilter, setEventFilter] = useState<EventFilter>("forYou");
   const automaticLocationLookup = useRef(false);
   const appState = useRef(AppState.currentState);
   const [hangoutPageState, setHangoutPageState] = useState<{
@@ -135,6 +140,28 @@ function EventsScreen() {
       },
     },
   });
+  const requestToJoinHangout = useRequestToJoinCommunityEvent();
+  const withdrawHangoutRequest = useWithdrawCommunityEventJoinRequest();
+
+  const toggleHangoutRequest = useCallback(async (event: NearbyHangoutItem) => {
+    setPendingHangoutId(event.id);
+    setActionError("");
+    try {
+      if (event.myJoinRequestStatus === "pending") {
+        await withdrawHangoutRequest.mutateAsync({ eventId: event.id });
+      } else {
+        await requestToJoinHangout.mutateAsync({ eventId: event.id });
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getGetNearbyHangoutsQueryKey() }),
+      ]);
+    } catch {
+      setActionError(t("tabs.events.eventActionError"));
+    } finally {
+      setPendingHangoutId(null);
+    }
+  }, [queryClient, requestToJoinHangout, t, withdrawHangoutRequest]);
 
   const rsvp = useCallback(async (event: EventFeedItem, status: RsvpStatus) => {
     const key = `${event.eventType}:${event.id}`;
@@ -319,16 +346,29 @@ function EventsScreen() {
     });
   }, [feed.data?.events, userLocation]);
 
+  const filteredEvents = useMemo(() => {
+    const now = Date.now();
+    const weekEnd = now + 7 * 24 * 60 * 60 * 1000;
+    return events.filter((event) => {
+      if (eventFilter === "thisWeek") {
+        const startsAt = Date.parse(event.startsAt);
+        return startsAt >= now && startsAt < weekEnd;
+      }
+      if (eventFilter === "venue") return event.eventType === "venue";
+      if (eventFilter === "community") return event.eventType === "member";
+      return true;
+    });
+  }, [events, eventFilter]);
   const eventGroups = useMemo(
-    () => groupEventsByDate(events, lang, t("common.today")),
-    [events, lang, t],
+    () => groupEventsByDate(filteredEvents, lang, t("common.today")),
+    [filteredEvents, lang, t],
   );
   const planGroups = useMemo(
     () => groupEventsByDate(plans, lang, t("common.today")),
     [plans, lang, t],
   );
   const visibleGroups = activeView === "plans" ? planGroups : eventGroups;
-  const visibleEvents = activeView === "plans" ? plans : events;
+  const visibleEvents = activeView === "plans" ? plans : filteredEvents;
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const hangoutFilterKey = JSON.stringify([
@@ -508,6 +548,46 @@ function EventsScreen() {
           </View>
         </View>
 
+        {activeView === "events" ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.eventFilters}
+            accessibilityRole="tablist"
+            testID="events-category-filters"
+          >
+            {([
+              ["forYou", t("tabs.events.filterForYou")],
+              ["thisWeek", t("tabs.events.filterThisWeek")],
+              ["venue", t("tabs.events.filterVenue")],
+              ["community", t("tabs.events.filterCommunity")],
+            ] as const).map(([filter, label]) => {
+              const selected = eventFilter === filter;
+              return (
+                <Pressable
+                  key={filter}
+                  accessibilityRole="tab"
+                  accessibilityLabel={label}
+                  accessibilityState={{ selected }}
+                  testID={`events-filter-${filter}`}
+                  onPress={() => setEventFilter(filter)}
+                  style={[
+                    styles.eventFilter,
+                    {
+                      borderColor: selected ? "transparent" : colors.border,
+                      backgroundColor: selected ? colors.primarySoft : "transparent",
+                    },
+                  ]}
+                >
+                  <Text style={[styles.eventFilterText, { color: selected ? colors.brandPanel : colors.mutedForeground }]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+
         <View
           accessibilityRole="tablist"
           testID="events-view-tabs"
@@ -578,6 +658,9 @@ function EventsScreen() {
             hasMore={hasMoreHangouts}
             onLoadMore={loadMoreHangouts}
             onRetry={() => void nearbyHangoutQuery.refetch()}
+            onToggleJoinRequest={(event) => void toggleHangoutRequest(event)}
+            pendingJoinRequestId={pendingHangoutId}
+            currentUserUid={authedUid ?? null}
             onPressHangout={(event) => router.push(getHangoutOpenPath(
               event.id,
               event.ownerUid,
@@ -740,7 +823,7 @@ function EventsScreen() {
                     .filter(Boolean)
                     .join(". ");
                   return (
-                    <View key={key} style={[styles.eventCard, { borderBottomColor: colors.border }]}>
+                    <View key={key} style={[styles.eventCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={eventAccessibilityLabel}
@@ -923,6 +1006,9 @@ const styles = StyleSheet.create({
   viewTabs: { flexDirection: "row", borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, padding: 0, gap: 12 },
   viewTab: { flex: 1, minHeight: 42, borderBottomWidth: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   viewTabText: { fontSize: 11, fontWeight: "700" },
+  eventFilters: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 2 },
+  eventFilter: { minHeight: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 18, paddingHorizontal: 13 },
+  eventFilterText: { fontSize: 10, fontWeight: "600" },
   locationAction: { fontSize: 12, fontWeight: "700", marginTop: 6 },
   locationHint: { fontSize: 12, fontWeight: "600", marginTop: 6 },
   topBarIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
@@ -940,10 +1026,10 @@ const styles = StyleSheet.create({
   eventDateHeading: { fontFamily: "serif", fontSize: 21, fontWeight: "400", flexShrink: 0 },
   eventDateRule: { height: StyleSheet.hairlineWidth, flex: 1 },
   eventDateCount: { fontSize: 9, fontWeight: "600", letterSpacing: 0.8 },
-  eventCard: { borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden", marginBottom: 18, paddingBottom: 17 },
+  eventCard: { borderWidth: 1, borderRadius: 22, overflow: "hidden", marginBottom: 16, paddingBottom: 12 },
   eventPhotoGallery: { width: "100%", overflow: "hidden" },
   cover: { width: "100%", height: 174, borderTopLeftRadius: 2, borderTopRightRadius: 24, borderBottomLeftRadius: 2 },
-  eventBody: { paddingHorizontal: 1, paddingTop: 13, paddingBottom: 2 },
+  eventBody: { paddingHorizontal: 13, paddingTop: 12, paddingBottom: 2 },
   badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 8 },
   badge: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", paddingHorizontal: 0, paddingVertical: 0 },
   privateBadge: { fontSize: 11, fontWeight: "600" },
@@ -959,7 +1045,7 @@ const styles = StyleSheet.create({
   description: { fontSize: 14, lineHeight: 20, marginTop: 9 },
   detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 10 },
   detailsLinkText: { fontSize: 12, fontWeight: "700" },
-  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 0, paddingTop: 11, paddingBottom: 1 },
+  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 13, paddingTop: 10, paddingBottom: 1 },
   rsvpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   rsvpCount: { flexGrow: 1, flexBasis: 58, fontSize: 11 },
   rsvpButton: { flexGrow: 1, flexBasis: 65, minWidth: 0, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, paddingVertical: 7, borderRadius: 18, borderWidth: 1 },

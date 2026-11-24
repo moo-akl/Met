@@ -92,7 +92,7 @@ export default function EventDetailsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const detailPhotoWidth = Math.max(240, Math.min(windowWidth - 54, 440));
+  const detailPhotoWidth = Math.max(240, Math.min(windowWidth, 720));
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t, lang } = useT();
@@ -440,6 +440,7 @@ export default function EventDetailsScreen() {
         ? [event.imageUrl]
         : []
     : [];
+  const titleInHero = Boolean(event && !isConcludedHangout);
   const ownerManageQuery = useQuery({
     ...getGetCommunityEventForEditQueryOptions(isValidRoute ? eventId : 0),
     enabled: isOwner && event?.eventType === "member",
@@ -726,6 +727,64 @@ export default function EventDetailsScreen() {
     deleteMemberEvent.mutate({ eventId: event.id });
   };
 
+  const openEventActions = () => {
+    if (!event) return;
+    const actions = [];
+    if (canEditEvent) {
+      actions.push({
+        text: t("tabs.events.editEvent"),
+        onPress: () => {
+          if (event.eventType === "venue") {
+            router.push(`/venue-owner/events/${event.id}` as never);
+          } else {
+            router.push(`/event-edit/${event.id}` as never);
+          }
+        },
+      });
+    }
+    if (isOwner && (event.eventType === "venue" || isHangout)) {
+      actions.push({
+        text: manageEventLabel,
+        onPress: () => router.push({
+          pathname: "/event-attendees/[eventType]/[id]",
+          params: {
+            eventType: event.eventType,
+            id: String(event.id),
+            title: event.title,
+            joinApprovalRequired: String(event.joinApprovalRequired),
+          },
+        } as never),
+      });
+    }
+    if (canOpenPlanChat) {
+      actions.push({
+        text: planChatLabel,
+        onPress: () => router.push(`/event-chat/${event.id}` as never),
+      });
+    }
+    if (canShareEvent) {
+      actions.push({
+        text: t("common.share"),
+        onPress: () => void shareEvent(),
+      });
+    }
+    if (!isOwner) {
+      actions.push({
+        text: t("tabs.events.reportEvent"),
+        onPress: showEventReportOptions,
+      });
+    }
+    if (canEditEvent) {
+      actions.push({
+        text: t("tabs.events.deleteEvent"),
+        style: "destructive" as const,
+        onPress: () => setConfirmDelete(true),
+      });
+    }
+    actions.push({ text: t("common.cancel"), style: "cancel" as const });
+    Alert.alert(event.title, undefined, actions);
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 8, borderBottomColor: colors.border }]}>
@@ -748,25 +807,38 @@ export default function EventDetailsScreen() {
                   : "tabs.events.detailsView",
           )}
         </Text>
-        {canEditEvent && event ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("tabs.events.editEvent")}
-            testID="event-details-edit-button"
-            onPress={() => {
-              if (event.eventType === "venue") {
-                router.push(`/venue-owner/events/${event.id}` as never);
-              } else {
-                router.push(`/event-edit/${event.id}` as never);
-              }
-            }}
-            style={styles.headerButton}
-          >
-            <Feather name="edit-2" size={19} color={colors.text} />
-          </Pressable>
-        ) : (
-          <View style={styles.headerButton} />
-        )}
+        <View style={styles.headerActions}>
+          {canEditEvent && event ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("tabs.events.editEvent")}
+              testID="event-details-edit-button"
+              onPress={() => {
+                if (event.eventType === "venue") {
+                  router.push(`/venue-owner/events/${event.id}` as never);
+                } else {
+                  router.push(`/event-edit/${event.id}` as never);
+                }
+              }}
+              style={styles.headerButton}
+            >
+              <Feather name="edit-2" size={18} color={colors.text} />
+            </Pressable>
+          ) : null}
+          {event ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("tabs.events.detailsView")}
+              testID="event-details-actions-button"
+              onPress={openEventActions}
+              style={[styles.headerButton, styles.headerActionsMenu, { backgroundColor: colors.primary }]}
+            >
+              <Feather name="more-horizontal" size={21} color={colors.primaryForeground} />
+            </Pressable>
+          ) : (
+            <View style={styles.headerButton} />
+          )}
+        </View>
       </View>
 
       {eventQuery.isLoading ? (
@@ -806,7 +878,7 @@ export default function EventDetailsScreen() {
           ]}
         >
           {isHangout ? (
-            <View testID="event-detail-hangout-hero" style={[styles.hangoutHero, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View testID="event-detail-hangout-hero" style={[styles.hangoutHero, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.hangoutHeroMedia}>
                 {isConcludedHangout || !eventPhotos.length ? (
                   <View style={[styles.hangoutPlaceholder, { backgroundColor: colors.primarySoft }]}>
@@ -840,58 +912,24 @@ export default function EventDetailsScreen() {
                     </Text>
                   </View>
                 ) : null}
-              </View>
-              <View style={styles.hangoutHeroFooter}>
-                <View style={[styles.hangoutHeroIcon, { backgroundColor: colors.primarySoft }]}>
-                  <Feather name="users" size={19} color={colors.primary} />
-                </View>
-                <View style={styles.hangoutHeroCopy}>
-                  <Text style={[styles.hangoutHeroEyebrow, { color: colors.primary }]}>
-                    {t("tabs.events.quickPlan")}
-                  </Text>
-                </View>
-                <Feather name="arrow-up-right" size={18} color={colors.primary} />
+                {titleInHero ? (
+                  <View pointerEvents="none" style={styles.detailHeroCaption}>
+                    <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>{t("tabs.events.quickPlan")}</Text>
+                    <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
+                  </View>
+                ) : null}
               </View>
             </View>
           ) : isFriendPlan ? (
             <>
-              <View testID="event-detail-plan-hero" style={[styles.planHero, { backgroundColor: colors.primarySoft }]}>
-                <View style={[styles.planDateTile, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.planMonth, { color: colors.primaryForeground }]}>
-                    {new Date(event.startsAt).toLocaleDateString(lang, {
-                      month: "short",
-                      ...eventDateTimeOptions,
-                    }).toUpperCase()}
-                  </Text>
-                  <Text style={[styles.planDay, { color: colors.primaryForeground }]}>
-                    {recurrenceTimeZone
-                      ? new Date(event.startsAt).toLocaleDateString(lang, {
-                          day: "numeric",
-                          timeZone: recurrenceTimeZone,
-                        })
-                      : new Date(event.startsAt).getDate()}
-                  </Text>
-                </View>
-                <View style={styles.planHeroCopy}>
-                  <Text style={[styles.planHeroEyebrow, { color: colors.primary }]}>
-                    {t("tabs.events.friendPlanBadge")}
-                  </Text>
-                  <Text style={[styles.planHeroDate, { color: colors.text }]}>
-                    {new Date(event.startsAt).toLocaleDateString(lang, {
-                      weekday: "long",
-                      ...eventDateTimeOptions,
-                    })}
-                  </Text>
-                  <Text style={[styles.planHeroTime, { color: colors.mutedForeground }]}>
-                    {new Date(event.startsAt).toLocaleTimeString(lang, {
-                      hour: "numeric",
-                      minute: "2-digit",
-                      ...eventDateTimeOptions,
-                    })}
-                  </Text>
-                </View>
-              </View>
-              {eventPhotos.length > 0 ? (
+              <View
+                testID="event-detail-plan-hero"
+                style={[
+                  styles.planHero,
+                  { backgroundColor: eventPhotos.length > 0 ? colors.card : colors.primarySoft },
+                ]}
+              >
+                {eventPhotos.length > 0 ? (
                 <EventPhotoCarousel
                   photos={eventPhotos}
                   imageStyle={[styles.planGalleryImage, { width: detailPhotoWidth }]}
@@ -899,22 +937,47 @@ export default function EventDetailsScreen() {
                   testID="event-detail-plan-gallery"
                   accessibilityLabel={t("tabs.events.planPhotos")}
                 />
-              ) : null}
+                ) : (
+                  <View style={[styles.planHeroFallback, { backgroundColor: colors.primarySoft }]} />
+                )}
+                {titleInHero ? (
+                  <View pointerEvents="none" style={styles.detailHeroCaption}>
+                    <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>{t("tabs.events.friendPlanBadge")}</Text>
+                    <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
+                  </View>
+                ) : null}
+              </View>
             </>
           ) : eventPhotos.length > 0 ? (
-            <EventPhotoCarousel
-              photos={eventPhotos}
-              imageStyle={[styles.cover, { width: detailPhotoWidth }]}
-              containerStyle={styles.standardPhotoRow}
-              testID="event-detail-standard-hero"
-              accessibilityLabel={t("tabs.events.planPhotos")}
-            />
+            <View style={styles.standardHero}>
+              <EventPhotoCarousel
+                photos={eventPhotos}
+                imageStyle={[styles.cover, { width: detailPhotoWidth }]}
+                containerStyle={styles.standardPhotoRow}
+                testID="event-detail-standard-hero"
+                accessibilityLabel={t("tabs.events.planPhotos")}
+              />
+              {titleInHero ? (
+                <View pointerEvents="none" style={styles.detailHeroCaption}>
+                  <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>{t("tabs.events.venueEvent")}</Text>
+                  <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
+                </View>
+              ) : null}
+            </View>
           ) : !isConcludedHangout ? (
-            <View
-              testID="event-detail-standard-hero-placeholder"
-              style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}
-            >
-              <Feather name={event.eventType === "venue" ? "calendar" : "users"} size={34} color={colors.primary} />
+            <View style={styles.standardHero}>
+              <View
+                testID="event-detail-standard-hero-placeholder"
+                style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}
+              >
+                <Feather name={event.eventType === "venue" ? "calendar" : "users"} size={34} color={colors.primary} />
+              </View>
+              <View pointerEvents="none" style={styles.detailHeroCaption}>
+                <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>
+                  {event.eventType === "venue" ? t("tabs.events.venueEvent") : t("tabs.events.friendPlanBadge")}
+                </Text>
+                <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
+              </View>
             </View>
           ) : null}
 
@@ -922,7 +985,7 @@ export default function EventDetailsScreen() {
             testID={isConcludedHangout ? "concluded-hangout-summary" : undefined}
             style={styles.body}
           >
-            <View style={styles.badgeRow}>
+            {!titleInHero ? <View style={styles.badgeRow}>
               <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
                 {isConcludedHangout
                   ? t("plans.pastHangoutsTitle")
@@ -937,8 +1000,8 @@ export default function EventDetailsScreen() {
                   {t("tabs.events.inviteOnly")}
                 </Text>
               ) : null}
-            </View>
-            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{event.title}</Text>
+            </View> : null}
+            {!titleInHero ? <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{event.title}</Text> : null}
             {event.eventType === "venue" ? (
               <View
                 testID="event-detail-schedule"
@@ -1619,23 +1682,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerButton: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
+  headerButton: { width: 38, height: 38, justifyContent: "center", alignItems: "center" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headerActionsMenu: { borderRadius: 19 },
   headerTitle: { fontSize: 18, fontWeight: "700" },
   state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   stateText: { fontSize: 15, fontWeight: "600" },
   retryButton: { minHeight: 40, borderRadius: 20, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
   retryButtonText: { fontSize: 13, fontWeight: "700" },
   content: { paddingBottom: 24 },
-  cover: { width: "100%", height: 230 },
-  coverPlaceholder: { width: "100%", height: 160, alignItems: "center", justifyContent: "center" },
-  standardPhotoRow: { gap: 10, paddingLeft: 18, paddingRight: 18, paddingTop: 13 },
-  hangoutHero: { marginHorizontal: 18, marginTop: 18, borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 24, overflow: "hidden" },
-  hangoutHeroMedia: { position: "relative" },
-  hangoutPhotoRow: { gap: 8, padding: 8 },
-  hangoutCover: { height: 205, borderTopLeftRadius: 24, borderBottomRightRadius: 20 },
+  cover: { width: "100%", height: 238 },
+  coverPlaceholder: { width: "100%", height: 238, alignItems: "center", justifyContent: "center" },
+  standardHero: { position: "relative", width: "100%", height: 238 },
+  standardPhotoRow: { width: "100%", height: 238, gap: 0, padding: 0 },
+  detailHeroCaption: { position: "absolute", zIndex: 3, left: 20, right: 20, bottom: 17, gap: 5, paddingTop: 28 },
+  detailHeroEyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.4, textTransform: "uppercase", textShadowColor: "rgba(18,37,27,.75)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  detailHeroTitle: { fontFamily: "PlayfairDisplay_400Regular", fontSize: 31, lineHeight: 34, letterSpacing: -0.5, textShadowColor: "rgba(18,37,27,.8)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 7 },
+  hangoutHero: { marginHorizontal: 0, marginTop: 0, borderWidth: 0, borderRadius: 0, overflow: "hidden" },
+  hangoutHeroMedia: { position: "relative", width: "100%", height: 238 },
+  hangoutPhotoRow: { width: "100%", height: 238, gap: 0, padding: 0 },
+  hangoutCover: { height: 238, borderRadius: 0 },
   hangoutDistancePill: { position: "absolute", top: 15, right: 15, zIndex: 2, maxWidth: "82%", minHeight: 30, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, borderTopLeftRadius: 14, borderBottomRightRadius: 12 },
   hangoutDistanceText: { flexShrink: 1, fontSize: 10, fontWeight: "700" },
-  hangoutPlaceholder: { minHeight: 190, alignItems: "center", justifyContent: "center", gap: 10, overflow: "hidden" },
+  hangoutPlaceholder: { height: 238, alignItems: "center", justifyContent: "center", gap: 10, overflow: "hidden" },
   hangoutSun: { position: "absolute", width: 46, height: 46, borderRadius: 23, right: 44, top: 31, opacity: 0.2 },
   hangoutHillBack: { position: "absolute", width: 250, height: 98, borderRadius: 90, left: -54, bottom: -58, transform: [{ rotate: "-13deg" }] },
   hangoutHillFront: { position: "absolute", width: 270, height: 105, borderRadius: 90, right: -62, bottom: -68, transform: [{ rotate: "13deg" }] },
@@ -1646,16 +1715,10 @@ const styles = StyleSheet.create({
   hangoutHeroCopy: { flex: 1, gap: 3 },
   hangoutHeroEyebrow: { fontSize: 13, fontWeight: "700" },
   hangoutHeroHint: { fontSize: 11, lineHeight: 16 },
-  planHero: { marginHorizontal: 18, marginTop: 18, minHeight: 122, borderTopLeftRadius: 32, borderBottomRightRadius: 24, padding: 14, flexDirection: "row", alignItems: "center", gap: 13 },
-  planDateTile: { width: 68, height: 82, borderTopLeftRadius: 22, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
-  planMonth: { fontSize: 11, fontWeight: "700", letterSpacing: 1 },
-  planDay: { fontSize: 30, lineHeight: 36, fontWeight: "700" },
-  planHeroCopy: { flex: 1, gap: 4 },
-  planHeroEyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase" },
-  planHeroDate: { fontSize: 15, fontWeight: "700" },
-  planHeroTime: { fontSize: 12, fontWeight: "600" },
-  planGallery: { gap: 9, paddingTop: 12, paddingLeft: 18, paddingRight: 18 },
-  planGalleryImage: { height: 180, borderTopRightRadius: 24, borderBottomLeftRadius: 20 },
+  planHero: { position: "relative", width: "100%", height: 238, overflow: "hidden" },
+  planHeroFallback: { ...StyleSheet.absoluteFillObject },
+  planGallery: { width: "100%", height: 238, gap: 0, padding: 0 },
+  planGalleryImage: { width: "100%", height: 238, borderRadius: 0 },
   body: { paddingHorizontal: 18, paddingTop: 18 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
   badge: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99 },

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -21,6 +21,9 @@ export default function PlansScreen() {
   const router = useRouter();
   const { t } = useT();
   const { authedUid } = useApp();
+  const [planFilter, setPlanFilter] = useState<"all" | "hosting" | "invitations">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "week">("all");
+  const [dateOptionsOpen, setDateOptionsOpen] = useState(false);
   const feed = useGetEventsFeed(undefined, {
     query: {
       staleTime: 30_000,
@@ -42,16 +45,20 @@ export default function PlansScreen() {
       !event.joinApprovalRequired &&
       event.myRsvp !== "not_going" &&
       (event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
-    )
-    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()), [feed.data?.events, authedUid]);
+    ).filter((event: EventFeedItem) => {
+      if (planFilter === "hosting") return event.ownerUid === authedUid;
+      if (planFilter === "invitations") return event.ownerUid !== authedUid;
+      return true;
+    }).filter((event: EventFeedItem) => {
+      if (dateFilter === "all") return true;
+      const startsAt = Date.parse(event.startsAt);
+      const now = Date.now();
+      return startsAt >= now && startsAt < now + 7 * 24 * 60 * 60 * 1000;
+    })
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()), [feed.data?.events, authedUid, dateFilter, planFilter]);
 
   const openPlan = (event: EventFeedItem) => {
-    const accepted = event.myRsvp === "going" || event.myRsvp === "maybe";
-    router.push(
-      event.ownerUid === authedUid || accepted
-        ? `/event-chat/${event.id}` as never
-        : `/event-details/member/${event.id}` as never,
-    );
+    router.push(`/event-details/member/${event.id}` as never);
   };
 
   return (
@@ -84,6 +91,73 @@ export default function PlansScreen() {
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 28) }]} showsVerticalScrollIndicator={false}>
         <Text style={[styles.intro, { color: colors.mutedForeground }]}>{t("plans.friendOnlyIntro")}</Text>
+        <View style={styles.filters} accessibilityRole="tablist" testID="plans-category-filters">
+          {([
+            ["all", t("plans.all")],
+            ["hosting", t("plans.hosting")],
+            ["invitations", t("tabs.events.invited")],
+          ] as const).map(([filter, label]) => {
+            const selected = planFilter === filter;
+            return (
+              <Pressable
+                key={filter}
+                accessibilityRole="tab"
+                accessibilityLabel={label}
+                accessibilityState={{ selected }}
+                testID={`plans-filter-${filter}`}
+                onPress={() => setPlanFilter(filter)}
+                style={[
+                  styles.filter,
+                  {
+                    backgroundColor: selected ? colors.primarySoft : "transparent",
+                    borderColor: selected ? "transparent" : colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.filterText, { color: selected ? colors.brandPanel : colors.mutedForeground }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("tabs.events.anyTime")}
+            accessibilityState={{ expanded: dateOptionsOpen }}
+            testID="plans-date-filter-toggle"
+            onPress={() => setDateOptionsOpen((open) => !open)}
+            style={styles.dateFilterToggle}
+          >
+            <Text style={[styles.dateFilterText, { color: colors.primary }]}>
+              {dateFilter === "all" ? t("tabs.events.anyTime") : t("tabs.events.filterThisWeek")}
+            </Text>
+            <Feather name={dateOptionsOpen ? "chevron-up" : "arrow-up-right"} size={14} color={colors.primary} />
+          </Pressable>
+        </View>
+        {dateOptionsOpen ? (
+          <View style={styles.dateOptions} testID="plans-date-filter-options">
+            {([
+              ["all", t("tabs.events.anyTime")],
+              ["week", t("tabs.events.filterThisWeek")],
+            ] as const).map(([filter, label]) => (
+              <Pressable
+                key={filter}
+                accessibilityRole="button"
+                accessibilityState={{ selected: dateFilter === filter }}
+                testID={`plans-date-filter-${filter}`}
+                onPress={() => { setDateFilter(filter); setDateOptionsOpen(false); }}
+                style={[
+                  styles.dateOption,
+                  { backgroundColor: dateFilter === filter ? colors.primarySoft : colors.card },
+                ]}
+              >
+                <Text style={[styles.filterText, { color: dateFilter === filter ? colors.brandPanel : colors.text }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         {!authedUid || feed.isLoading ? (
           <View style={styles.state}><ActivityIndicator color={colors.primary} /><Text style={[styles.stateText, { color: colors.mutedForeground }]}>{t("plans.loading")}</Text></View>
         ) : feed.isError ? (
@@ -268,6 +342,13 @@ const styles = StyleSheet.create({
   create: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   content: { paddingHorizontal: 22, gap: 17 },
   intro: { fontSize: 14, lineHeight: 21, maxWidth: 330, marginBottom: 8 },
+  filters: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 7, marginTop: -3, marginBottom: 3 },
+  filter: { minHeight: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 18, paddingHorizontal: 12 },
+  filterText: { fontSize: 10, fontWeight: "600" },
+  dateFilterToggle: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 3, marginLeft: "auto", paddingHorizontal: 3 },
+  dateFilterText: { fontSize: 10, fontWeight: "700" },
+  dateOptions: { flexDirection: "row", gap: 7, marginTop: -7, marginBottom: 3 },
+  dateOption: { minHeight: 32, alignItems: "center", justifyContent: "center", borderRadius: 17, paddingHorizontal: 11 },
   state: { minHeight: 180, alignItems: "center", justifyContent: "center", gap: 12 },
   stateText: { fontSize: 13, lineHeight: 19, textAlign: "center" },
   empty: { minHeight: 236, borderTopRightRadius: 52, borderBottomLeftRadius: 38, alignItems: "center", justifyContent: "center", padding: 26, gap: 9 },

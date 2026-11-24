@@ -141,6 +141,45 @@ describe("Past Hangouts access", () => {
     expect(view.getByText("01")).toBeTruthy();
   });
 
+  it("filters Plans by hosting and invitations", async () => {
+    mockEventsFeed.data = {
+      events: [
+        privatePlan(106, { ownerUid: "uid-1" }),
+        privatePlan(107, { ownerUid: "host-1", isInvited: true }),
+      ],
+    };
+
+    const view = await render(<PlansScreen />);
+    expect(view.getAllByTestId(/^plan-row-/)).toHaveLength(2);
+
+    await fireEvent.press(view.getByTestId("plans-filter-hosting"));
+    expect(view.getByTestId("plan-row-106")).toBeTruthy();
+    expect(view.queryByTestId("plan-row-107")).toBeNull();
+
+    await fireEvent.press(view.getByTestId("plans-filter-invitations"));
+    expect(view.getByTestId("plan-row-107")).toBeTruthy();
+    expect(view.queryByTestId("plan-row-106")).toBeNull();
+  });
+
+  it("opens date options and applies the week filter", async () => {
+    const startsSoon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    const startsLater = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+    mockEventsFeed.data = {
+      events: [
+        privatePlan(108, { startsAt: startsSoon }),
+        privatePlan(109, { startsAt: startsLater }),
+      ],
+    };
+
+    const view = await render(<PlansScreen />);
+    expect(view.getAllByTestId(/^plan-row-/)).toHaveLength(2);
+    await fireEvent.press(view.getByTestId("plans-date-filter-toggle"));
+    await fireEvent.press(view.getByTestId("plans-date-filter-week"));
+
+    expect(view.getByTestId("plan-row-108")).toBeTruthy();
+    expect(view.queryByTestId("plan-row-109")).toBeNull();
+  });
+
   it("shows the Plans empty state and keeps its create action", async () => {
     const view = await render(<PlansScreen />);
 
@@ -166,40 +205,31 @@ describe("Past Hangouts access", () => {
     expect(mockEventsFeed.refetch).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the featured Plan's uploaded photo and opens its conversation for the owner", async () => {
-    const photoUrl = "https://example.test/plan-cover.jpg";
+  it("opens the private Plan detail screen for the owner", async () => {
     mockEventsFeed.data = {
-      events: [privatePlan(101, { imageUrl: photoUrl })],
+      events: [privatePlan(101)],
     };
 
     const view = await render(<PlansScreen />);
 
-    expect(view.getByTestId("plan-featured-artwork")).toBeTruthy();
-    expect(view.getByTestId("plan-featured-photo").props.source.uri).toBe(photoUrl);
-    expect(view.queryByTestId("plan-featured-fallback")).toBeNull();
-
     await fireEvent.press(view.getByTestId("plan-row-101"));
 
-    expect(mockRouterPush).toHaveBeenCalledWith("/event-chat/101");
+    expect(mockRouterPush).toHaveBeenCalledWith("/event-details/member/101");
   });
 
-  it("shows fallback artwork without a photo and opens invite details for an invitee", async () => {
+  it("opens invitation details for an invitee", async () => {
     mockEventsFeed.data = {
       events: [privatePlan(102, { ownerUid: "host-1", isInvited: true })],
     };
 
     const view = await render(<PlansScreen />);
 
-    expect(view.getByTestId("plan-featured-artwork")).toBeTruthy();
-    expect(view.getByTestId("plan-featured-fallback")).toBeTruthy();
-    expect(view.queryByTestId("plan-featured-photo")).toBeNull();
-
     await fireEvent.press(view.getByTestId("plan-row-102"));
 
     expect(mockRouterPush).toHaveBeenCalledWith("/event-details/member/102");
   });
 
-  it("opens the conversation for an accepted attendee", async () => {
+  it("opens details for an accepted attendee before they enter the conversation", async () => {
     mockEventsFeed.data = {
       events: [
         privatePlan(103, {
@@ -214,7 +244,7 @@ describe("Past Hangouts access", () => {
 
     await fireEvent.press(view.getByTestId("plan-row-103"));
 
-    expect(mockRouterPush).toHaveBeenCalledWith("/event-chat/103");
+    expect(mockRouterPush).toHaveBeenCalledWith("/event-details/member/103");
   });
 
   it("shows a loading state until the signed-in user's history loads", async () => {
