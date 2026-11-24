@@ -646,19 +646,30 @@ function EventsScreen() {
         ) : (
           <View style={styles.eventList}>
             {visibleGroups.map((group) => (
-                  <View key={group.key} style={[styles.eventDateGroup, rtl ? styles.eventDateGroupRtl : styles.eventDateGroupLtr]}>
-                <Text
-                  accessibilityRole="header"
+              <View key={group.key} style={styles.eventDateGroup}>
+                <View
                   style={[
-                    styles.eventDateHeading,
-                    {
-                      color: colors.primary,
-                      textAlign: rtl ? "right" : "left",
-                    },
+                    styles.eventDateHeadingRow,
+                    { flexDirection: rtl ? "row-reverse" : "row" },
                   ]}
                 >
-                  {group.label}
-                </Text>
+                  <Text
+                    accessibilityRole="header"
+                    style={[
+                      styles.eventDateHeading,
+                      {
+                        color: colors.text,
+                        textAlign: rtl ? "right" : "left",
+                      },
+                    ]}
+                  >
+                    {group.label}
+                  </Text>
+                  <View style={[styles.eventDateRule, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.eventDateCount, { color: colors.mutedForeground }]}>
+                    {String(group.events.length).padStart(2, "0")}
+                  </Text>
+                </View>
                 {group.events.map((event) => {
                   const key = `${event.eventType}:${event.id}`;
                   const isPending = pendingKey === key;
@@ -924,10 +935,11 @@ const styles = StyleSheet.create({
   emptyActionText: { fontSize: 13, fontWeight: "700" },
   emptyActions: { width: "100%", gap: 7, marginTop: 4 },
   eventList: { gap: 0, paddingTop: 1 },
-  eventDateGroup: { gap: 0, borderLeftWidth: 1, paddingLeft: 14, marginLeft: 6 },
-  eventDateGroupLtr: { borderLeftWidth: 1, borderRightWidth: 0, paddingLeft: 14, paddingRight: 0, marginLeft: 6, marginRight: 0 },
-  eventDateGroupRtl: { borderLeftWidth: 0, borderRightWidth: 1, paddingLeft: 0, paddingRight: 14, marginLeft: 0, marginRight: 6 },
-  eventDateHeading: { fontFamily: "serif", fontSize: 21, fontWeight: "400", marginTop: 13, marginBottom: 12 },
+  eventDateGroup: { gap: 0 },
+  eventDateHeadingRow: { minHeight: 43, alignItems: "center", gap: 10, marginTop: 4, marginBottom: 2 },
+  eventDateHeading: { fontFamily: "serif", fontSize: 21, fontWeight: "400", flexShrink: 0 },
+  eventDateRule: { height: StyleSheet.hairlineWidth, flex: 1 },
+  eventDateCount: { fontSize: 9, fontWeight: "600", letterSpacing: 0.8 },
   eventCard: { borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden", marginBottom: 18, paddingBottom: 17 },
   eventPhotoGallery: { width: "100%", overflow: "hidden" },
   cover: { width: "100%", height: 174, borderTopLeftRadius: 2, borderTopRightRadius: 24, borderBottomLeftRadius: 2 },

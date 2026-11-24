@@ -54,7 +54,7 @@ export function HangoutsNearbyPanel({
   return (
     <View style={styles.content}>
       <View
-        style={[styles.sortRow, { borderColor: colors.border, backgroundColor: colors.card }]}
+        style={[styles.sortRow, { borderColor: colors.border }]}
         testID="hangouts-sort-options"
       >
         <Text style={[styles.sortLabel, { color: colors.mutedForeground }]}>
@@ -123,9 +123,16 @@ export function HangoutsNearbyPanel({
             const distanceText = distance == null
               ? null
               : formatApproximateDistance(distance, lang);
+            const coverPhoto = event.galleryPhotos?.[0] ?? event.imageUrl;
             const locationLabel = event.location ?? "";
             const startLabel = new Date(event.startsAt).toLocaleString(lang);
             const creatorLabel = event.creatorName ?? t("tabs.events.planHost");
+            const joinStatusLabel =
+              event.myJoinRequestStatus === "pending"
+                ? t("tabs.events.joinRequestPending")
+                : event.myJoinRequestStatus === "accepted"
+                  ? t("tabs.events.planInvitationAccepted")
+                  : null;
             return (
               <Pressable
                 key={`${event.eventType}:${event.id}`}
@@ -155,8 +162,8 @@ export function HangoutsNearbyPanel({
                     { backgroundColor: colors.primarySoft },
                   ]}
                 >
-                  {event.imageUrl ? (
-                    <Image source={{ uri: event.imageUrl }} style={styles.bannerImage} resizeMode="cover" />
+                  {coverPhoto ? (
+                    <Image source={{ uri: coverPhoto }} style={styles.bannerImage} resizeMode="cover" />
                   ) : (
                     <View style={[styles.bannerFallback, { backgroundColor: colors.primarySoft }]}>
                       <View style={[styles.fallbackSun, { backgroundColor: colors.primary }]} />
@@ -213,6 +220,26 @@ export function HangoutsNearbyPanel({
                   {locationLabel ? (
                     <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>{locationLabel}</Text>
                   ) : null}
+                  {joinStatusLabel ? (
+                    <View
+                      testID={`nearby-hangout-status-${event.id}`}
+                      style={[
+                        styles.joinStatus,
+                        {
+                          backgroundColor: colors.primarySoft,
+                        },
+                      ]}
+                    >
+                      <Feather
+                        name={event.myJoinRequestStatus === "pending" ? "clock" : "check-circle"}
+                        size={13}
+                        color={colors.primary}
+                      />
+                      <Text style={[styles.joinStatusText, { color: colors.primary }]}>
+                        {joinStatusLabel}
+                      </Text>
+                    </View>
+                  ) : null}
                   {event.description ? (
                     <Text style={[styles.description, { color: colors.text }]}>{event.description}</Text>
                   ) : null}
@@ -256,10 +283,10 @@ export function HangoutsNearbyPanel({
 
 const styles = StyleSheet.create({
   content: { gap: 14 },
-  sortRow: { minHeight: 50, borderWidth: 1, borderRadius: 25, paddingHorizontal: 12, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
-  sortLabel: { fontSize: 12, fontWeight: "600", marginRight: "auto" },
-  sortChip: { minHeight: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  sortChipText: { fontSize: 12, fontWeight: "600" },
+  sortRow: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 6, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 7 },
+  sortLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 1.1, textTransform: "uppercase", marginRight: "auto" },
+  sortChip: { minHeight: 31, paddingHorizontal: 11, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  sortChipText: { fontSize: 10, fontWeight: "700" },
   locationHint: { fontSize: 12, fontWeight: "600" },
   actionText: { fontSize: 12, fontWeight: "700" },
   emptyCard: { minHeight: 130, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", gap: 10 },
@@ -289,6 +316,8 @@ const styles = StyleSheet.create({
   eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 4 },
   creatorName: { fontSize: 12, lineHeight: 16, fontWeight: "700" },
   description: { fontSize: 12, lineHeight: 18, marginTop: 8 },
+  joinStatus: { alignSelf: "flex-start", maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 6, borderTopLeftRadius: 11, borderBottomRightRadius: 11, paddingHorizontal: 9, paddingVertical: 6, marginTop: 8 },
+  joinStatusText: { flexShrink: 1, fontSize: 10, lineHeight: 14, fontWeight: "700" },
   detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 8 },
   detailsLinkText: { fontSize: 12, fontWeight: "700" },
 });

@@ -16,6 +16,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -90,6 +91,8 @@ export default function EventDetailsScreen() {
 
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const detailPhotoWidth = Math.max(240, Math.min(windowWidth - 54, 440));
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t, lang } = useT();
@@ -609,6 +612,12 @@ export default function EventDetailsScreen() {
         (!isOwner &&
           (event.isInvited || event.myJoinRequestStatus === "accepted"))),
   );
+  const showHangoutActionDock = Boolean(
+    isHangout &&
+      !isOwner &&
+      !isConcludedHangout &&
+      event?.myJoinRequestStatus !== "accepted",
+  );
   const manageEventLabel = event?.joinApprovalRequired
     ? `${t("tabs.events.joinRequests")}${event.pendingJoinRequestCount ? ` (${event.pendingJoinRequestCount})` : ""}`
     : t("tabs.events.manageAttendance");
@@ -784,35 +793,54 @@ export default function EventDetailsScreen() {
           ) : null}
         </View>
       ) : (
+        <>
         <ScrollView
           contentContainerStyle={[
             styles.content,
-            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 28 },
+            {
+              paddingBottom:
+                insets.bottom +
+                (Platform.OS === "web" ? 34 : 0) +
+                (showHangoutActionDock ? 16 : 28),
+            },
           ]}
         >
           {isHangout ? (
             <View testID="event-detail-hangout-hero" style={[styles.hangoutHero, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {isConcludedHangout || !eventPhotos.length ? (
-                <View style={[styles.hangoutPlaceholder, { backgroundColor: colors.primarySoft }]}>
-                  <View style={[styles.hangoutSun, { backgroundColor: colors.primary }]} />
-                  <View style={[styles.hangoutHillBack, { backgroundColor: colors.card }]} />
-                  <View style={[styles.hangoutHillFront, { backgroundColor: colors.primarySoft }]} />
-                  <View style={styles.hangoutPlaceholderContent}>
-                    <Feather name="users" size={30} color={colors.primary} />
-                    <Text style={[styles.hangoutPlaceholderText, { color: colors.primary }]}>
-                      {t("tabs.events.hangoutDetailsTitle")}
+              <View style={styles.hangoutHeroMedia}>
+                {isConcludedHangout || !eventPhotos.length ? (
+                  <View style={[styles.hangoutPlaceholder, { backgroundColor: colors.primarySoft }]}>
+                    <View style={[styles.hangoutSun, { backgroundColor: colors.primary }]} />
+                    <View style={[styles.hangoutHillBack, { backgroundColor: colors.card }]} />
+                    <View style={[styles.hangoutHillFront, { backgroundColor: colors.primarySoft }]} />
+                    <View style={styles.hangoutPlaceholderContent}>
+                      <Feather name="users" size={30} color={colors.primary} />
+                      <Text style={[styles.hangoutPlaceholderText, { color: colors.primary }]}>
+                        {t("tabs.events.hangoutDetailsTitle")}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <EventPhotoCarousel
+                    photos={eventPhotos}
+                    imageStyle={[styles.hangoutCover, { width: detailPhotoWidth }]}
+                    containerStyle={styles.hangoutPhotoRow}
+                    testID="event-detail-hangout-gallery"
+                    accessibilityLabel={t("tabs.events.planPhotos")}
+                  />
+                )}
+                {approximateDistanceText ? (
+                  <View
+                    testID="event-detail-hangout-distance"
+                    style={[styles.hangoutDistancePill, { backgroundColor: colors.card }]}
+                  >
+                    <Feather name="map-pin" size={13} color={colors.primary} />
+                    <Text style={[styles.hangoutDistanceText, { color: colors.primary }]}>
+                      {t("tabs.events.distanceAway", { distance: approximateDistanceText })}
                     </Text>
                   </View>
-                </View>
-              ) : (
-                <EventPhotoCarousel
-                  photos={eventPhotos}
-                  imageStyle={styles.hangoutCover}
-                  containerStyle={styles.hangoutPhotoRow}
-                  testID="event-detail-hangout-gallery"
-                  accessibilityLabel={t("tabs.events.planPhotos")}
-                />
-              )}
+                ) : null}
+              </View>
               <View style={styles.hangoutHeroFooter}>
                 <View style={[styles.hangoutHeroIcon, { backgroundColor: colors.primarySoft }]}>
                   <Feather name="users" size={19} color={colors.primary} />
@@ -866,7 +894,7 @@ export default function EventDetailsScreen() {
               {eventPhotos.length > 0 ? (
                 <EventPhotoCarousel
                   photos={eventPhotos}
-                  imageStyle={styles.planGalleryImage}
+                  imageStyle={[styles.planGalleryImage, { width: detailPhotoWidth }]}
                   containerStyle={styles.planGallery}
                   testID="event-detail-plan-gallery"
                   accessibilityLabel={t("tabs.events.planPhotos")}
@@ -876,8 +904,8 @@ export default function EventDetailsScreen() {
           ) : eventPhotos.length > 0 ? (
             <EventPhotoCarousel
               photos={eventPhotos}
-              imageStyle={[styles.cover, { width: 310 }]}
-              containerStyle={{ gap: 10 }}
+              imageStyle={[styles.cover, { width: detailPhotoWidth }]}
+              containerStyle={styles.standardPhotoRow}
               testID="event-detail-standard-hero"
               accessibilityLabel={t("tabs.events.planPhotos")}
             />
@@ -911,20 +939,74 @@ export default function EventDetailsScreen() {
               ) : null}
             </View>
             <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{event.title}</Text>
-            <View style={styles.metaRow}>
-              <Feather name="clock" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                {new Date(event.startsAt).toLocaleString(lang, eventDateTimeOptions)}
-              </Text>
-            </View>
-            {!isConcludedHangout && event.endsAt ? (
-              <View style={styles.metaRow}>
-                <Feather name="clock" size={16} color={colors.mutedForeground} />
-                <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                  {new Date(event.endsAt).toLocaleString(lang, eventDateTimeOptions)}
-                </Text>
+            {event.eventType === "venue" ? (
+              <View
+                testID="event-detail-schedule"
+                style={[styles.eventSchedule, { borderColor: colors.border }]}
+              >
+                <View style={[styles.scheduleDateTile, { backgroundColor: colors.primarySoft }]}>
+                  <Text style={[styles.scheduleMonth, { color: colors.primary }]}>
+                    {new Date(event.startsAt).toLocaleDateString(lang, {
+                      month: "short",
+                      ...eventDateTimeOptions,
+                    }).toUpperCase()}
+                  </Text>
+                  <Text style={[styles.scheduleDay, { color: colors.text }]}>
+                    {new Date(event.startsAt).toLocaleDateString(lang, {
+                      day: "numeric",
+                      ...eventDateTimeOptions,
+                    })}
+                  </Text>
+                  <Text style={[styles.scheduleWeekday, { color: colors.mutedForeground }]}>
+                    {new Date(event.startsAt).toLocaleDateString(lang, {
+                      weekday: "short",
+                      ...eventDateTimeOptions,
+                    }).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.scheduleCopy}>
+                  <Text style={[styles.scheduleDateText, { color: colors.text }]}>
+                    {new Date(event.startsAt).toLocaleDateString(lang, {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                      ...eventDateTimeOptions,
+                    })}
+                  </Text>
+                  <Text style={[styles.scheduleTimeText, { color: colors.mutedForeground }]}>
+                    {new Date(event.startsAt).toLocaleTimeString(lang, {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      ...eventDateTimeOptions,
+                    })}
+                    {event.endsAt
+                      ? ` · ${new Date(event.endsAt).toLocaleTimeString(lang, {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          ...eventDateTimeOptions,
+                        })}`
+                      : ""}
+                  </Text>
+                </View>
               </View>
-            ) : null}
+            ) : (
+              <>
+                <View style={styles.metaRow}>
+                  <Feather name="clock" size={16} color={colors.mutedForeground} />
+                  <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                    {new Date(event.startsAt).toLocaleString(lang, eventDateTimeOptions)}
+                  </Text>
+                </View>
+                {!isConcludedHangout && event.endsAt ? (
+                  <View style={styles.metaRow}>
+                    <Feather name="clock" size={16} color={colors.mutedForeground} />
+                    <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                      {new Date(event.endsAt).toLocaleString(lang, eventDateTimeOptions)}
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            )}
             {isFriendPlan && repeatCadenceLabel && nextOccurrenceLabel ? (
               <View
                 testID="event-detail-next-occurrence"
@@ -952,14 +1034,6 @@ export default function EventDetailsScreen() {
                 <Text numberOfLines={1} style={[styles.locationText, { color: colors.text }]}>{location}</Text>
                 <Feather name="navigation" size={18} color={colors.primary} />
               </Pressable>
-            ) : null}
-            {approximateDistanceText ? (
-              <View testID="event-detail-hangout-distance" style={styles.metaRow}>
-                <Feather name="map-pin" size={16} color={colors.mutedForeground} />
-                <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                  {t("tabs.events.distanceAway", { distance: approximateDistanceText })}
-                </Text>
-              </View>
             ) : null}
             {eventType === "member" ? (
               <View style={styles.creatorCard}>
@@ -1300,53 +1374,6 @@ export default function EventDetailsScreen() {
                   </Text>
                 </Pressable>
               </View>
-            ) : !isOwner && event.myJoinRequestStatus !== "accepted" ? (
-              <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
-                <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
-                  {t("tabs.events.joinRequests")}
-                </Text>
-                {event.myJoinRequestStatus === "pending" ? (
-                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
-                    {t("tabs.events.joinRequestPending")}
-                  </Text>
-                ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={event.myJoinRequestStatus === "pending"
-                    ? t("tabs.events.cancelJoinRequest")
-                    : event.myJoinRequestStatus === "declined"
-                      ? t("tabs.events.requestAgain")
-                      : t("tabs.events.requestToJoin")}
-                  testID="button-request-to-join"
-                  disabled={joinRequestPending}
-                  onPress={() => void updateJoinRequest()}
-                  style={[
-                    styles.attendanceButton,
-                    {
-                      backgroundColor: colors.primary,
-                      opacity: joinRequestPending ? 0.65 : 1,
-                      alignSelf: "flex-start",
-                    },
-                  ]}
-                >
-                  {joinRequestPending ? (
-                    <ActivityIndicator size="small" color={colors.primaryForeground} />
-                  ) : (
-                    <Feather
-                      name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"}
-                      size={16}
-                      color={colors.primaryForeground}
-                    />
-                  )}
-                  <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
-                    {event.myJoinRequestStatus === "pending"
-                      ? t("tabs.events.cancelJoinRequest")
-                      : event.myJoinRequestStatus === "declined"
-                        ? t("tabs.events.requestAgain")
-                        : t("tabs.events.requestToJoin")}
-                  </Text>
-                </Pressable>
-              </View>
             ) : null}
 
             {canOpenPlanChat ? (
@@ -1487,6 +1514,63 @@ export default function EventDetailsScreen() {
             ) : null}
           </View>
         </ScrollView>
+        {showHangoutActionDock && event ? (
+          <View
+            testID="hangout-action-dock"
+            style={[
+              styles.hangoutActionDock,
+              {
+                borderTopColor: colors.border,
+                backgroundColor: colors.background,
+                paddingBottom: Math.max(insets.bottom, Platform.OS === "web" ? 34 : 12),
+              },
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                event.myJoinRequestStatus === "pending"
+                  ? t("tabs.events.cancelJoinRequest")
+                  : event.myJoinRequestStatus === "declined"
+                    ? t("tabs.events.requestAgain")
+                    : t("tabs.events.requestToJoin")
+              }
+              testID="button-request-to-join"
+              disabled={joinRequestPending}
+              onPress={() => void updateJoinRequest()}
+              style={[
+                styles.hangoutActionButton,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: joinRequestPending ? 0.65 : 1,
+                },
+              ]}
+            >
+              {joinRequestPending ? (
+                <ActivityIndicator size="small" color={colors.primaryForeground} />
+              ) : (
+                <Feather
+                  name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"}
+                  size={16}
+                  color={colors.primaryForeground}
+                />
+              )}
+              <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
+                {event.myJoinRequestStatus === "pending"
+                  ? t("tabs.events.cancelJoinRequest")
+                  : event.myJoinRequestStatus === "declined"
+                    ? t("tabs.events.requestAgain")
+                    : t("tabs.events.requestToJoin")}
+              </Text>
+            </Pressable>
+            {event.myJoinRequestStatus === "pending" ? (
+              <Text style={[styles.hangoutActionHint, { color: colors.mutedForeground }]}>
+                {t("tabs.events.joinRequestPending")}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        </>
       )}
       <Modal
         transparent
@@ -1544,9 +1628,13 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 24 },
   cover: { width: "100%", height: 230 },
   coverPlaceholder: { width: "100%", height: 160, alignItems: "center", justifyContent: "center" },
+  standardPhotoRow: { gap: 10, paddingLeft: 18, paddingRight: 18, paddingTop: 13 },
   hangoutHero: { marginHorizontal: 18, marginTop: 18, borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 24, overflow: "hidden" },
+  hangoutHeroMedia: { position: "relative" },
   hangoutPhotoRow: { gap: 8, padding: 8 },
-  hangoutCover: { width: 286, height: 190, borderTopLeftRadius: 24, borderBottomRightRadius: 20 },
+  hangoutCover: { height: 205, borderTopLeftRadius: 24, borderBottomRightRadius: 20 },
+  hangoutDistancePill: { position: "absolute", top: 15, right: 15, zIndex: 2, maxWidth: "82%", minHeight: 30, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, borderTopLeftRadius: 14, borderBottomRightRadius: 12 },
+  hangoutDistanceText: { flexShrink: 1, fontSize: 10, fontWeight: "700" },
   hangoutPlaceholder: { minHeight: 190, alignItems: "center", justifyContent: "center", gap: 10, overflow: "hidden" },
   hangoutSun: { position: "absolute", width: 46, height: 46, borderRadius: 23, right: 44, top: 31, opacity: 0.2 },
   hangoutHillBack: { position: "absolute", width: 250, height: 98, borderRadius: 90, left: -54, bottom: -58, transform: [{ rotate: "-13deg" }] },
@@ -1566,8 +1654,8 @@ const styles = StyleSheet.create({
   planHeroEyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase" },
   planHeroDate: { fontSize: 15, fontWeight: "700" },
   planHeroTime: { fontSize: 12, fontWeight: "600" },
-  planGallery: { gap: 9, paddingTop: 12, paddingRight: 18 },
-  planGalleryImage: { width: 210, height: 145, borderTopRightRadius: 24, borderBottomLeftRadius: 20 },
+  planGallery: { gap: 9, paddingTop: 12, paddingLeft: 18, paddingRight: 18 },
+  planGalleryImage: { height: 180, borderTopRightRadius: 24, borderBottomLeftRadius: 20 },
   body: { paddingHorizontal: 18, paddingTop: 18 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
   badge: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99 },
@@ -1575,6 +1663,14 @@ const styles = StyleSheet.create({
   title: { fontFamily: "serif", fontSize: 32, lineHeight: 38, fontWeight: "400", letterSpacing: -0.6, marginBottom: 17 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 9 },
   meta: { fontSize: 14, lineHeight: 20, flex: 1 },
+  eventSchedule: { flexDirection: "row", alignItems: "center", gap: 13, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
+  scheduleDateTile: { width: 52, minHeight: 61, flexShrink: 0, borderTopLeftRadius: 15, borderBottomRightRadius: 13, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
+  scheduleMonth: { fontSize: 8, fontWeight: "700", letterSpacing: 0.8 },
+  scheduleDay: { fontFamily: "serif", fontSize: 24, lineHeight: 27 },
+  scheduleWeekday: { fontSize: 7, fontWeight: "700", letterSpacing: 0.7 },
+  scheduleCopy: { flex: 1, minWidth: 0, gap: 5 },
+  scheduleDateText: { fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  scheduleTimeText: { fontSize: 12, lineHeight: 17 },
   recurrenceCard: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, marginTop: 4, marginBottom: 10 },
   recurrenceCopy: { flex: 1, gap: 2 },
   recurrenceCadence: { fontSize: 13, fontWeight: "700" },
@@ -1641,6 +1737,9 @@ const styles = StyleSheet.create({
   rsvpRow: { flexDirection: "row", gap: 8 },
   rsvpButton: { flex: 1, minHeight: 46, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 999 },
   rsvpButtonText: { fontSize: 12, fontWeight: "700" },
+  hangoutActionDock: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, paddingHorizontal: 18, gap: 7 },
+  hangoutActionButton: { minHeight: 50, borderTopLeftRadius: 25, borderBottomRightRadius: 19, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 16 },
+  hangoutActionHint: { fontSize: 11, lineHeight: 16, textAlign: "center" },
   ownerActions: { marginTop: 18 },
   shareButton: { minHeight: 48, borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
   shareText: { fontSize: 14, fontWeight: "700" },

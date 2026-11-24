@@ -148,7 +148,6 @@ export default function PlansScreen() {
                 attendanceLabel,
               ].filter(Boolean).join(". ");
               const isFeatured = index === 0;
-              const artwork = event.galleryPhotos?.[0] ?? event.imageUrl;
               return (
                 <React.Fragment key={`${event.eventType}:${event.id}`}>
                   {index === 1 ? (
@@ -174,43 +173,31 @@ export default function PlansScreen() {
                     ]}
                   >
                     {isFeatured ? (
-                      <View
-                        testID="plan-featured-artwork"
-                        style={[styles.featuredArtwork, { backgroundColor: colors.primarySoft }]}
-                      >
-                        {artwork ? (
-                          <Image
-                            testID="plan-featured-photo"
-                            source={{ uri: artwork }}
-                            accessibilityLabel={event.title}
-                            style={styles.featuredImage}
-                          />
-                        ) : (
-                          <View testID="plan-featured-fallback" style={styles.orbitArtwork}>
-                            <View style={[styles.orbitRing, styles.orbitRingOuter, { borderColor: colors.primary }]} />
-                            <View style={[styles.orbitRing, styles.orbitRingInner, { borderColor: colors.primary }]} />
-                            <View style={[styles.orbitCore, { backgroundColor: colors.card }]}>
-                              <Feather name="sun" size={23} color={colors.primary} />
-                            </View>
-                          </View>
-                        )}
-                        <View style={styles.featuredTopline}>
-                          <View style={[styles.upNextPill, { backgroundColor: colors.card }]}>
+                      <View style={styles.featuredTopline}>
+                        <View style={styles.featuredToplineCopy}>
+                          <View style={styles.kickerLine}>
                             <View style={[styles.upNextDot, { backgroundColor: colors.primary }]} />
-                            <Text style={[styles.upNextText, { color: colors.text }]}>{t("plans.upNext")}</Text>
+                            <Text style={[styles.upNextText, { color: colors.primary }]}>{t("plans.upNext")}</Text>
                           </View>
-                        </View>
-                        <View
-                          testID={`plan-featured-date-${event.id}`}
-                          style={[styles.featuredDate, { backgroundColor: colors.card }]}
-                        >
-                          <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
-                          <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
+                          <Feather name="arrow-up-right" size={17} color={colors.mutedForeground} />
                         </View>
                       </View>
                     ) : null}
                     <View style={[styles.planDetails, !isFeatured && styles.standardDetails]}>
-                      {!isFeatured ? (
+                      {isFeatured ? (
+                        <View style={styles.featuredDateColumn}>
+                          <View
+                            testID={`plan-featured-date-${event.id}`}
+                            style={[styles.featuredDate, { backgroundColor: colors.primarySoft }]}
+                          >
+                            <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
+                            <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
+                          </View>
+                          <Text style={[styles.featuredWeekday, { color: colors.mutedForeground }]}>
+                            {date.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase()}
+                          </Text>
+                        </View>
+                      ) : (
                         <View
                           testID={`plan-date-column-${event.id}`}
                           style={styles.dateColumn}
@@ -224,7 +211,7 @@ export default function PlansScreen() {
                           </View>
                           <View style={[styles.datePin, { backgroundColor: colors.primary }]} />
                         </View>
-                      ) : null}
+                      )}
                       <View style={styles.planCopy}>
                         <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
                         <Text style={[styles.planTitle, { color: colors.text }]}>{event.title}</Text>
@@ -299,20 +286,16 @@ const styles = StyleSheet.create({
   afterLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 1.4 },
   afterCount: { fontSize: 9, fontWeight: "600", letterSpacing: 0.8 },
   plan: { overflow: "hidden" },
-  featuredPlan: { borderWidth: 1, borderTopLeftRadius: 27, borderBottomRightRadius: 25, padding: 10, gap: 12 },
+  featuredPlan: { borderWidth: 1, borderTopLeftRadius: 27, borderBottomRightRadius: 25, padding: 14, gap: 10 },
   standardPlan: { minHeight: 105, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 3, paddingVertical: 14 },
-  featuredArtwork: { height: 146, borderTopLeftRadius: 20, borderBottomRightRadius: 17, overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  featuredImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  featuredTopline: { ...StyleSheet.absoluteFillObject, alignItems: "flex-start", justifyContent: "flex-start", padding: 10 },
-  upNextPill: { minHeight: 25, borderTopLeftRadius: 11, borderBottomRightRadius: 10, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9 },
+  featuredTopline: { minHeight: 22, justifyContent: "center" },
+  featuredToplineCopy: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  kickerLine: { flexDirection: "row", alignItems: "center", gap: 7 },
   upNextDot: { width: 6, height: 6, borderRadius: 3 },
   upNextText: { fontSize: 8, fontWeight: "700", letterSpacing: 1 },
-  orbitArtwork: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
-  orbitRing: { position: "absolute", borderWidth: 1, borderRadius: 999, opacity: 0.32 },
-  orbitRingOuter: { width: 190, height: 82, transform: [{ rotate: "-24deg" }] },
-  orbitRingInner: { width: 145, height: 66, transform: [{ rotate: "30deg" }] },
-  orbitCore: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  featuredDate: { position: "absolute", top: 10, right: 10, minWidth: 48, minHeight: 55, paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 17, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
+  featuredDateColumn: { minWidth: 54, flexShrink: 0, alignItems: "center", gap: 5, paddingTop: 2 },
+  featuredDate: { minWidth: 48, minHeight: 55, paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 17, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
+  featuredWeekday: { fontSize: 8, fontWeight: "700", letterSpacing: 0.7 },
   planDetails: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 2, paddingBottom: 2 },
   standardDetails: { paddingHorizontal: 0 },
   dateColumn: { minWidth: 54, flexShrink: 0, alignItems: "center", paddingTop: 2 },

@@ -433,6 +433,28 @@ describe("event detail layouts", () => {
     ).toBe(photos[1]);
     expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "event-detail-standard-hero" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "hangout-action-dock" })).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "button-open-plan-chat" })).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it("keeps an unaccepted Hangout request action in a bottom dock", () => {
+    mockEvent = {
+      ...baseEvent,
+      startsAt: "2030-04-03T12:00:00.000Z",
+      endsAt: "2030-04-03T14:00:00.000Z",
+      myJoinRequestStatus: "pending",
+    };
+
+    const root = renderScreen();
+    const dock = root.root.findByProps({ testID: "hangout-action-dock" });
+    const requestButton = root.root.findByProps({ testID: "button-request-to-join" });
+
+    expect(requestButton.props.accessibilityLabel).toBe("tabs.events.cancelJoinRequest");
+    expect(requestButton.findByType(Text).props.children).toBe("tabs.events.cancelJoinRequest");
+    expect(
+      dock.findAllByType(Text).some((node) => node.props.children === "tabs.events.joinRequestPending"),
+    ).toBe(true);
     act(() => root.unmount());
   });
 
@@ -679,7 +701,7 @@ describe("event detail layouts", () => {
     act(() => root.unmount());
   });
 
-  it("keeps venue Event details on the standard event layout", () => {
+  it("shows venue Event details with the date-first schedule card", () => {
     mockEvent = {
       ...baseEvent,
       eventType: "venue",
@@ -693,6 +715,7 @@ describe("event detail layouts", () => {
     const root = renderScreen();
 
     expect(root.root.findByProps({ testID: "event-detail-standard-hero" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "event-detail-schedule" })).toBeTruthy();
     expect(root.root.findAllByProps({ testID: "event-detail-hangout-hero" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "event-detail-plan-hero" })).toHaveLength(0);
     act(() => root.unmount());

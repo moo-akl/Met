@@ -780,7 +780,7 @@ describe("Hangouts discovery", () => {
     act(() => root.unmount());
   });
 
-  it("shows the host profile photo in each nearby Hangout banner", () => {
+  it("shows the host and pending request status on nearby Hangout cards", () => {
     const item = {
       eventType: "member",
       id: 42,
@@ -793,6 +793,7 @@ describe("Hangouts discovery", () => {
       longitude: null,
       creatorName: "Host",
       creatorPhotoUrl: "https://example.com/host.jpg",
+      myJoinRequestStatus: "pending",
       verifiedExplorersOnly: false,
       isVerifiedExplorerHost: false,
     } as NearbyHangoutItem;
@@ -823,6 +824,9 @@ describe("Hangouts discovery", () => {
     ).toBeTruthy();
     expect(root.root.findByProps({ testID: "nearby-hangout-creator-42" }).props.children)
       .toBe("Host");
+    expect(
+      root.root.findByProps({ testID: "nearby-hangout-status-42" }).findByType(Text).props.children,
+    ).toBe("tabs.events.joinRequestPending");
     act(() => root.unmount());
   });
 
