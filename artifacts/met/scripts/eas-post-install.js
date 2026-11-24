@@ -30,6 +30,9 @@
 const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  patchReactNativeTurboModule,
+} = require("./ios-turbomodule-patch.cjs");
 
 const TARGET_BINARIES = ["expo", "eas", "react-native"];
 
@@ -114,6 +117,18 @@ function main() {
     );
     return;
   }
+
+  // Apply the iOS TurboModule guard after dependencies are installed, then
+  // verify it before EAS generates or compiles native projects. The config
+  // plugin repeats this idempotently during prebuild.
+  const turboModulePatch = patchReactNativeTurboModule(
+    path.join(root, "artifacts", "met"),
+  );
+  console.log(
+    `[MET_TURBOMODULE_PATCH] ${
+      turboModulePatch.status === "patched" ? "Applied" : "AlreadyApplied"
+    }`,
+  );
 
   // 1. Run TypeScript typecheck so type errors abort the build before the
   //    expensive EAS queue step begins. Build composite libs first so the

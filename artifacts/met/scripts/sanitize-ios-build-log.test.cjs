@@ -2,7 +2,10 @@
 
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const { sanitizeLine } = require("./sanitize-ios-build-log.cjs");
+const {
+  sanitizeLine,
+  sanitizeTurboModulePatchMarker,
+} = require("./sanitize-ios-build-log.cjs");
 
 test("sanitizes known build-stage progress without retaining its input", () => {
   assert.equal(
@@ -128,6 +131,27 @@ test("sanitizes only allowlisted Expo provider markers", () => {
       "[MET_EXPO_PROVIDER_CHECK] ExpoLinkingModule=present EXPO_TOKEN=secret",
     ),
     null,
+  );
+});
+
+test("reports only allowlisted TurboModule patch states", () => {
+  assert.equal(
+    sanitizeTurboModulePatchMarker("[MET_TURBOMODULE_PATCH] Applied"),
+    "iOS TurboModule patch: applied.",
+  );
+  assert.equal(
+    sanitizeTurboModulePatchMarker("[MET_TURBOMODULE_PATCH] AlreadyApplied"),
+    "iOS TurboModule patch: already applied.",
+  );
+  assert.equal(
+    sanitizeTurboModulePatchMarker(
+      "[MET_TURBOMODULE_PATCH] Applied /private/path",
+    ),
+    null,
+  );
+  assert.equal(
+    sanitizeLine("[MET_TURBOMODULE_PATCH] Applied"),
+    "iOS TurboModule patch: applied.",
   );
 });
 

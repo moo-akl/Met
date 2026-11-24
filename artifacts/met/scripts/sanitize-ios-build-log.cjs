@@ -158,6 +158,17 @@ function sanitizeExpoProviderMarker(line) {
   return null;
 }
 
+function sanitizeTurboModulePatchMarker(line) {
+  const normalizedLine = line.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+  const match = normalizedLine.trim().match(
+    /^\[MET_TURBOMODULE_PATCH\]\s+(Applied|AlreadyApplied)\s*$/,
+  );
+  if (!match) return null;
+  return match[1] === "Applied"
+    ? "iOS TurboModule patch: applied."
+    : "iOS TurboModule patch: already applied.";
+}
+
 function summarizeCocoaPodsError(line) {
   return (
     COCOAPODS_DIAGNOSTICS.find(([pattern]) => pattern.test(line))?.[1] ?? null
@@ -171,6 +182,9 @@ function sanitizeLine(line) {
 
   const providerCheck = sanitizeExpoProviderMarker(line);
   if (providerCheck) return providerCheck;
+
+  const turboModulePatch = sanitizeTurboModulePatchMarker(line);
+  if (turboModulePatch) return turboModulePatch;
 
   const cocoaPodsError = summarizeCocoaPodsError(line);
   if (cocoaPodsError) return cocoaPodsError;
@@ -233,4 +247,9 @@ if (require.main === module) {
   runSanitizer();
 }
 
-module.exports = { sanitizeLine, runSanitizer };
+module.exports = {
+  sanitizeExpoProviderMarker,
+  sanitizeLine,
+  sanitizeTurboModulePatchMarker,
+  runSanitizer,
+};
