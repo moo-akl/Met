@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "373",
+      "buildNumber": "374",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "associatedDomains": [
@@ -250,7 +250,7 @@
       "eas": {
         "projectId": "f9d35bdb-e890-408f-b9d9-4ca36cbeae23"
       },
-      "startupDiagnostics": true
+      "startupDiagnostics": false
     },
     "runtimeVersion": {
       "policy": "appVersion"

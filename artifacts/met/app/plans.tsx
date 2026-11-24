@@ -126,11 +126,19 @@ export default function PlansScreen() {
                   ]}
                 >
                   {isFeatured ? (
-                    <View style={[styles.featuredArtwork, { backgroundColor: colors.primarySoft }]}>
+                    <View
+                      testID="plan-featured-artwork"
+                      style={[styles.featuredArtwork, { backgroundColor: colors.primarySoft }]}
+                    >
                       {artwork ? (
-                        <Image source={{ uri: artwork }} accessibilityLabel={event.title} style={styles.featuredImage} />
+                        <Image
+                          testID="plan-featured-photo"
+                          source={{ uri: artwork }}
+                          accessibilityLabel={event.title}
+                          style={styles.featuredImage}
+                        />
                       ) : (
-                        <View style={styles.orbitArtwork}>
+                        <View testID="plan-featured-fallback" style={styles.orbitArtwork}>
                           <View style={[styles.orbitRing, styles.orbitRingOuter, { borderColor: colors.primary }]} />
                           <View style={[styles.orbitRing, styles.orbitRingInner, { borderColor: colors.primary }]} />
                           <View style={[styles.orbitCore, { backgroundColor: colors.card }]}>

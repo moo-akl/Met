@@ -69,6 +69,28 @@ jest.mock("@workspace/api-client-react", () => ({
 import PlansScreen from "../plans";
 import PastHangoutsScreen from "../past-hangouts";
 
+function privatePlan(
+  id: number,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id,
+    eventType: "member",
+    visibility: "invite_only",
+    joinApprovalRequired: false,
+    ownerUid: "uid-1",
+    isInvited: false,
+    myRsvp: null,
+    title: `Plan ${id}`,
+    startsAt: "2030-05-02T18:00:00.000Z",
+    creatorName: "Plan host",
+    creatorPhotoUrl: null,
+    imageUrl: null,
+    galleryPhotos: [],
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   mockRouterPush.mockReset();
   mockRouterBack.mockReset();
@@ -98,6 +120,57 @@ describe("Past Hangouts access", () => {
 
     expect(view.getByText("plans.screenTitle")).toBeTruthy();
     expect(view.queryByText("plans.pastHangoutsTitle")).toBeNull();
+  });
+
+  it("uses the featured Plan's uploaded photo and opens its conversation for the owner", async () => {
+    const photoUrl = "https://example.test/plan-cover.jpg";
+    mockEventsFeed.data = {
+      events: [privatePlan(101, { imageUrl: photoUrl })],
+    };
+
+    const view = await render(<PlansScreen />);
+
+    expect(view.getByTestId("plan-featured-artwork")).toBeTruthy();
+    expect(view.getByTestId("plan-featured-photo").props.source.uri).toBe(photoUrl);
+    expect(view.queryByTestId("plan-featured-fallback")).toBeNull();
+
+    fireEvent.press(view.getByTestId("plan-row-101"));
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/event-chat/101");
+  });
+
+  it("shows fallback artwork without a photo and opens invite details for an invitee", async () => {
+    mockEventsFeed.data = {
+      events: [privatePlan(102, { ownerUid: "host-1", isInvited: true })],
+    };
+
+    const view = await render(<PlansScreen />);
+
+    expect(view.getByTestId("plan-featured-artwork")).toBeTruthy();
+    expect(view.getByTestId("plan-featured-fallback")).toBeTruthy();
+    expect(view.queryByTestId("plan-featured-photo")).toBeNull();
+
+    fireEvent.press(view.getByTestId("plan-row-102"));
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/event-details/member/102");
+  });
+
+  it("opens the conversation for an accepted attendee", async () => {
+    mockEventsFeed.data = {
+      events: [
+        privatePlan(103, {
+          ownerUid: "host-1",
+          isInvited: true,
+          myRsvp: "going",
+        }),
+      ],
+    };
+
+    const view = await render(<PlansScreen />);
+
+    fireEvent.press(view.getByTestId("plan-row-103"));
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/event-chat/103");
   });
 
   it("shows a loading state until the signed-in user's history loads", async () => {

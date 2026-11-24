@@ -15,6 +15,11 @@ test("normal builds do not collect startup state", () => {
   assert.equal(tracker.getSnapshot().ready, false);
 });
 
+test("the app config keeps the temporary startup screen disabled", () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, "../app.json"), "utf8"));
+  assert.equal(config.expo.extra?.startupDiagnostics, false);
+});
+
 test("diagnostic phases record elapsed time and completion releases the guard", () => {
   let now = 100;
   const tracker = createStartupTracker(() => now);
