@@ -91,6 +91,8 @@ export const nl: LocaleTree = {
     openChatA11y: "Open de chat voor {{title}}",
     screenKicker: "JOUW MENSEN, JOUW PLANNEN",
     screenTitle: "Plannen",
+    upNext: "HIERNA",
+    afterThat: "DAARNA",
     screenIntro: "Bekijk openbare hangouts en plannen die je organiseert, hebt geaccepteerd of waarvoor je een verzoek hebt gestuurd.",
     screenLoadError: "Plannen laden niet",
     retry: "Tik om opnieuw te proberen.",

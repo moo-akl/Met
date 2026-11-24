@@ -91,6 +91,8 @@ export const zh: LocaleTree = {
     openChatA11y: "打开“{{title}}”计划聊天",
     screenKicker: "约上你的人，一起计划",
     screenTitle: "计划",
+    upNext: "接下来",
+    afterThat: "之后",
     screenIntro: "浏览公开聚会，以及你发起、已接受或已申请加入的计划。",
     screenLoadError: "计划加载失败",
     retry: "点按重试。",

@@ -94,6 +94,8 @@ export const en = {
     openChatA11y: "Open plan {{title}} chat",
     screenKicker: "YOUR PEOPLE, YOUR PLANS",
     screenTitle: "Plans",
+    upNext: "UP NEXT",
+    afterThat: "AFTER THAT",
     screenIntro: "Browse public hangouts and plans you host, joined, or requested to join.",
     screenLoadError: "Plans didn’t load",
     retry: "Tap to try again.",

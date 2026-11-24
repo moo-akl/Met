@@ -91,6 +91,8 @@ export const vi: LocaleTree = {
     openChatA11y: "Mở trò chuyện của kế hoạch {{title}}",
     screenKicker: "BẠN BÈ, KẾ HOẠCH CỦA BẠN",
     screenTitle: "Kế hoạch",
+    upNext: "SẮP TỚI",
+    afterThat: "SAU ĐÓ",
     screenIntro: "Khám phá các buổi gặp mặt công khai và kế hoạch bạn tổ chức, đã nhận lời hoặc xin tham gia.",
     screenLoadError: "Không tải được kế hoạch",
     retry: "Chạm để thử lại.",

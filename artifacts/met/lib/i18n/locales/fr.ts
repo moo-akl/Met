@@ -91,6 +91,8 @@ export const fr: LocaleTree = {
     openChatA11y: "Ouvrir la discussion du plan {{title}}",
     screenKicker: "VOTRE CERCLE, VOS PLANS",
     screenTitle: "Plans",
+    upNext: "À VENIR",
+    afterThat: "ENSUITE",
     screenIntro: "Parcourez les sorties publiques et les plans que vous organisez, avez rejoints ou auxquels vous avez demandé à participer.",
     screenLoadError: "Impossible de charger les plans",
     retry: "Touchez pour réessayer.",

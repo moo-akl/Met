@@ -414,11 +414,24 @@ function EventsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 112 }]}
+        contentContainerStyle={[styles.content, {
+          paddingTop: insets.top + (Platform.OS === "web" ? 67 : 12),
+          paddingBottom: insets.bottom + (Platform.OS === "web" ? 84 : 112),
+        }]}
         refreshControl={<RefreshControl refreshing={feed.isRefetching} onRefresh={() => void feed.refetch()} tintColor={colors.primary} />}
       >
         <View style={styles.header}>
           <View style={styles.headerCopy}>
+            <View style={styles.headerKickerRow}>
+              <View style={[styles.headerKickerRule, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.headerKicker, { color: colors.mutedForeground }]}>
+                {activeView === "plans"
+                  ? t("plans.screenKicker")
+                  : activeView === "hangouts"
+                    ? t("tabs.events.nearbyTab")
+                    : t("tabs.events.title")}
+              </Text>
+            </View>
             <Text testID="events-heading" style={[styles.title, { color: colors.text }]}>
               {activeView === "plans"
                 ? t("plans.screenTitle")
@@ -493,10 +506,10 @@ function EventsScreen() {
 
         <View style={[styles.viewTabs, { borderColor: colors.border }]}>
           {([
-            ["plans", t("plans.screenTitle"), "message-circle"],
-            ["hangouts", t("tabs.events.nearbyTab"), "users"],
-            ["events", t("tabs.events.title"), "calendar"],
-          ] as const).map(([view, label, icon]) => {
+            ["plans", t("plans.screenTitle")],
+            ["hangouts", t("tabs.events.nearbyTab")],
+            ["events", t("tabs.events.title")],
+          ] as const).map(([view, label]) => {
             const selected = activeView === view;
             return (
               <Pressable
@@ -508,10 +521,9 @@ function EventsScreen() {
                 onPress={() => selectView(view)}
                 style={[
                   styles.viewTab,
-                  selected && { backgroundColor: colors.primarySoft },
+                  { borderBottomColor: selected ? colors.primary : "transparent" },
                 ]}
               >
-                <Feather name={icon} size={16} color={selected ? colors.primary : colors.mutedForeground} />
                 <Text style={[styles.viewTabText, { color: selected ? colors.primary : colors.mutedForeground }]}>
                   {label}
                 </Text>
@@ -708,7 +720,7 @@ function EventsScreen() {
                     .filter(Boolean)
                     .join(". ");
                   return (
-                    <View key={key} style={[styles.eventCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <View key={key} style={[styles.eventCard, { borderBottomColor: colors.border }]}>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={eventAccessibilityLabel}
@@ -879,14 +891,17 @@ function EventsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingHorizontal: 20, gap: 18 },
-  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 3 },
+  content: { paddingHorizontal: 22, gap: 19 },
+  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 1 },
   headerCopy: { flex: 1, minWidth: 0, paddingRight: 8 },
+  headerKickerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 7 },
+  headerKickerRule: { width: 20, height: 1 },
+  headerKicker: { fontSize: 9, fontWeight: "700", letterSpacing: 1.3 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 3 },
-  title: { fontFamily: "serif", fontSize: 35, lineHeight: 40, fontWeight: "400", letterSpacing: -0.8 },
-  subtitle: { fontSize: 13, lineHeight: 19, marginTop: 5 },
-  viewTabs: { flexDirection: "row", borderWidth: 1, borderRadius: 24, padding: 4, gap: 3 },
-  viewTab: { flex: 1, minHeight: 40, borderRadius: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 4 },
+  title: { fontFamily: "serif", fontSize: 43, lineHeight: 48, fontWeight: "400", letterSpacing: -1.3 },
+  subtitle: { fontSize: 13, lineHeight: 19, marginTop: 6 },
+  viewTabs: { flexDirection: "row", borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, padding: 0, gap: 12 },
+  viewTab: { flex: 1, minHeight: 42, borderBottomWidth: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   viewTabText: { fontSize: 11, fontWeight: "700" },
   locationAction: { fontSize: 12, fontWeight: "700", marginTop: 6 },
   locationHint: { fontSize: 12, fontWeight: "600", marginTop: 6 },
@@ -899,19 +914,19 @@ const styles = StyleSheet.create({
   emptyAction: { minHeight: 42, borderTopLeftRadius: 20, borderBottomRightRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
   emptyActionText: { fontSize: 13, fontWeight: "700" },
   emptyActions: { width: "100%", gap: 7, marginTop: 4 },
-  eventList: { gap: 0, paddingTop: 5 },
+  eventList: { gap: 0, paddingTop: 1 },
   eventDateGroup: { gap: 0, borderLeftWidth: 1, paddingLeft: 14, marginLeft: 6 },
   eventDateGroupLtr: { borderLeftWidth: 1, borderRightWidth: 0, paddingLeft: 14, paddingRight: 0, marginLeft: 6, marginRight: 0 },
   eventDateGroupRtl: { borderLeftWidth: 0, borderRightWidth: 1, paddingLeft: 0, paddingRight: 14, marginLeft: 0, marginRight: 6 },
-  eventDateHeading: { fontFamily: "serif", fontSize: 18, fontWeight: "400", marginTop: 11, marginBottom: 12 },
-  eventCard: { borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 22, overflow: "hidden", marginBottom: 14 },
+  eventDateHeading: { fontFamily: "serif", fontSize: 21, fontWeight: "400", marginTop: 13, marginBottom: 12 },
+  eventCard: { borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden", marginBottom: 18, paddingBottom: 17 },
   eventPhotoGallery: { width: "100%", overflow: "hidden" },
-  cover: { width: "100%", height: 188 },
-  eventBody: { paddingHorizontal: 15, paddingTop: 14, paddingBottom: 13 },
-  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 7 },
+  cover: { width: "100%", height: 174, borderTopLeftRadius: 2, borderTopRightRadius: 24, borderBottomLeftRadius: 2 },
+  eventBody: { paddingHorizontal: 1, paddingTop: 13, paddingBottom: 2 },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 8 },
   badge: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", paddingHorizontal: 0, paddingVertical: 0 },
   privateBadge: { fontSize: 11, fontWeight: "600" },
-  eventTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", lineHeight: 27 },
+  eventTitle: { fontFamily: "serif", fontSize: 26, fontWeight: "400", lineHeight: 31, letterSpacing: -0.45 },
   eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 5 },
   locationMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   locationMetaText: { flex: 1, marginTop: 0 },
@@ -923,7 +938,7 @@ const styles = StyleSheet.create({
   description: { fontSize: 14, lineHeight: 20, marginTop: 9 },
   detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 10 },
   detailsLinkText: { fontSize: 12, fontWeight: "700" },
-  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 15, paddingTop: 12, paddingBottom: 14 },
+  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 0, paddingTop: 11, paddingBottom: 1 },
   rsvpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   rsvpCount: { flexGrow: 1, flexBasis: 58, fontSize: 11 },
   rsvpButton: { flexGrow: 1, flexBasis: 65, minWidth: 0, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, paddingVertical: 7, borderRadius: 18, borderWidth: 1 },

@@ -112,7 +112,7 @@ export function HangoutsNearbyPanel({
         </View>
       ) : (
         <View style={styles.eventList}>
-          {hangouts.map((event) => {
+          {hangouts.map((event, index) => {
             const distance =
               userLocation && event.latitude != null && event.longitude != null
                 ? distanceBetweenMeters(userLocation, {
@@ -134,11 +134,19 @@ export function HangoutsNearbyPanel({
                 accessibilityHint={t("tabs.events.hangoutDetailsView")}
                 testID={`nearby-hangout-${event.id}`}
                 onPress={() => onPressHangout(event)}
-                style={[styles.hangoutCard, { borderColor: colors.border, backgroundColor: colors.card }]}
+                style={[
+                  styles.hangoutCard,
+                  index === 0 && styles.featuredHangout,
+                  { borderBottomColor: colors.border },
+                ]}
               >
                 <View
                   testID={`nearby-hangout-banner-${event.id}`}
-                  style={[styles.hangoutBanner, { backgroundColor: colors.primarySoft }]}
+                  style={[
+                    styles.hangoutBanner,
+                    index === 0 && styles.featuredBanner,
+                    { backgroundColor: colors.primarySoft },
+                  ]}
                 >
                   {event.imageUrl ? (
                     <Image source={{ uri: event.imageUrl }} style={styles.bannerImage} resizeMode="cover" />
@@ -247,9 +255,11 @@ const styles = StyleSheet.create({
   loading: { minHeight: 110, alignItems: "center", justifyContent: "center" },
   loadMoreButton: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontFamily: "serif", fontSize: 20, fontWeight: "400", textAlign: "center" },
-  eventList: { gap: 14, paddingTop: 3 },
-  hangoutCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 24, overflow: "hidden", gap: 0 },
-  hangoutBanner: { height: 194, borderTopLeftRadius: 25, borderBottomRightRadius: 20, overflow: "hidden", justifyContent: "space-between", padding: 12 },
+  eventList: { gap: 0, paddingTop: 3 },
+  hangoutCard: { borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden", paddingTop: 15, paddingBottom: 17, gap: 0 },
+  featuredHangout: { paddingTop: 9 },
+  hangoutBanner: { height: 142, borderTopLeftRadius: 2, borderTopRightRadius: 25, overflow: "hidden", justifyContent: "space-between", padding: 11 },
+  featuredBanner: { height: 174, borderTopRightRadius: 29 },
   bannerImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
   bannerFallback: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   fallbackSun: { position: "absolute", right: 48, top: 32, width: 40, height: 40, borderRadius: 20, opacity: 0.2 },
@@ -261,8 +271,8 @@ const styles = StyleSheet.create({
   bannerCreator: { alignSelf: "flex-start", maxWidth: "92%", minHeight: 52, flexDirection: "row", alignItems: "center", gap: 8, padding: 6, paddingRight: 12, borderTopLeftRadius: 20, borderBottomRightRadius: 18 },
   creatorCopy: { minWidth: 0, flexShrink: 1 },
   creatorKicker: { fontSize: 9, lineHeight: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  hangoutBody: { minWidth: 0, paddingHorizontal: 15, paddingVertical: 15 },
-  eventTitle: { fontFamily: "serif", fontSize: 22, fontWeight: "400", lineHeight: 28 },
+  hangoutBody: { minWidth: 0, paddingHorizontal: 1, paddingTop: 11, paddingBottom: 1 },
+  eventTitle: { fontFamily: "serif", fontSize: 24, fontWeight: "400", lineHeight: 29 },
   creatorAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 2 },
   creatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
   eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 4 },

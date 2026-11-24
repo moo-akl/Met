@@ -91,6 +91,8 @@ export const ar: LocaleTree = {
     openChatA11y: "فتح محادثة خطة {{title}}",
     screenKicker: "أشخاصك، خططك",
     screenTitle: "الخطط",
+    upNext: "القادم",
+    afterThat: "بعد ذلك",
     screenIntro: "تصفح اللقاءات العامة والخطط التي تستضيفها أو قبلت أو طلبت الانضمام إليها.",
     screenLoadError: "تعذّر تحميل الخطط",
     retry: "اضغط للمحاولة مجددًا.",

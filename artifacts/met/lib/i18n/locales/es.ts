@@ -91,6 +91,8 @@ export const es: LocaleTree = {
     openChatA11y: "Abrir el chat del plan {{title}}",
     screenKicker: "TU GENTE, TUS PLANES",
     screenTitle: "Planes",
+    upNext: "LO SIGUIENTE",
+    afterThat: "DESPUÉS",
     screenIntro: "Explora quedadas públicas y los planes que organizas, a los que te uniste o para los que pediste unirte.",
     screenLoadError: "No se cargaron los planes",
     retry: "Toca para volver a intentarlo.",

@@ -91,6 +91,8 @@ export const ru: LocaleTree = {
     openChatA11y: "Открыть чат плана «{{title}}»",
     screenKicker: "ТВОИ ЛЮДИ, ТВОИ ПЛАНЫ",
     screenTitle: "Планы",
+    upNext: "ДАЛЬШЕ",
+    afterThat: "ПОТОМ",
     screenIntro: "Просматривай открытые встречи и планы, которые ты организуешь, принял или попросил присоединиться.",
     screenLoadError: "Не удалось загрузить планы",
     retry: "Нажми, чтобы повторить.",
