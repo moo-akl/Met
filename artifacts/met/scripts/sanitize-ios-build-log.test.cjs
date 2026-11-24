@@ -25,7 +25,25 @@ test("reports signing diagnostics and safe compiler summaries", () => {
   );
   assert.equal(
     sanitizeLine("/private/path/App.swift:42:9: error: cannot find 'secretSymbol' in scope"),
-    "Native compile error: unresolved symbol (App.swift:42).",
+    "Native compile error: unresolved symbol: cannot find 'secretSymbol' in scope (App.swift:42).",
+  );
+  assert.equal(
+    sanitizeLine(
+      "/Users/runner/work/Met/App.mm:12:3: error: use of undeclared identifier 'RCTThing'",
+    ),
+    "Native compile error: unresolved symbol: use of undeclared identifier 'RCTThing' (App.mm:12).",
+  );
+  assert.equal(
+    sanitizeLine(
+      "/private/path/App.mm:12:3: error: module map at /private/runner/build/module.modulemap not found; see https://private.example/log",
+    ),
+    "Native compile error: missing build input: module map at [path] not found; see [url] (App.mm:12).",
+  );
+  assert.equal(
+    sanitizeLine(
+      "/private/path/App.mm:12:3: error: API_KEY=do-not-print-this-value",
+    ),
+    "Native compile error: other compiler diagnostic (App.mm:12).",
   );
   assert.equal(
     sanitizeLine("/private/path/App.ts:4:2: error TS2322: secret details"),
@@ -170,7 +188,7 @@ test("reports Android stages, Gradle tasks, and safe native locations", () => {
   );
   assert.equal(
     sanitizeLine("app/src/main/java/App.java:17: error: cannot find symbol"),
-    "Native compile error: unresolved symbol (App.java:17).",
+    "Native compile error: unresolved symbol: cannot find symbol (App.java:17).",
   );
   assert.equal(
     sanitizeLine("Execution failed for task ':app:compileReleaseKotlin'. Details omitted."),

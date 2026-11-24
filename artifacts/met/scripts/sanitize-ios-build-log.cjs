@@ -3,6 +3,17 @@
 const readline = require("node:readline");
 
 const MAX_LINE_LENGTH = 16_384;
+const MAX_NATIVE_DIAGNOSTIC_LENGTH = 180;
+
+const ANSI_ESCAPE = /\u001B\[[0-?]*[ -/]*[@-~]/g;
+const SENSITIVE_NATIVE_DIAGNOSTIC = [
+  /\b(?:API[_ -]?KEY|ACCESS[_ -]?TOKEN|AUTHORIZATION|PASSWORD|SECRET|PRIVATE[_ -]?KEY|CREDENTIAL)\b\s*[:=]\s*\S+/i,
+  /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i,
+  /\b(?:gh[pousr]_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{12,}/i,
+  /\b[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b/,
+  /\b[A-Za-z0-9+/]{48,}={0,2}\b/,
+  /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/i,
+];
 
 const STAGE_MARKERS = new Map([
   ["PREPARE", "Build stage: preparing the project."],
@@ -28,10 +39,10 @@ const SIGNING_DIAGNOSTICS = [
 
 const NATIVE_DIAGNOSTICS = [
   [/no such module|could not find module|cannot find module|package .+ does not exist/i, "missing module dependency"],
-  [/cannot find .* in scope|cannot find symbol|unresolved reference|unresolved identifier/i, "unresolved symbol"],
+  [/cannot find .* in scope|cannot find symbol|undeclared identifier|unresolved reference|unresolved identifier/i, "unresolved symbol"],
   [/does not conform to protocol/i, "protocol conformance"],
   [/ambiguous use of|reference is ambiguous/i, "ambiguous reference"],
-  [/build input file cannot be found|no such file or directory|file not found/i, "missing build input"],
+  [/build input file cannot be found|module map.*not found|no such file or directory|file not found/i, "missing build input"],
   [/incompatible types|type mismatch|cannot be applied to given types/i, "type mismatch"],
   [/duplicate class|redeclaration|redeclared|already defined/i, "duplicate declaration"],
   [/android resource linking failed|no resource found|resource .+ not found/i, "Android resource linking"],
@@ -98,6 +109,37 @@ function getNativeSourceLocation(line) {
   return `${match[1]}:${lineNumber}`;
 }
 
+function sanitizeNativeDiagnostic(line) {
+  const match = line.match(/\b(?:fatal\s+)?error:\s*(.*)$/i);
+  if (!match) return null;
+
+  let diagnostic = match[1].trim();
+  if (
+    !diagnostic ||
+    SENSITIVE_NATIVE_DIAGNOSTIC.some((pattern) => pattern.test(diagnostic))
+  ) {
+    return null;
+  }
+
+  diagnostic = diagnostic
+    .replace(/https?:\/\/[^\s"'<>]+/gi, "[url]")
+    .replace(/\b[A-Z]:\\[^\s"'<>]+/gi, "[path]")
+    .replace(/\/[^\s"'<>]+/g, "[path]")
+    .replace(
+      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+      "[email]",
+    )
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!diagnostic) return null;
+  if (diagnostic.length > MAX_NATIVE_DIAGNOSTIC_LENGTH) {
+    diagnostic = `${diagnostic.slice(0, MAX_NATIVE_DIAGNOSTIC_LENGTH - 1)}…`;
+  }
+  return diagnostic;
+}
+
 function summarizeNativeCompileError(line) {
   const diagnostic = line.replace(/^.*?\b(?:fatal\s+)?error:\s*/i, "");
   const category =
@@ -105,11 +147,13 @@ function summarizeNativeCompileError(line) {
     "other compiler diagnostic";
   const location = getNativeSourceLocation(line);
   const suffix = location ? ` (${location})` : "";
-  return `Native compile error: ${category}${suffix}.`;
+  const safeDiagnostic = sanitizeNativeDiagnostic(line);
+  const detail = safeDiagnostic ? `: ${safeDiagnostic}` : "";
+  return `Native compile error: ${category}${detail}${suffix}.`;
 }
 
 function sanitizeExpoProviderMarker(line) {
-  const normalizedLine = line.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+  const normalizedLine = line.replace(ANSI_ESCAPE, "");
   const markerIndex = normalizedLine.lastIndexOf("[MET_EXPO_PROVIDER_CHECK]");
   if (markerIndex < 0) return null;
 
@@ -159,7 +203,7 @@ function sanitizeExpoProviderMarker(line) {
 }
 
 function sanitizeTurboModulePatchMarker(line) {
-  const normalizedLine = line.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+  const normalizedLine = line.replace(ANSI_ESCAPE, "");
   const match = normalizedLine.trim().match(
     /^\[MET_TURBOMODULE_PATCH\]\s+(Applied|AlreadyApplied)\s*$/,
   );
@@ -176,8 +220,16 @@ function summarizeCocoaPodsError(line) {
 }
 
 function sanitizeLine(line) {
-  if (typeof line !== "string" || line.length > MAX_LINE_LENGTH || isSensitiveFormat(line)) {
+  if (typeof line !== "string" || line.length > MAX_LINE_LENGTH) {
     return null;
+  }
+  line = line.replace(ANSI_ESCAPE, "");
+  const nativeError =
+    /^\s*(?:fatal\s+)?error:\s*/i.test(line) ||
+    /:\d+(?::\d+)?:\s*(?:fatal\s+)?error:\s*/i.test(line) ||
+    /^\s*(?:\[[A-Z0-9_]+\]\s*)?e:\s*(?:file:\/\/|\/)/i.test(line);
+  if (isSensitiveFormat(line)) {
+    return nativeError ? summarizeNativeCompileError(line) : null;
   }
 
   const providerCheck = sanitizeExpoProviderMarker(line);
@@ -215,10 +267,6 @@ function sanitizeLine(line) {
     return `TypeScript compile error (${typescriptError[1].toUpperCase()}).`;
   }
 
-  const nativeError =
-    /^\s*(?:fatal\s+)?error:\s*/i.test(line) ||
-    /:\d+(?::\d+)?:\s*(?:fatal\s+)?error:\s*/i.test(line) ||
-    /^\s*(?:\[[A-Z0-9_]+\]\s*)?e:\s*(?:file:\/\/|\/)/i.test(line);
   if (nativeError) {
     return summarizeNativeCompileError(line);
   }
