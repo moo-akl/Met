@@ -5,10 +5,10 @@ import {
   Image,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
+import { MetText as Text } from "@/components/MetText";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import {
@@ -183,7 +183,7 @@ export function HangoutsNearbyPanel({
                     style={styles.bannerTopline}
                   >
                     <Text style={[styles.bannerBadge, { color: colors.primary, backgroundColor: colors.card }]}>
-                      {t("tabs.events.nearbyTab")}
+                      {t("tabs.events.memberEvent")}
                     </Text>
                     {distanceText ? (
                       <Text
@@ -194,16 +194,23 @@ export function HangoutsNearbyPanel({
                       </Text>
                     ) : null}
                   </View>
-                  <View style={[styles.bannerCreator, { backgroundColor: colors.card }]}>
+                </View>
+                <View style={styles.hangoutBody}>
+                  <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+                  <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>{startLabel}</Text>
+                  {locationLabel ? (
+                    <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>{locationLabel}</Text>
+                  ) : null}
+                  <View style={[styles.hostline, { borderColor: colors.border }]}>
                     {event.creatorPhotoUrl ? (
                       <Image
                         testID={`nearby-hangout-creator-photo-${event.id}`}
                         accessibilityLabel={creatorLabel}
                         source={{ uri: event.creatorPhotoUrl }}
-                        style={[styles.creatorAvatar, { borderColor: colors.primary }]}
+                        style={[styles.creatorAvatar, styles.hostAvatar, { borderColor: colors.primary }]}
                       />
                     ) : (
-                      <View style={[styles.creatorAvatar, styles.creatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
+                      <View style={[styles.creatorAvatar, styles.hostAvatar, styles.creatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
                         <Feather name="user" size={16} color={colors.primary} />
                       </View>
                     )}
@@ -219,41 +226,30 @@ export function HangoutsNearbyPanel({
                       </Text>
                     </View>
                   </View>
-                </View>
-                <View style={styles.hangoutBody}>
-                  <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
-                  <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>{startLabel}</Text>
-                  {locationLabel ? (
-                    <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>{locationLabel}</Text>
+                  {event.description ? (
+                    <Text style={[styles.description, { color: colors.text }]}>{event.description}</Text>
                   ) : null}
-                  {joinStatusLabel ? (
+                  <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
                     <View
                       testID={`nearby-hangout-status-${event.id}`}
-                      style={[
-                        styles.joinStatus,
-                        {
-                          backgroundColor: colors.primarySoft,
-                        },
-                      ]}
+                      style={styles.joinStatus}
                     >
                       <Feather
-                        name={event.myJoinRequestStatus === "pending" ? "clock" : "check-circle"}
+                        name={
+                          event.myJoinRequestStatus === "pending"
+                            ? "clock"
+                            : event.myJoinRequestStatus === "accepted"
+                              ? "check-circle"
+                              : "users"
+                        }
                         size={13}
                         color={colors.primary}
                       />
                       <Text style={[styles.joinStatusText, { color: colors.primary }]}>
-                        {joinStatusLabel}
+                        {joinStatusLabel ?? t("tabs.events.openToRequests")}
                       </Text>
                     </View>
-                  ) : null}
-                  {event.description ? (
-                    <Text style={[styles.description, { color: colors.text }]}>{event.description}</Text>
-                  ) : null}
-                  <View style={styles.detailsLink}>
-                    <Text style={[styles.detailsLinkText, { color: colors.primary }]}>{t("tabs.events.hangoutDetailsView")}</Text>
-                    <Feather name="chevron-right" size={16} color={colors.primary} />
-                  </View>
-                  {onToggleJoinRequest && currentUserUid !== event.ownerUid ? (
+                    {onToggleJoinRequest && currentUserUid !== event.ownerUid ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={
@@ -276,16 +272,39 @@ export function HangoutsNearbyPanel({
                       style={[
                         styles.requestButton,
                         {
-                          borderColor: colors.border,
-                          backgroundColor: event.myJoinRequestStatus === "accepted" ? colors.primarySoft : "transparent",
+                          backgroundColor:
+                            event.myJoinRequestStatus === "accepted" || event.myJoinRequestStatus === "pending"
+                              ? colors.primarySoft
+                              : (colors.brandPanel ?? colors.primary),
+                          borderColor:
+                            event.myJoinRequestStatus === "accepted" || event.myJoinRequestStatus === "pending"
+                              ? colors.border
+                              : (colors.brandPanel ?? colors.primary),
                           opacity: pendingJoinRequestId === event.id ? 0.65 : 1,
                         },
                       ]}
                     >
                       {pendingJoinRequestId === event.id ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
+                        <ActivityIndicator
+                          size="small"
+                          color={
+                            event.myJoinRequestStatus === "pending"
+                              ? colors.primary
+                              : (colors.brandPanelText ?? colors.primaryForeground)
+                          }
+                        />
                       ) : (
-                        <Text style={[styles.requestButtonText, { color: colors.primary }]}>
+                        <Text
+                          style={[
+                            styles.requestButtonText,
+                            {
+                              color:
+                                event.myJoinRequestStatus === "accepted" || event.myJoinRequestStatus === "pending"
+                                  ? colors.primary
+                                  : (colors.brandPanelText ?? colors.primaryForeground),
+                            },
+                          ]}
+                        >
                           {event.myJoinRequestStatus === "pending"
                             ? t("tabs.events.cancelJoinRequest")
                             : event.myJoinRequestStatus === "accepted"
@@ -295,6 +314,7 @@ export function HangoutsNearbyPanel({
                       )}
                     </Pressable>
                   ) : null}
+                  </View>
                 </View>
               </Pressable>
             );
@@ -340,12 +360,12 @@ const styles = StyleSheet.create({
   emptyCard: { minHeight: 130, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", gap: 10 },
   loading: { minHeight: 110, alignItems: "center", justifyContent: "center" },
   loadMoreButton: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
-  emptyTitle: { fontFamily: "serif", fontSize: 20, fontWeight: "400", textAlign: "center" },
+  emptyTitle: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 20, fontWeight: "500", textAlign: "center" },
   eventList: { gap: 0, paddingTop: 3 },
-  hangoutCard: { borderWidth: 1, borderRadius: 22, overflow: "hidden", marginBottom: 15, paddingBottom: 12, backgroundColor: "transparent" },
+  hangoutCard: { borderWidth: 1, borderRadius: 17, overflow: "hidden", marginBottom: 13, paddingBottom: 0, backgroundColor: "transparent" },
   featuredHangout: { paddingTop: 0 },
-  hangoutBanner: { minHeight: 142, borderTopLeftRadius: 0, borderTopRightRadius: 0, overflow: "hidden", justifyContent: "space-between", padding: 11 },
-  featuredBanner: { minHeight: 160, borderTopRightRadius: 0 },
+  hangoutBanner: { minHeight: 128, borderTopLeftRadius: 0, borderTopRightRadius: 0, overflow: "hidden", justifyContent: "space-between", padding: 12 },
+  featuredBanner: { minHeight: 128, borderTopRightRadius: 0 },
   bannerImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
   bannerFallback: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   fallbackSun: { position: "absolute", right: 48, top: 32, width: 40, height: 40, borderRadius: 20, opacity: 0.2 },
@@ -354,20 +374,20 @@ const styles = StyleSheet.create({
   bannerTopline: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   bannerBadge: { fontSize: 10, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 12, overflow: "hidden" },
   distanceLabel: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 12, overflow: "hidden" },
-  bannerCreator: { alignSelf: "flex-start", maxWidth: "92%", minHeight: 52, flexDirection: "row", alignItems: "center", gap: 8, padding: 6, paddingRight: 12, borderTopLeftRadius: 20, borderBottomRightRadius: 18 },
+  hostline: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 9, marginTop: 11, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
   creatorCopy: { minWidth: 0, flexShrink: 1 },
-  creatorKicker: { fontSize: 9, lineHeight: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  hangoutBody: { minWidth: 0, paddingHorizontal: 12, paddingTop: 11, paddingBottom: 1 },
-  eventTitle: { fontFamily: "serif", fontSize: 24, fontWeight: "400", lineHeight: 29 },
-  creatorAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 2 },
+  creatorKicker: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  hangoutBody: { minWidth: 0, paddingHorizontal: 13, paddingTop: 11, paddingBottom: 12 },
+  eventTitle: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 21, fontWeight: "500" },
+  creatorAvatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 2 },
+  hostAvatar: { width: 34, height: 34, borderWidth: 1 },
   creatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
-  eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 4 },
-  creatorName: { fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  description: { fontSize: 12, lineHeight: 18, marginTop: 8 },
-  joinStatus: { alignSelf: "flex-start", maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 6, borderTopLeftRadius: 11, borderBottomRightRadius: 11, paddingHorizontal: 9, paddingVertical: 6, marginTop: 8 },
-  joinStatusText: { flexShrink: 1, fontSize: 10, lineHeight: 14, fontWeight: "700" },
-  detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 8 },
-  detailsLinkText: { fontSize: 12, fontWeight: "700" },
-  requestButton: { minHeight: 34, alignSelf: "flex-end", justifyContent: "center", alignItems: "center", borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, marginTop: 8 },
-  requestButtonText: { fontSize: 10, fontWeight: "700" },
+  eventMeta: { fontSize: 10, marginTop: 4 },
+  creatorName: { fontSize: 11, fontWeight: "700" },
+  description: { fontSize: 11, marginTop: 8 },
+  joinStatus: { flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 1, minWidth: 0 },
+  joinStatusText: { flexShrink: 1, minWidth: 0, fontSize: 9, fontWeight: "700" },
+  cardFooter: { minHeight: 44, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10, paddingTop: 9, borderTopWidth: StyleSheet.hairlineWidth },
+  requestButton: { minHeight: 44, minWidth: 0, alignSelf: "auto", justifyContent: "center", alignItems: "center", borderWidth: 1, borderRadius: 22, paddingHorizontal: 10, paddingVertical: 6, marginTop: 0 },
+  requestButtonText: { flexShrink: 1, minWidth: 0, fontSize: 9, fontWeight: "700", textAlign: "center" },
 });

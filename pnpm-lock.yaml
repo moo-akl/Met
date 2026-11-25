@@ -346,6 +346,9 @@ importers:
       '@expo-google-fonts/caveat':
         specifier: 0.4.0
         version: 0.4.0
+      '@expo-google-fonts/dm-sans':
+        specifier: 0.4.0
+        version: 0.4.0
       '@expo-google-fonts/playfair-display':
         specifier: 0.4.0
         version: 0.4.0
@@ -2471,6 +2474,9 @@ packages:
 
   '@expo-google-fonts/caveat@0.4.0':
     resolution: {integrity: sha512-V1qQ/X717M/Dg+8utKN8yfdfoywm98CjDMWqobRxugqrrLWr8HhSyVpP2ibJxVaM6zxopcegUVymIdA9YkUuqg==}
+
+  '@expo-google-fonts/dm-sans@0.4.0':
+    resolution: {integrity: sha512-VsftzbvhjUumeL3y9GXR/GihLt75tSCUs5TxlF2IZi/JiUG0Qrdhq2a3h6mN02d9CVajoc62f2imbM0xULJWoA==}
 
   '@expo-google-fonts/inter@0.4.2':
     resolution: {integrity: sha512-syfiImMaDmq7cFi0of+waE2M4uSCyd16zgyWxdPOY7fN2VBmSLKEzkfbZgeOjJq61kSqPBNNtXjggiQiSD6gMQ==}
@@ -10197,6 +10203,8 @@ snapshots:
     optional: true
 
   '@expo-google-fonts/caveat@0.4.0': {}
+
+  '@expo-google-fonts/dm-sans@0.4.0': {}
 
   '@expo-google-fonts/inter@0.4.2': {}
 

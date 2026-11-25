@@ -12,12 +12,12 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { EventFeedItem } from "@workspace/api-client-react";
+import { MetText as Text } from "@/components/MetText";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { buildEventCalendarIcs } from "@/lib/calendarExport";
@@ -427,20 +427,19 @@ export default function EventFollowThroughActions({ event, uid }: Props) {
 
 const styles = StyleSheet.create({
   container: { gap: 8 },
-  actions: { flexDirection: "row", gap: 10 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   actionButton: {
-    minHeight: 48,
+    minHeight: 44,
     flex: 1,
     paddingHorizontal: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderTopLeftRadius: 24,
-    borderBottomRightRadius: 18,
+    borderRadius: 22,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  actionText: { fontSize: 13, fontWeight: "700", textAlign: "center" },
+  actionText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
   feedback: { fontSize: 12, lineHeight: 17, paddingHorizontal: 4 },
   modalRoot: { flex: 1, justifyContent: "flex-end" },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.44)" },

@@ -101,7 +101,7 @@ export const ar: LocaleTree = {
     make: "إنشاء خطة",
     openChatTitleA11y: "فتح محادثة المجموعة {{title}}",
   },
-  dateTime: { time: "الوقت" },
+  dateTime: { time: "الوقت", when: "متى", where: "أين" },
   eventFollowThrough: {
     calendar: "إضافة إلى التقويم",
     calendarAdding: "جارٍ الإضافة إلى التقويم…",
@@ -175,6 +175,7 @@ export const ar: LocaleTree = {
       planLocationSearchHint: "ابحث عن مكان واختره لخطة اللقاء.",
       planPlaceSelectionRequired: "اختر مكانًا من نتائج البحث لإضافة دبوس على الخريطة.",
       requestToJoin: "طلب الانضمام",
+      openToRequests: "مفتوح لطلبات الانضمام",
       joinRequestPending: "طلبك بانتظار رد المضيف.",
       cancelJoinRequest: "إلغاء الطلب",
       requestAgain: "إرسال الطلب مجددًا",

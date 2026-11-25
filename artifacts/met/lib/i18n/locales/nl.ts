@@ -101,7 +101,7 @@ export const nl: LocaleTree = {
     make: "Plan maken",
     openChatTitleA11y: "Open de groepschat van {{title}}",
   },
-  dateTime: { time: "Tijd" },
+  dateTime: { time: "Tijd", when: "Wanneer", where: "Waar" },
   eventFollowThrough: {
     calendar: "Toevoegen aan agenda",
     calendarAdding: "Toevoegen aan agenda…",
@@ -175,6 +175,7 @@ export const nl: LocaleTree = {
       planLocationSearchHint: "Zoek en selecteer een plek voor je hangout.",
       planPlaceSelectionRequired: "Kies een plek uit de zoekresultaten om een kaartpin toe te voegen.",
       requestToJoin: "Vraag om mee te doen",
+      openToRequests: "Aanvragen staan open",
       joinRequestPending: "Je verzoek wacht op antwoord van de host.",
       cancelJoinRequest: "Verzoek annuleren",
       requestAgain: "Opnieuw aanvragen",

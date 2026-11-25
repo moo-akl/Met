@@ -1,10 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/contexts/AppContext";
+import { MetText as Text } from "@/components/MetText";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
@@ -178,10 +179,10 @@ export default function PlansScreen() {
                 pathname: "/event-create",
                 params: { mode: "friends" },
               } as never)}
-              style={[styles.emptyAction, { backgroundColor: colors.primary }]}
+              style={[styles.emptyAction, { backgroundColor: colors.brandPanel ?? colors.primary }]}
             >
-              <Text style={[styles.actionText, { color: colors.primaryForeground }]}>{t("plans.make")}</Text>
-              <Feather name="arrow-up-right" size={16} color={colors.primaryForeground} />
+              <Text style={[styles.actionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{t("plans.make")}</Text>
+              <Feather name="arrow-up-right" size={16} color={colors.brandPanelText ?? colors.primaryForeground} />
             </Pressable>
           </View>
         ) : (
@@ -195,7 +196,7 @@ export default function PlansScreen() {
                 <Text style={[styles.countText, { color: colors.primary }]}>{String(plans.length).padStart(2, "0")}</Text>
               </View>
             </View>
-            {plans.map((event, index) => {
+            {plans.map((event) => {
               const date = new Date(event.startsAt);
               const owner = event.ownerUid === authedUid;
               const accepted =
@@ -221,108 +222,68 @@ export default function PlansScreen() {
                   : t("tabs.events.planHost"),
                 attendanceLabel,
               ].filter(Boolean).join(". ");
-              const isFeatured = index === 0;
               return (
-                <React.Fragment key={`${event.eventType}:${event.id}`}>
-                  {index === 1 ? (
-                    <View style={[styles.afterHeader, { borderTopColor: colors.border }]}>
-                      <Text style={[styles.afterLabel, { color: colors.mutedForeground }]}>{t("plans.afterThat")}</Text>
-                      <Text style={[styles.afterCount, { color: colors.mutedForeground }]}>{String(plans.length - 1).padStart(2, "0")}</Text>
-                    </View>
-                  ) : null}
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={accessibilityLabel}
-                    accessibilityHint={
-                      hasChatAccess
-                        ? t("plans.openChatTitleA11y", { title: event.title })
-                        : t("tabs.events.detailsView")
-                    }
-                    testID={`plan-row-${event.id}`}
-                    onPress={() => openPlan(event)}
-                    style={({ pressed }) => [
-                      styles.plan,
-                      isFeatured ? styles.featuredPlan : styles.standardPlan,
-                      { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.82 : 1 },
-                    ]}
-                  >
-                    {isFeatured ? (
-                      <View style={styles.featuredTopline}>
-                        <View style={styles.featuredToplineCopy}>
-                          <View style={styles.kickerLine}>
-                            <View style={[styles.upNextDot, { backgroundColor: colors.primary }]} />
-                            <Text style={[styles.upNextText, { color: colors.primary }]}>{t("plans.upNext")}</Text>
-                          </View>
-                          <Feather name="arrow-up-right" size={17} color={colors.mutedForeground} />
-                        </View>
+                <Pressable
+                  key={`${event.eventType}:${event.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={accessibilityLabel}
+                  accessibilityHint={
+                    hasChatAccess
+                      ? t("plans.openChatTitleA11y", { title: event.title })
+                      : t("tabs.events.detailsView")
+                  }
+                  testID={`plan-row-${event.id}`}
+                  onPress={() => openPlan(event)}
+                  style={({ pressed }) => [
+                    styles.plan,
+                    styles.standardPlan,
+                    { borderColor: colors.border, backgroundColor: "transparent", opacity: pressed ? 0.82 : 1 },
+                  ]}
+                >
+                  <View style={[styles.planDetails, styles.standardDetails]}>
+                    <View testID={`plan-date-column-${event.id}`} style={styles.dateColumn}>
+                      <View testID={`plan-date-badge-${event.id}`} style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}>
+                        <Text style={[styles.month, { color: colors.brandPanel }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
+                        <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
                       </View>
-                    ) : null}
-                    <View style={[styles.planDetails, !isFeatured && styles.standardDetails]}>
-                      {isFeatured ? (
-                        <View style={styles.featuredDateColumn}>
-                          <View
-                            testID={`plan-featured-date-${event.id}`}
-                            style={[styles.featuredDate, { backgroundColor: colors.primarySoft }]}
-                          >
-                            <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
-                            <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
-                          </View>
-                          <Text style={[styles.featuredWeekday, { color: colors.mutedForeground }]}>
-                            {date.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase()}
-                          </Text>
+                      <View style={[styles.datePin, { backgroundColor: colors.primary }]} />
+                    </View>
+                    <View style={styles.planCopy}>
+                      <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
+                      <Text style={[styles.planTitle, { color: colors.text }]}>{event.title}</Text>
+                      {event.location ? (
+                        <View style={styles.locationRow}>
+                          <Feather name="map-pin" size={13} color={colors.mutedForeground} />
+                          <Text style={[styles.locationText, { color: colors.mutedForeground }]}>{event.location}</Text>
                         </View>
-                      ) : (
-                        <View
-                          testID={`plan-date-column-${event.id}`}
-                          style={styles.dateColumn}
-                        >
-                          <View
-                            testID={`plan-date-badge-${event.id}`}
-                            style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}
-                          >
-                            <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
-                            <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
+                      ) : null}
+                      <View style={styles.creatorRow}>
+                        {event.creatorPhotoUrl ? (
+                          <Image
+                            source={{ uri: event.creatorPhotoUrl }}
+                            accessibilityLabel={event.creatorName ?? t("tabs.events.planHost")}
+                            style={styles.creatorAvatar}
+                          />
+                        ) : (
+                          <View style={[styles.creatorAvatar, { backgroundColor: colors.primarySoft }]}>
+                            <Feather name="user" size={13} color={colors.primary} />
                           </View>
-                          <View style={[styles.datePin, { backgroundColor: colors.primary }]} />
-                        </View>
-                      )}
-                      <View style={styles.planCopy}>
-                        <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
-                        <Text style={[styles.planTitle, { color: colors.text }]}>{event.title}</Text>
-                        {event.location ? (
-                          <View style={styles.locationRow}>
-                            <Feather name="map-pin" size={13} color={colors.mutedForeground} />
-                            <Text style={[styles.locationText, { color: colors.mutedForeground }]}>{event.location}</Text>
-                          </View>
-                        ) : null}
-                        <View style={styles.creatorRow}>
-                          {event.creatorPhotoUrl ? (
-                            <Image
-                              source={{ uri: event.creatorPhotoUrl }}
-                              accessibilityLabel={event.creatorName ?? t("tabs.events.planHost")}
-                              style={styles.creatorAvatar}
-                            />
-                          ) : (
-                            <View style={[styles.creatorAvatar, { backgroundColor: colors.primarySoft }]}>
-                              <Feather name="user" size={13} color={colors.primary} />
-                            </View>
-                          )}
-                          <Text style={[styles.meta, styles.creatorNameText, { color: colors.mutedForeground }]}>
-                            {event.creatorName ?? t("tabs.events.planHost")}
-                          </Text>
-                        </View>
-                        <Text style={[styles.host, { color: colors.primary }]}>
-                          {owner
-                            ? t("plans.hosting")
-                            : event.myRsvp === "going" || event.myRsvp === "maybe"
-                              ? t("tabs.events.planInvitationAccepted")
-                              : t("tabs.events.invited")}
+                        )}
+                        <Text style={[styles.meta, styles.creatorNameText, { color: colors.mutedForeground }]}>
+                          {event.creatorName ?? t("tabs.events.planHost")}
                         </Text>
                       </View>
-                      <View style={styles.chatMark}><Feather name="message-circle" size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
+                      <Text style={[styles.host, { color: colors.primary }]}>
+                        {owner
+                          ? t("plans.hosting")
+                          : event.myRsvp === "going" || event.myRsvp === "maybe"
+                            ? t("tabs.events.planInvitationAccepted")
+                            : t("tabs.events.invited")}
+                      </Text>
                     </View>
-                  </Pressable>
-                </React.Fragment>
+                    <View style={styles.chatMark}><Feather name="message-circle" size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
+                  </View>
+                </Pressable>
               );
             })}
           </View>
@@ -338,10 +299,10 @@ const styles = StyleSheet.create({
   back: { width: 40, height: 44, justifyContent: "center" },
   headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.7, marginBottom: 4 },
-  title: { fontFamily: "serif", fontSize: 39, fontWeight: "400", letterSpacing: -1 },
+  title: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 40, fontWeight: "500", letterSpacing: -1.4 },
   create: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   content: { paddingHorizontal: 22, gap: 17 },
-  intro: { fontSize: 14, lineHeight: 21, maxWidth: 330, marginBottom: 8 },
+  intro: { fontSize: 12, maxWidth: 330, marginBottom: 8 },
   filters: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 7, marginTop: -3, marginBottom: 3 },
   filter: { minHeight: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 18, paddingHorizontal: 12 },
   filterText: { fontSize: 10, fontWeight: "600" },
@@ -360,35 +321,23 @@ const styles = StyleSheet.create({
   weekNote: { minHeight: 60, marginBottom: 2, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   weekCopy: { flex: 1, minWidth: 0, gap: 4 },
   weekLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 1.5 },
-  weekTitle: { fontFamily: "serif", fontSize: 19, lineHeight: 24 },
+  weekTitle: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 18, fontWeight: "500" },
   countMark: { minWidth: 30, minHeight: 30, paddingHorizontal: 5, paddingVertical: 3, borderRadius: 15, alignItems: "center", justifyContent: "center", marginLeft: 12 },
   countText: { fontSize: 10, fontWeight: "700" },
-  afterHeader: { minHeight: 40, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 3, paddingTop: 9 },
-  afterLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 1.4 },
-  afterCount: { fontSize: 9, fontWeight: "600", letterSpacing: 0.8 },
   plan: { overflow: "hidden" },
-  featuredPlan: { borderWidth: 1, borderTopLeftRadius: 27, borderBottomRightRadius: 25, padding: 14, gap: 10 },
-  standardPlan: { minHeight: 105, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 3, paddingVertical: 14 },
-  featuredTopline: { minHeight: 22, justifyContent: "center" },
-  featuredToplineCopy: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  kickerLine: { flexDirection: "row", alignItems: "center", gap: 7 },
-  upNextDot: { width: 6, height: 6, borderRadius: 3 },
-  upNextText: { fontSize: 8, fontWeight: "700", letterSpacing: 1 },
-  featuredDateColumn: { minWidth: 54, flexShrink: 0, alignItems: "center", gap: 5, paddingTop: 2 },
-  featuredDate: { minWidth: 48, minHeight: 55, paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 17, borderBottomRightRadius: 16, alignItems: "center", justifyContent: "center" },
-  featuredWeekday: { fontSize: 8, fontWeight: "700", letterSpacing: 0.7 },
+  standardPlan: { minHeight: 105, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 3, paddingVertical: 13 },
   planDetails: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 2, paddingBottom: 2 },
   standardDetails: { paddingHorizontal: 0 },
-  dateColumn: { minWidth: 54, flexShrink: 0, alignItems: "center", paddingTop: 2 },
-  dateBadge: { minWidth: 48, minHeight: 53, paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 18, borderBottomRightRadius: 18, alignItems: "center", justifyContent: "center" },
+  dateColumn: { minWidth: 48, flexShrink: 0, alignItems: "center", paddingTop: 2 },
+  dateBadge: { minWidth: 48, minHeight: 55, paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 13, borderTopRightRadius: 13, borderBottomRightRadius: 13, borderBottomLeftRadius: 4, alignItems: "center", justifyContent: "center" },
   datePin: { width: 5, height: 5, borderRadius: 3, marginTop: 9 },
-  month: { fontSize: 9, fontWeight: "700", letterSpacing: 1 },
-  day: { fontFamily: "serif", fontSize: 23, fontWeight: "400" },
+  month: { fontSize: 8, fontWeight: "700", letterSpacing: 1 },
+  day: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 22, fontWeight: "500" },
   planCopy: { flex: 1, minWidth: 0, gap: 5, paddingTop: 2 },
-  planTitle: { fontFamily: "serif", fontSize: 20, lineHeight: 25, fontWeight: "400", marginTop: 1 },
-  meta: { fontSize: 11, lineHeight: 16 },
+  planTitle: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 18, fontWeight: "500", marginTop: 1 },
+  meta: { fontSize: 10 },
   locationRow: { minHeight: 20, flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
-  locationText: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16 },
+  locationText: { flex: 1, minWidth: 0, fontSize: 10 },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 3 },
   creatorAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   host: { fontSize: 10, fontWeight: "700", marginTop: 3 },

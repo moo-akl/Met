@@ -13,12 +13,12 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 
+import { MetText as Text } from "@/components/MetText";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
@@ -609,10 +609,13 @@ function EventsScreen() {
                 onPress={() => selectView(view)}
                 style={[
                   styles.viewTab,
-                  { borderBottomColor: selected ? colors.primary : "transparent" },
+                    {
+                      borderColor: selected ? "transparent" : colors.border,
+                      backgroundColor: selected ? colors.primarySoft : "transparent",
+                    },
                 ]}
               >
-                <Text style={[styles.viewTabText, { color: selected ? colors.primary : colors.mutedForeground }]}>
+                  <Text style={[styles.viewTabText, { color: selected ? colors.brandPanel : colors.mutedForeground }]}>
                   {label}
                 </Text>
               </Pressable>
@@ -632,12 +635,16 @@ function EventsScreen() {
               accessibilityRole="button"
               testID="events-feed-retry"
               onPress={() => void feed.refetch()}
-              style={[styles.emptyAction, { backgroundColor: colors.primary }]}
+              style={[styles.emptyAction, { backgroundColor: colors.brandPanel ?? colors.primary }]}
             >
-              <Text style={[styles.emptyActionText, { color: colors.primaryForeground }]}>
+              <Text style={[styles.emptyActionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
                 {t("common.retry")}
               </Text>
-              <Feather name="refresh-cw" size={15} color={colors.primaryForeground} />
+              <Feather
+                name="refresh-cw"
+                size={15}
+                color={colors.brandPanelText ?? colors.primaryForeground}
+              />
             </Pressable>
           </View>
         ) : activeView === "hangouts" ? (
@@ -690,12 +697,16 @@ function EventsScreen() {
                   pathname: "/event-create",
                   params: { mode: "friends" },
                 } as never)}
-                style={[styles.emptyAction, { backgroundColor: colors.primary }]}
+                style={[styles.emptyAction, { backgroundColor: colors.brandPanel ?? colors.primary }]}
               >
-                <Text style={[styles.emptyActionText, { color: colors.primaryForeground }]}>
+                <Text style={[styles.emptyActionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
                   {t("plans.make")}
                 </Text>
-                <Feather name="arrow-up-right" size={15} color={colors.primaryForeground} />
+                <Feather
+                  name="arrow-up-right"
+                  size={15}
+                  color={colors.brandPanelText ?? colors.primaryForeground}
+                />
               </Pressable>
             ) : activeView === "events" ? (
               <View style={styles.emptyActions}>
@@ -704,12 +715,16 @@ function EventsScreen() {
                   testID="events-empty-explore-venues"
                   accessibilityLabel={t("tabs.events.exploreVenues")}
                   onPress={() => router.push("/(tabs)" as never)}
-                  style={[styles.emptyAction, { backgroundColor: colors.primary }]}
+                  style={[styles.emptyAction, { backgroundColor: colors.brandPanel ?? colors.primary }]}
                 >
-                  <Text style={[styles.emptyActionText, { color: colors.primaryForeground }]}>
+                  <Text style={[styles.emptyActionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
                     {t("tabs.events.exploreVenues")}
                   </Text>
-                  <Feather name="map" size={15} color={colors.primaryForeground} />
+                  <Feather
+                    name="map"
+                    size={15}
+                    color={colors.brandPanelText ?? colors.primaryForeground}
+                  />
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -738,6 +753,7 @@ function EventsScreen() {
                 >
                   <Text
                     accessibilityRole="header"
+                    allowFontScaling
                     style={[
                       styles.eventDateHeading,
                       {
@@ -749,7 +765,7 @@ function EventsScreen() {
                     {group.label}
                   </Text>
                   <View style={[styles.eventDateRule, { backgroundColor: colors.border }]} />
-                  <Text style={[styles.eventDateCount, { color: colors.mutedForeground }]}>
+                  <Text allowFontScaling style={[styles.eventDateCount, { color: colors.mutedForeground }]}>
                     {String(group.events.length).padStart(2, "0")}
                   </Text>
                 </View>
@@ -853,23 +869,32 @@ function EventsScreen() {
                         ) : null}
                         <View style={styles.eventBody}>
                           <View style={styles.badgeRow}>
-                            <Text style={[styles.badge, { color: colors.primary, backgroundColor: "transparent" }]}>
-                              {eventTypeLabel}
+                            <View style={styles.badgeLabels}>
+                              <Text style={[styles.badge, { color: colors.primary }]}>
+                                {eventTypeLabel}
+                              </Text>
+                              {event.visibility === "invite_only" ? (
+                                <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>{t("tabs.events.inviteOnly")}</Text>
+                              ) : null}
+                              {event.verifiedExplorersOnly ? (
+                                <Text style={[styles.privateBadge, { color: colors.primary }]}>
+                                  {t("verifiedExplorer.eventOnly")}
+                                </Text>
+                              ) : event.isVerifiedExplorerHost ? (
+                                <Text style={[styles.privateBadge, { color: colors.primary }]}>
+                                  {t("verifiedExplorer.title")}
+                                </Text>
+                              ) : null}
+                            </View>
+                            <Text style={[styles.miniTag, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
+                              {new Date(event.startsAt).toDateString() === new Date().toDateString()
+                                ? t("common.today").toUpperCase()
+                                : new Date(event.startsAt).toLocaleDateString(lang, {
+                                    weekday: "short",
+                                  }).toUpperCase()}
                             </Text>
-                            {event.visibility === "invite_only" ? (
-                              <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>{t("tabs.events.inviteOnly")}</Text>
-                            ) : null}
-                            {event.verifiedExplorersOnly ? (
-                              <Text style={[styles.privateBadge, { color: colors.primary }]}>
-                                {t("verifiedExplorer.eventOnly")}
-                              </Text>
-                            ) : event.isVerifiedExplorerHost ? (
-                              <Text style={[styles.privateBadge, { color: colors.primary }]}>
-                                {t("verifiedExplorer.title")}
-                              </Text>
-                            ) : null}
                           </View>
-                          <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+                          <Text allowFontScaling style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
                           {isRecurringPlan && repeatCadenceLabel ? (
                             <View
                               testID={`event-card-recurrence-${event.id}`}
@@ -879,18 +904,18 @@ function EventsScreen() {
                               ]}
                             >
                               <Feather name="repeat" size={13} color={colors.primary} />
-                              <Text style={[styles.recurrenceMetaText, { color: colors.primary }]}>
+                              <Text allowFontScaling style={[styles.recurrenceMetaText, { color: colors.primary }]}>
                                 {repeatCadenceLabel}
                               </Text>
                             </View>
                           ) : null}
-                          <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>
+                          <Text allowFontScaling style={[styles.eventMeta, { color: colors.mutedForeground }]}>
                             {eventTimeLabel}
                           </Text>
                           {(event.location || event.venueName) ? (
                             <View style={styles.locationMeta}>
                               <Feather name="map-pin" size={13} color={colors.mutedForeground} />
-                              <Text style={[styles.eventMeta, styles.locationMetaText, { color: colors.mutedForeground }]}>
+                              <Text allowFontScaling style={[styles.eventMeta, styles.locationMetaText, { color: colors.mutedForeground }]}>
                                 {event.location ?? event.venueName}
                               </Text>
                             </View>
@@ -900,6 +925,7 @@ function EventsScreen() {
                               <Feather name="navigation" size={13} color={colors.primary} />
                               <Text
                                 testID={`event-card-distance-${event.id}`}
+                                allowFontScaling
                                 style={[styles.eventMeta, styles.locationMetaText, { color: colors.primary }]}
                               >
                                 {eventDistanceText}
@@ -919,24 +945,31 @@ function EventsScreen() {
                                   <Feather name="user" size={12} color={colors.primary} />
                                 </View>
                               )}
-                              <Text style={[styles.creatorName, { color: colors.mutedForeground }]}>
+                              <Text allowFontScaling style={[styles.creatorName, { color: colors.mutedForeground }]}>
                                 {t("tabs.events.createdBy")} {event.creatorName ?? t("tabs.events.planHost")}
                               </Text>
                             </View>
                           ) : null}
-                          {event.description ? <Text style={[styles.description, { color: colors.text }]}>{event.description}</Text> : null}
+                          {event.description ? <Text allowFontScaling style={[styles.description, { color: colors.text }]}>{event.description}</Text> : null}
                           <View style={styles.detailsLink}>
-                            <Text style={[styles.detailsLinkText, { color: colors.primary }]}>
-                              {t("tabs.events.detailsView")}
+                            <Text allowFontScaling style={[styles.rsvpCount, { color: colors.mutedForeground }]}>
+                              {event.rsvpCount} · {t("tabs.events.going")}
                             </Text>
-                            <Feather name="chevron-right" size={16} color={colors.primary} />
+                            <View style={styles.detailsLinkTail}>
+                              <Text allowFontScaling style={[styles.detailsLinkText, { color: colors.primary }]}>
+                                {t("tabs.events.detailsView")}
+                              </Text>
+                              <Feather name="chevron-right" size={16} color={colors.primary} />
+                            </View>
                           </View>
                         </View>
                       </Pressable>
                       {activeView !== "plans" ? (
                       <View style={[styles.rsvpFooter, { borderTopColor: colors.border }]}>
+                        <Text allowFontScaling style={[styles.rsvpLabel, { color: colors.mutedForeground }]}>
+                          {t("tabs.events.rsvpHeading")}
+                        </Text>
                         <View style={styles.rsvpRow}>
-                          <Text style={[styles.rsvpCount, { color: colors.mutedForeground }]}>{event.rsvpCount} · {t("tabs.events.going")}</Text>
                           {([
                             ["going", t("tabs.events.going")],
                             ["maybe", t("tabs.events.interested")],
@@ -956,19 +989,20 @@ function EventsScreen() {
                                 style={[
                                   styles.rsvpButton,
                                   {
-                                    backgroundColor: selected ? colors.primary : "transparent",
-                                    borderColor: selected ? colors.primary : colors.border,
+                                    backgroundColor: selected ? (colors.brandPanel ?? colors.primary) : "transparent",
+                                    borderColor: selected ? (colors.brandPanel ?? colors.primary) : colors.border,
                                     opacity: isPending && !isCurrentPending ? 0.65 : 1,
                                   },
                                 ]}
                               >
                                 {isCurrentPending ? (
-                                  <ActivityIndicator size="small" color={colors.primaryForeground} />
+                                  <ActivityIndicator size="small" color={colors.brandPanelText ?? colors.primaryForeground} />
                                 ) : (
                                   <Text
+                                    allowFontScaling
                                     style={[
                                       styles.rsvpButtonText,
-                                      { color: selected ? colors.primaryForeground : colors.text },
+                                      { color: selected ? (colors.brandPanelText ?? colors.primaryForeground) : colors.text },
                                     ]}
                                   >
                                     {label}
@@ -1001,11 +1035,11 @@ const styles = StyleSheet.create({
   headerKickerRule: { width: 20, height: 1 },
   headerKicker: { fontSize: 9, fontWeight: "700", letterSpacing: 1.3 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 3 },
-  title: { fontFamily: "serif", fontSize: 43, lineHeight: 48, fontWeight: "400", letterSpacing: -1.3 },
-  subtitle: { fontSize: 13, lineHeight: 19, marginTop: 6 },
-  viewTabs: { flexDirection: "row", borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, padding: 0, gap: 12 },
-  viewTab: { flex: 1, minHeight: 42, borderBottomWidth: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  viewTabText: { fontSize: 11, fontWeight: "700" },
+  title: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 40, fontWeight: "500", letterSpacing: -1.4 },
+  subtitle: { fontSize: 12, marginTop: 6 },
+  viewTabs: { flexDirection: "row", borderWidth: 0, padding: 0, gap: 7 },
+  viewTab: { flex: 1, minHeight: 34, borderWidth: 1, borderRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  viewTabText: { fontSize: 10, fontWeight: "700" },
   eventFilters: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 2 },
   eventFilter: { minHeight: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 18, paddingHorizontal: 13 },
   eventFilterText: { fontSize: 10, fontWeight: "600" },
@@ -1016,40 +1050,44 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, fontWeight: "600" },
   loading: { paddingVertical: 56, alignItems: "center" },
   emptyCard: { borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", gap: 8 },
-  emptyTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", marginTop: 4 },
-  emptyAction: { minHeight: 42, borderTopLeftRadius: 20, borderBottomRightRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
+  emptyTitle: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 21, fontWeight: "500", marginTop: 4 },
+  emptyAction: { minHeight: 42, borderRadius: 22, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
   emptyActionText: { fontSize: 13, fontWeight: "700" },
   emptyActions: { width: "100%", gap: 7, marginTop: 4 },
   eventList: { gap: 0, paddingTop: 1 },
   eventDateGroup: { gap: 0 },
   eventDateHeadingRow: { minHeight: 43, alignItems: "center", gap: 10, marginTop: 4, marginBottom: 2 },
-  eventDateHeading: { fontFamily: "serif", fontSize: 21, fontWeight: "400", flexShrink: 0 },
-  eventDateRule: { height: StyleSheet.hairlineWidth, flex: 1 },
+  eventDateHeading: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 21, fontWeight: "500", flexShrink: 1, minWidth: 0 },
+  eventDateRule: { height: StyleSheet.hairlineWidth, flex: 1, minWidth: 0 },
   eventDateCount: { fontSize: 9, fontWeight: "600", letterSpacing: 0.8 },
-  eventCard: { borderWidth: 1, borderRadius: 22, overflow: "hidden", marginBottom: 16, paddingBottom: 12 },
+  eventCard: { borderWidth: 1, borderRadius: 17, overflow: "hidden", marginBottom: 13, paddingBottom: 0 },
   eventPhotoGallery: { width: "100%", overflow: "hidden" },
-  cover: { width: "100%", height: 174, borderTopLeftRadius: 2, borderTopRightRadius: 24, borderBottomLeftRadius: 2 },
-  eventBody: { paddingHorizontal: 13, paddingTop: 12, paddingBottom: 2 },
-  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 8 },
-  badge: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", paddingHorizontal: 0, paddingVertical: 0 },
-  privateBadge: { fontSize: 11, fontWeight: "600" },
-  eventTitle: { fontFamily: "serif", fontSize: 26, fontWeight: "400", lineHeight: 31, letterSpacing: -0.45 },
-  eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 5 },
+  cover: { width: "100%", height: 128 },
+  eventBody: { paddingHorizontal: 13, paddingTop: 11, paddingBottom: 12 },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
+  badgeLabels: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, flex: 1, minWidth: 0 },
+  badge: { fontSize: 8, fontWeight: "700", letterSpacing: 1.1, textTransform: "uppercase" },
+  miniTag: { fontSize: 8, fontWeight: "700", letterSpacing: 0.4, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 5, overflow: "hidden" },
+  privateBadge: { fontSize: 8, fontWeight: "600" },
+  eventTitle: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 21, fontWeight: "500", letterSpacing: -0.25 },
+  eventMeta: { fontSize: 10, marginTop: 4 },
   locationMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  locationMetaText: { flex: 1, marginTop: 0 },
+  locationMetaText: { flex: 1, minWidth: 0, marginTop: 0 },
   creatorMeta: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 7 },
   creatorAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  creatorName: { flex: 1, fontSize: 11, fontWeight: "600" },
+  creatorName: { flex: 1, minWidth: 0, fontSize: 10, fontWeight: "600" },
   recurrenceMetaRow: { alignItems: "center", gap: 6, marginTop: 5 },
-  recurrenceMetaText: { fontSize: 12, lineHeight: 17, fontWeight: "600" },
-  description: { fontSize: 14, lineHeight: 20, marginTop: 9 },
-  detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 10 },
-  detailsLinkText: { fontSize: 12, fontWeight: "700" },
-  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 13, paddingTop: 10, paddingBottom: 1 },
-  rsvpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
-  rsvpCount: { flexGrow: 1, flexBasis: 58, fontSize: 11 },
-  rsvpButton: { flexGrow: 1, flexBasis: 65, minWidth: 0, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, paddingVertical: 7, borderRadius: 18, borderWidth: 1 },
-  rsvpButtonText: { fontSize: 10, fontWeight: "700", textAlign: "center" },
+  recurrenceMetaText: { fontSize: 10, fontWeight: "600" },
+  description: { fontSize: 11, marginTop: 8 },
+  detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 },
+  detailsLinkTail: { flexDirection: "row", alignItems: "center", gap: 2 },
+  detailsLinkText: { flexShrink: 1, minWidth: 0, fontSize: 10, fontWeight: "700" },
+  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 13, paddingTop: 9, paddingBottom: 11 },
+  rsvpLabel: { fontSize: 10, fontWeight: "600" },
+  rsvpRow: { flex: 1, minWidth: 180, flexDirection: "row", alignItems: "stretch", justifyContent: "flex-end", gap: 4 },
+  rsvpCount: { flexShrink: 1, minWidth: 0, fontSize: 10, fontWeight: "600" },
+  rsvpButton: { flex: 1, minWidth: 0, maxWidth: 90, minHeight: 42, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, paddingVertical: 6, borderRadius: 22, borderWidth: 1 },
+  rsvpButtonText: { flexShrink: 1, minWidth: 0, fontSize: 9, fontWeight: "700", textAlign: "center" },
 });
 
 export default EventsScreen;

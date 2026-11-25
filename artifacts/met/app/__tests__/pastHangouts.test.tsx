@@ -122,7 +122,7 @@ describe("Past Hangouts access", () => {
     expect(view.queryByText("plans.pastHangoutsTitle")).toBeNull();
   });
 
-  it("puts the nearest Plan first and labels the remaining list", async () => {
+  it("puts the nearest Plan first and keeps date-led rows consistent", async () => {
     mockEventsFeed.data = {
       events: [
         privatePlan(104, { startsAt: "2030-05-03T18:00:00.000Z" }),
@@ -135,10 +135,11 @@ describe("Past Hangouts access", () => {
     const rowIds = view.getAllByTestId(/^plan-row-/).map((row) => row.props.testID);
     expect(rowIds).toEqual(["plan-row-105", "plan-row-104"]);
     expect(view.getByText("plans.homeSubtitle")).toBeTruthy();
-    expect(view.getAllByText("plans.upNext")).toHaveLength(2);
-    expect(view.getByText("plans.afterThat")).toBeTruthy();
+    expect(view.getAllByText("plans.upNext")).toHaveLength(1);
+    expect(view.queryByText("plans.afterThat")).toBeNull();
+    expect(view.getByTestId("plan-date-badge-105")).toBeTruthy();
+    expect(view.getByTestId("plan-date-badge-104")).toBeTruthy();
     expect(view.getByText("02")).toBeTruthy();
-    expect(view.getByText("01")).toBeTruthy();
   });
 
   it("filters Plans by hosting and invitations", async () => {

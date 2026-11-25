@@ -101,7 +101,7 @@ export const ru: LocaleTree = {
     make: "Создать план",
     openChatTitleA11y: "Открыть групповой чат «{{title}}»",
   },
-  dateTime: { time: "Время" },
+  dateTime: { time: "Время", when: "Когда", where: "Где" },
   eventFollowThrough: {
     calendar: "Добавить в календарь",
     calendarAdding: "Добавление в календарь…",
@@ -175,6 +175,7 @@ export const ru: LocaleTree = {
       planLocationSearchHint: "Найдите и выберите место для встречи.",
       planPlaceSelectionRequired: "Выберите место из результатов поиска, чтобы добавить точку на карту.",
       requestToJoin: "Попросить присоединиться",
+      openToRequests: "Открыт для заявок",
       joinRequestPending: "Ваша заявка ожидает ответа организатора.",
       cancelJoinRequest: "Отменить заявку",
       requestAgain: "Подать заявку снова",

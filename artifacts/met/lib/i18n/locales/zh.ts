@@ -101,7 +101,7 @@ export const zh: LocaleTree = {
     make: "创建计划",
     openChatTitleA11y: "打开“{{title}}”群聊",
   },
-  dateTime: { time: "时间" },
+  dateTime: { time: "时间", when: "时间", where: "地点" },
   eventFollowThrough: {
     calendar: "添加到日历",
     calendarAdding: "正在添加到日历…",
@@ -174,6 +174,7 @@ export const zh: LocaleTree = {
       planLocationSearchHint: "搜索并选择聚会计划的地点。",
       planPlaceSelectionRequired: "请从搜索结果中选择地点，以添加地图标记。",
       requestToJoin: "申请加入",
+      openToRequests: "接受加入申请",
       joinRequestPending: "你的申请正在等待发起人回复。",
       cancelJoinRequest: "取消申请",
       requestAgain: "再次申请",

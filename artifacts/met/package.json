@@ -74,6 +74,7 @@
   "dependencies": {
     "@expo/config-plugins": "54.0.6",
     "@expo-google-fonts/caveat": "0.4.0",
+    "@expo-google-fonts/dm-sans": "0.4.0",
     "@expo-google-fonts/playfair-display": "0.4.0",
     "@react-native-community/datetimepicker": "^8.4.4",
     "@react-native-firebase/app": "^24.1.1",

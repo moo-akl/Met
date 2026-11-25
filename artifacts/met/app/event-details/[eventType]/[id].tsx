@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   Alert,
   ActivityIndicator,
@@ -15,13 +16,13 @@ import {
   Share,
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/contexts/AppContext";
+import { MetText as Text } from "@/components/MetText";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { api, ApiError } from "@/lib/api/client";
@@ -69,6 +70,7 @@ type RsvpStatus = "going" | "maybe" | "not_going";
 
 const WELCOME_NOTE_SEEN_KEY_PREFIX = "met:eventWelcomeNoteSeen:v1:";
 const WELCOME_NOTE_CLAIM_ATTEMPTS = 3;
+const HERO_TITLE_MAX_FONT_SCALE = 1.2;
 
 function getWelcomeNoteSeenKey(uid: string, eventType: "venue" | "member", eventId: number) {
   return `${WELCOME_NOTE_SEEN_KEY_PREFIX}${encodeURIComponent(uid)}:${eventType}:${eventId}`;
@@ -91,7 +93,7 @@ export default function EventDetailsScreen() {
 
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, fontScale } = useWindowDimensions();
   const detailPhotoWidth = Math.max(240, Math.min(windowWidth, 720));
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -440,7 +442,9 @@ export default function EventDetailsScreen() {
         ? [event.imageUrl]
         : []
     : [];
-  const titleInHero = Boolean(event && !isConcludedHangout);
+  const titleInHero = Boolean(
+    event && !isConcludedHangout && fontScale <= HERO_TITLE_MAX_FONT_SCALE,
+  );
   const ownerManageQuery = useQuery({
     ...getGetCommunityEventForEditQueryOptions(isValidRoute ? eventId : 0),
     enabled: isOwner && event?.eventType === "member",
@@ -613,11 +617,18 @@ export default function EventDetailsScreen() {
         (!isOwner &&
           (event.isInvited || event.myJoinRequestStatus === "accepted"))),
   );
-  const showHangoutActionDock = Boolean(
-    isHangout &&
-      !isOwner &&
+  const showDetailActionDock = Boolean(
+    event &&
       !isConcludedHangout &&
-      event?.myJoinRequestStatus !== "accepted",
+      (
+        (isHangout && !isOwner) ||
+        (isFriendPlan &&
+          !isOwner &&
+          event.myRsvp !== "not_going" &&
+          (event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe")) ||
+        (!isHangout && !isFriendPlan && canRsvpDirectly) ||
+        (!isHangout && !isFriendPlan && !canRsvpDirectly && !isOwner)
+      ),
   );
   const manageEventLabel = event?.joinApprovalRequired
     ? `${t("tabs.events.joinRequests")}${event.pendingJoinRequestCount ? ` (${event.pendingJoinRequestCount})` : ""}`
@@ -796,7 +807,11 @@ export default function EventDetailsScreen() {
         >
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
+        <Text
+          accessibilityRole="header"
+          allowFontScaling
+          style={[styles.headerTitle, { color: colors.text }]}
+        >
           {t(
             isConcludedHangout
               ? "plans.pastHangoutsTitle"
@@ -867,13 +882,15 @@ export default function EventDetailsScreen() {
       ) : (
         <>
         <ScrollView
+          testID="event-detail-scroll"
+          style={styles.detailScroll}
           contentContainerStyle={[
             styles.content,
             {
               paddingBottom:
                 insets.bottom +
                 (Platform.OS === "web" ? 34 : 0) +
-                (showHangoutActionDock ? 16 : 28),
+                (showDetailActionDock ? 154 : 28),
             },
           ]}
         >
@@ -913,10 +930,25 @@ export default function EventDetailsScreen() {
                   </View>
                 ) : null}
                 {titleInHero ? (
-                  <View pointerEvents="none" style={styles.detailHeroCaption}>
-                    <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>{t("tabs.events.quickPlan")}</Text>
-                    <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
-                  </View>
+                  <>
+                    {eventPhotos.length > 0 ? (
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={["transparent", colors.brandPanel ?? colors.primary]}
+                        style={styles.detailHeroGradient}
+                      />
+                    ) : null}
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.detailHeroCaption,
+                        { backgroundColor: eventPhotos.length > 0 ? "transparent" : (colors.brandPanel ?? colors.primary) },
+                      ]}
+                    >
+                      <Text style={[styles.detailHeroEyebrow, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{t("tabs.events.quickPlan")}</Text>
+                      <Text testID="event-detail-hero-title" accessibilityRole="header" allowFontScaling style={[styles.detailHeroTitle, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{event.title}</Text>
+                    </View>
+                  </>
                 ) : null}
               </View>
             </View>
@@ -941,10 +973,25 @@ export default function EventDetailsScreen() {
                   <View style={[styles.planHeroFallback, { backgroundColor: colors.primarySoft }]} />
                 )}
                 {titleInHero ? (
-                  <View pointerEvents="none" style={styles.detailHeroCaption}>
-                    <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>{t("tabs.events.friendPlanBadge")}</Text>
-                    <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
-                  </View>
+                  <>
+                    {eventPhotos.length > 0 ? (
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={["transparent", colors.brandPanel ?? colors.primary]}
+                        style={styles.detailHeroGradient}
+                      />
+                    ) : null}
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.detailHeroCaption,
+                        { backgroundColor: eventPhotos.length > 0 ? "transparent" : (colors.brandPanel ?? colors.primary) },
+                      ]}
+                    >
+                      <Text style={[styles.detailHeroEyebrow, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{t("tabs.events.friendPlanBadge")}</Text>
+                      <Text testID="event-detail-hero-title" accessibilityRole="header" allowFontScaling style={[styles.detailHeroTitle, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{event.title}</Text>
+                    </View>
+                  </>
                 ) : null}
               </View>
             </>
@@ -958,10 +1005,17 @@ export default function EventDetailsScreen() {
                 accessibilityLabel={t("tabs.events.planPhotos")}
               />
               {titleInHero ? (
-                <View pointerEvents="none" style={styles.detailHeroCaption}>
-                  <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>{t("tabs.events.venueEvent")}</Text>
-                  <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
-                </View>
+                <>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={["transparent", colors.brandPanel ?? colors.primary]}
+                    style={styles.detailHeroGradient}
+                  />
+                  <View pointerEvents="none" style={[styles.detailHeroCaption, { backgroundColor: "transparent" }]}>
+                    <Text style={[styles.detailHeroEyebrow, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{t("tabs.events.venueEvent")}</Text>
+                    <Text testID="event-detail-hero-title" accessibilityRole="header" allowFontScaling style={[styles.detailHeroTitle, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{event.title}</Text>
+                  </View>
+                </>
               ) : null}
             </View>
           ) : !isConcludedHangout ? (
@@ -972,11 +1026,11 @@ export default function EventDetailsScreen() {
               >
                 <Feather name={event.eventType === "venue" ? "calendar" : "users"} size={34} color={colors.primary} />
               </View>
-              <View pointerEvents="none" style={styles.detailHeroCaption}>
-                <Text style={[styles.detailHeroEyebrow, { color: colors.primaryForeground }]}>
+              <View pointerEvents="none" style={[styles.detailHeroCaption, { backgroundColor: colors.brandPanel ?? colors.primary }]}>
+                <Text style={[styles.detailHeroEyebrow, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
                   {event.eventType === "venue" ? t("tabs.events.venueEvent") : t("tabs.events.friendPlanBadge")}
                 </Text>
-                <Text accessibilityRole="header" style={[styles.detailHeroTitle, { color: colors.primaryForeground }]}>{event.title}</Text>
+                <Text testID="event-detail-hero-title" accessibilityRole="header" allowFontScaling style={[styles.detailHeroTitle, { color: colors.brandPanelText ?? colors.primaryForeground }]}>{event.title}</Text>
               </View>
             </View>
           ) : null}
@@ -1001,75 +1055,72 @@ export default function EventDetailsScreen() {
                 </Text>
               ) : null}
             </View> : null}
-            {!titleInHero ? <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{event.title}</Text> : null}
-            {event.eventType === "venue" ? (
+            {!titleInHero ? <Text testID="event-detail-title" accessibilityRole="header" allowFontScaling style={[styles.title, { color: colors.text }]}>{event.title}</Text> : null}
+            <View
+              testID={event.eventType === "venue" ? "event-detail-schedule" : undefined}
+              style={styles.detailMetaGrid}
+            >
               <View
-                testID="event-detail-schedule"
-                style={[styles.eventSchedule, { borderColor: colors.border }]}
+                testID={event.eventType === "venue" ? "event-detail-schedule-date-tile" : undefined}
+                style={[styles.detailMetaCell, { borderColor: colors.border, backgroundColor: colors.card }]}
               >
-                <View style={[styles.scheduleDateTile, { backgroundColor: colors.primarySoft }]}>
-                  <Text style={[styles.scheduleMonth, { color: colors.primary }]}>
-                    {new Date(event.startsAt).toLocaleDateString(lang, {
-                      month: "short",
-                      ...eventDateTimeOptions,
-                    }).toUpperCase()}
-                  </Text>
-                  <Text style={[styles.scheduleDay, { color: colors.text }]}>
-                    {new Date(event.startsAt).toLocaleDateString(lang, {
-                      day: "numeric",
-                      ...eventDateTimeOptions,
-                    })}
-                  </Text>
-                  <Text style={[styles.scheduleWeekday, { color: colors.mutedForeground }]}>
-                    {new Date(event.startsAt).toLocaleDateString(lang, {
-                      weekday: "short",
-                      ...eventDateTimeOptions,
-                    }).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.scheduleCopy}>
-                  <Text style={[styles.scheduleDateText, { color: colors.text }]}>
-                    {new Date(event.startsAt).toLocaleDateString(lang, {
-                      weekday: "long",
-                      month: "long",
-                      day: "numeric",
-                      ...eventDateTimeOptions,
-                    })}
-                  </Text>
-                  <Text style={[styles.scheduleTimeText, { color: colors.mutedForeground }]}>
-                    {new Date(event.startsAt).toLocaleTimeString(lang, {
-                      hour: "numeric",
-                      minute: "2-digit",
-                      ...eventDateTimeOptions,
-                    })}
-                    {event.endsAt
-                      ? ` · ${new Date(event.endsAt).toLocaleTimeString(lang, {
-                          hour: "numeric",
-                          minute: "2-digit",
-                          ...eventDateTimeOptions,
-                        })}`
-                      : ""}
-                  </Text>
-                </View>
+                <Text style={[styles.detailMetaLabel, { color: colors.mutedForeground }]}>
+                  {t("dateTime.when")}
+                </Text>
+                <Text
+                  testID={event.eventType === "venue" ? "event-detail-schedule-date" : undefined}
+                  allowFontScaling
+                  style={[styles.scheduleDateText, { color: colors.text }]}
+                >
+                  {new Date(event.startsAt).toLocaleDateString(lang, {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    ...eventDateTimeOptions,
+                  })}
+                </Text>
+                <Text allowFontScaling style={[styles.scheduleTimeText, { color: colors.mutedForeground }]}>
+                  {new Date(event.startsAt).toLocaleTimeString(lang, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    ...eventDateTimeOptions,
+                  })}
+                  {!isConcludedHangout && event.endsAt
+                    ? ` · ${new Date(event.endsAt).toLocaleTimeString(lang, {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        ...eventDateTimeOptions,
+                      })}`
+                    : ""}
+                </Text>
               </View>
-            ) : (
-              <>
-                <View style={styles.metaRow}>
-                  <Feather name="clock" size={16} color={colors.mutedForeground} />
-                  <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                    {new Date(event.startsAt).toLocaleString(lang, eventDateTimeOptions)}
+              {location ? (
+                <Pressable
+                  testID="event-detail-location-cell"
+                  accessibilityRole="button"
+                  accessibilityLabel={`${location}. ${t("tabs.events.openMap")}`}
+                  onPress={() => void openDirections(event)}
+                  style={[styles.detailMetaCell, styles.detailLocationCell, { borderColor: colors.border, backgroundColor: colors.card }]}
+                >
+                  <Text style={[styles.detailMetaLabel, { color: colors.mutedForeground }]}>
+                    {t("dateTime.where")}
                   </Text>
-                </View>
-                {!isConcludedHangout && event.endsAt ? (
-                  <View style={styles.metaRow}>
-                    <Feather name="clock" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                      {new Date(event.endsAt).toLocaleString(lang, eventDateTimeOptions)}
+                  <Text
+                    testID="event-detail-location"
+                    allowFontScaling
+                    style={[styles.detailMetaValue, { color: colors.text }]}
+                  >
+                    {location}
+                  </Text>
+                  <View style={styles.directionsLink}>
+                    <Text allowFontScaling style={[styles.directionsText, { color: colors.primary }]}>
+                      {t("tabs.events.openMap")}
                     </Text>
+                    <Feather name="arrow-up-right" size={13} color={colors.primary} />
                   </View>
-                ) : null}
-              </>
-            )}
+                </Pressable>
+              ) : null}
+            </View>
             {isFriendPlan && repeatCadenceLabel && nextOccurrenceLabel ? (
               <View
                 testID="event-detail-next-occurrence"
@@ -1085,18 +1136,6 @@ export default function EventDetailsScreen() {
                   </Text>
                 </View>
               </View>
-            ) : null}
-            {location ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${location}. ${t("tabs.events.openMap")}`}
-                onPress={() => void openDirections(event)}
-                style={styles.locationRow}
-              >
-                <Feather name="map-pin" size={16} color={colors.primary} />
-                <Text numberOfLines={1} style={[styles.locationText, { color: colors.text }]}>{location}</Text>
-                <Feather name="navigation" size={18} color={colors.primary} />
-              </Pressable>
             ) : null}
             {eventType === "member" ? (
               <View style={styles.creatorCard}>
@@ -1128,7 +1167,7 @@ export default function EventDetailsScreen() {
                     <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
                       {t("tabs.events.createdBy")}
                     </Text>
-                    <Text testID="hangout-creator-name" style={[styles.creatorName, { color: colors.text }]}>
+                    <Text testID="hangout-creator-name" allowFontScaling style={[styles.creatorName, { color: colors.text }]}>
                       {event.creatorName ?? t("tabs.events.quickPlan")}
                     </Text>
                     {creatorStandingQuery.data?.trustScore != null ? (
@@ -1166,7 +1205,7 @@ export default function EventDetailsScreen() {
             {!isConcludedHangout ? (
               <>
             {event.description ? (
-              <Text style={[styles.description, { color: colors.text }]}>
+              <Text testID="event-detail-description" allowFontScaling style={[styles.description, { color: colors.text }]}>
                 {event.description}
               </Text>
             ) : null}
@@ -1212,10 +1251,10 @@ export default function EventDetailsScreen() {
                     accessibilityLabel={t("tabs.events.scanEventQr")}
                     testID="button-scan-event-qr"
                     onPress={() => router.push("/qr-scan" as never)}
-                    style={[styles.attendanceButton, styles.attendanceButtonScan, { backgroundColor: colors.primary }]}
+                    style={[styles.attendanceButton, styles.attendanceButtonScan, { backgroundColor: colors.brandPanel ?? colors.primary }]}
                   >
-                    <Feather name="maximize" size={16} color={colors.primaryForeground} />
-                    <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
+                    <Feather name="maximize" size={16} color={colors.brandPanelText ?? colors.primaryForeground} />
+                    <Text style={[styles.attendanceButtonText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
                       {t("tabs.events.scanEventQr")}
                     </Text>
                   </Pressable>
@@ -1266,7 +1305,7 @@ export default function EventDetailsScreen() {
                     style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
                   >
                     <Feather name="globe" size={16} color={colors.primary} />
-                    <Text numberOfLines={1} style={{ color: colors.primary, fontSize: 14 }}>{event.websiteUrl}</Text>
+                    <Text allowFontScaling style={{ color: colors.primary, fontSize: 14, flexShrink: 1 }}>{event.websiteUrl}</Text>
                   </Pressable>
                 ) : null}
                 {event.publicEmail ? (
@@ -1282,164 +1321,19 @@ export default function EventDetailsScreen() {
               </View>
             ) : null}
 
-            {isFriendPlan && !isOwner ? (
-              <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
-                {event.myRsvp === "not_going" ? (
-                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
-                    {t("tabs.events.leftPlanNotice")}
-                  </Text>
-                ) : event.myRsvp === "going" || event.myRsvp === "maybe" ? (
-                  <>
-                    <Text style={[styles.rsvpHeading, { color: colors.text }]}>
-                      {t("tabs.events.planInvitationAccepted")}
-                    </Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={t("tabs.events.leavePlan")}
-                      testID="button-leave-friend-plan"
-                      disabled={rsvpPending}
-                      onPress={leaveFriendPlan}
-                      style={[
-                        styles.attendanceButton,
-                        { backgroundColor: colors.primarySoft, opacity: rsvpPending ? 0.65 : 1 },
-                      ]}
-                    >
-                      {rsvpPending ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                      ) : (
-                        <Feather name="log-out" size={16} color={colors.primary} />
-                      )}
-                      <Text style={[styles.attendanceButtonText, { color: colors.primary }]}>
-                        {t("tabs.events.leavePlan")}
-                      </Text>
-                    </Pressable>
-                  </>
-                ) : event.isInvited ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t("tabs.events.acceptPlanInvitation")}
-                    testID="button-accept-plan-invitation"
-                    disabled={rsvpPending}
-                    onPress={() => void updateFriendPlanInvitation("going")}
-                    style={[
-                      styles.attendanceButton,
-                      { backgroundColor: colors.primary, opacity: rsvpPending ? 0.65 : 1 },
-                    ]}
-                  >
-                    {rsvpPending ? (
-                      <ActivityIndicator size="small" color={colors.primaryForeground} />
-                    ) : (
-                      <Feather name="check" size={16} color={colors.primaryForeground} />
-                    )}
-                    <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
-                      {t("tabs.events.acceptPlanInvitation")}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : !isHangout && canRsvpDirectly ? (
-            <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
-              {!(isFriendPlan && isOwner) ? (
-                <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
-                  {t("tabs.events.rsvpHeading")}
-                </Text>
-              ) : null}
-              <Text testID="event-rsvp-count" style={[styles.rsvpCount, { color: colors.mutedForeground }]}>
-                {event.rsvpCount} · {t("tabs.events.going")}
+            {isFriendPlan && !isOwner && event.myRsvp === "not_going" ? (
+              <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
+                {t("tabs.events.leftPlanNotice")}
               </Text>
-              {!(isFriendPlan && isOwner) ? (
-                <View style={styles.rsvpRow}>
-                  {([
-                    ["going", t("tabs.events.going")],
-                    ["maybe", t("tabs.events.interested")],
-                    ["not_going", t("tabs.events.notGoing")],
-                  ] as const).map(([status, label]) => {
-                    const selected = event.myRsvp === status;
-                    return (
-                      <Pressable
-                        key={status}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${event.title}, ${label}`}
-                        testID={`button-direct-rsvp-${status}`}
-                        accessibilityState={{ selected }}
-                        disabled={rsvpPending}
-                        onPress={() => void saveRsvp(status)}
-                        style={[
-                          styles.rsvpButton,
-                          {
-                            backgroundColor: selected ? colors.primary : colors.primarySoft,
-                            opacity: rsvpPending ? 0.65 : 1,
-                          },
-                        ]}
-                      >
-                        {rsvpPending && selected ? (
-                          <ActivityIndicator size="small" color={selected ? colors.primaryForeground : colors.primary} />
-                        ) : (
-                          <Text
-                            style={[
-                              styles.rsvpButtonText,
-                              { color: selected ? colors.primaryForeground : colors.primary },
-                            ]}
-                          >
-                            {label}
-                          </Text>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ) : null}
-            </View>
-            ) : !isHangout && !isFriendPlan ? (
-              <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
-                <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
-                  {t("tabs.events.joinRequests")}
-                </Text>
-                {event.myJoinRequestStatus === "pending" ? (
-                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
-                    {t("tabs.events.joinRequestPending")}
-                  </Text>
-                ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={event.myJoinRequestStatus === "pending"
-                    ? t("tabs.events.cancelJoinRequest")
-                    : event.myJoinRequestStatus === "declined"
-                      ? t("tabs.events.requestAgain")
-                      : t("tabs.events.requestToJoin")}
-                  testID="button-request-to-join"
-                  disabled={joinRequestPending}
-                  onPress={() => void updateJoinRequest()}
-                  style={[
-                    styles.attendanceButton,
-                    {
-                      backgroundColor: colors.primary,
-                      opacity: joinRequestPending ? 0.65 : 1,
-                      alignSelf: "flex-start",
-                    },
-                  ]}
-                >
-                  {joinRequestPending ? (
-                    <ActivityIndicator size="small" color={colors.primaryForeground} />
-                  ) : (
-                    <Feather
-                      name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"}
-                      size={16}
-                      color={colors.primaryForeground}
-                    />
-                  )}
-                  <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
-                    {event.myJoinRequestStatus === "pending"
-                      ? t("tabs.events.cancelJoinRequest")
-                      : event.myJoinRequestStatus === "declined"
-                        ? t("tabs.events.requestAgain")
-                        : t("tabs.events.requestToJoin")}
-                  </Text>
-                </Pressable>
-              </View>
             ) : null}
 
-            {canOpenPlanChat ? (
+            {isFriendPlan && isOwner ? (
+              <Text testID="event-rsvp-count" style={[styles.ownerPlanRsvpCount, { color: colors.mutedForeground }]}>
+                {event.rsvpCount} · {t("tabs.events.going")}
+              </Text>
+            ) : null}
+
+            {canOpenPlanChat && !isHangout ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={planChatLabel}
@@ -1577,9 +1471,9 @@ export default function EventDetailsScreen() {
             ) : null}
           </View>
         </ScrollView>
-        {showHangoutActionDock && event ? (
+        {showDetailActionDock && event ? (
           <View
-            testID="hangout-action-dock"
+            testID={isHangout ? "hangout-action-dock" : "event-detail-action-dock"}
             style={[
               styles.hangoutActionDock,
               {
@@ -1589,48 +1483,199 @@ export default function EventDetailsScreen() {
               },
             ]}
           >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                event.myJoinRequestStatus === "pending"
-                  ? t("tabs.events.cancelJoinRequest")
-                  : event.myJoinRequestStatus === "declined"
-                    ? t("tabs.events.requestAgain")
-                    : t("tabs.events.requestToJoin")
-              }
-              testID="button-request-to-join"
-              disabled={joinRequestPending}
-              onPress={() => void updateJoinRequest()}
-              style={[
-                styles.hangoutActionButton,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: joinRequestPending ? 0.65 : 1,
-                },
-              ]}
-            >
-              {joinRequestPending ? (
-                <ActivityIndicator size="small" color={colors.primaryForeground} />
+            {isHangout && canOpenPlanChat ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={planChatLabel}
+                testID="button-open-plan-chat"
+                onPress={() => router.push(`/event-chat/${event.id}` as never)}
+                style={[styles.hangoutActionButton, { backgroundColor: colors.brandPanel ?? colors.primary }]}
+              >
+                <Feather name="message-circle" size={17} color={colors.brandPanelText ?? colors.primaryForeground} />
+                <Text allowFontScaling style={[styles.attendanceButtonText, styles.dockActionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
+                  {planChatLabel}
+                </Text>
+              </Pressable>
+            ) : isHangout ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    event.myJoinRequestStatus === "pending"
+                      ? t("tabs.events.cancelJoinRequest")
+                      : event.myJoinRequestStatus === "declined"
+                        ? t("tabs.events.requestAgain")
+                        : t("tabs.events.requestToJoin")
+                  }
+                  accessibilityState={{ busy: joinRequestPending, disabled: joinRequestPending }}
+                  testID="button-request-to-join"
+                  disabled={joinRequestPending}
+                  onPress={() => void updateJoinRequest()}
+                  style={[
+                    styles.hangoutActionButton,
+                    {
+                      backgroundColor: colors.brandPanel ?? colors.primary,
+                      opacity: joinRequestPending ? 0.65 : 1,
+                    },
+                  ]}
+                >
+                  {joinRequestPending ? (
+                    <ActivityIndicator size="small" color={colors.brandPanelText ?? colors.primaryForeground} />
+                  ) : (
+                    <Feather
+                      name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"}
+                      size={16}
+                      color={colors.brandPanelText ?? colors.primaryForeground}
+                    />
+                  )}
+                  <Text allowFontScaling style={[styles.attendanceButtonText, styles.dockActionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
+                    {event.myJoinRequestStatus === "pending"
+                      ? t("tabs.events.cancelJoinRequest")
+                      : event.myJoinRequestStatus === "declined"
+                        ? t("tabs.events.requestAgain")
+                        : t("tabs.events.requestToJoin")}
+                  </Text>
+                </Pressable>
+                {event.myJoinRequestStatus === "pending" ? (
+                  <Text style={[styles.hangoutActionHint, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.joinRequestPending")}
+                  </Text>
+                ) : null}
+              </>
+            ) : isFriendPlan ? (
+              event.myRsvp === "going" || event.myRsvp === "maybe" ? (
+                <>
+                  <Text style={[styles.dockStatus, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.planInvitationAccepted")}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.leavePlan")}
+                    testID="button-leave-friend-plan"
+                    disabled={rsvpPending}
+                    onPress={leaveFriendPlan}
+                    style={[styles.hangoutActionButton, styles.dockSecondaryAction, { opacity: rsvpPending ? 0.65 : 1 }]}
+                  >
+                    {rsvpPending ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Feather name="log-out" size={16} color={colors.primary} />
+                    )}
+                    <Text allowFontScaling style={[styles.attendanceButtonText, styles.dockActionText, { color: colors.primary }]}>
+                      {t("tabs.events.leavePlan")}
+                    </Text>
+                  </Pressable>
+                </>
               ) : (
-                <Feather
-                  name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"}
-                  size={16}
-                  color={colors.primaryForeground}
-                />
-              )}
-              <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
-                {event.myJoinRequestStatus === "pending"
-                  ? t("tabs.events.cancelJoinRequest")
-                  : event.myJoinRequestStatus === "declined"
-                    ? t("tabs.events.requestAgain")
-                    : t("tabs.events.requestToJoin")}
-              </Text>
-            </Pressable>
-            {event.myJoinRequestStatus === "pending" ? (
-              <Text style={[styles.hangoutActionHint, { color: colors.mutedForeground }]}>
-                {t("tabs.events.joinRequestPending")}
-              </Text>
-            ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("tabs.events.acceptPlanInvitation")}
+                  testID="button-accept-plan-invitation"
+                  disabled={rsvpPending}
+                  onPress={() => void updateFriendPlanInvitation("going")}
+                  style={[styles.hangoutActionButton, { backgroundColor: colors.brandPanel ?? colors.primary, opacity: rsvpPending ? 0.65 : 1 }]}
+                >
+                  {rsvpPending ? (
+                    <ActivityIndicator size="small" color={colors.brandPanelText ?? colors.primaryForeground} />
+                  ) : (
+                    <Feather name="check" size={16} color={colors.brandPanelText ?? colors.primaryForeground} />
+                  )}
+                    <Text allowFontScaling style={[styles.attendanceButtonText, styles.dockActionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
+                    {t("tabs.events.acceptPlanInvitation")}
+                  </Text>
+                </Pressable>
+              )
+            ) : canRsvpDirectly ? (
+              <>
+                <View style={styles.dockRsvpHeader}>
+                  <Text accessibilityRole="header" style={[styles.dockRsvpHeading, { color: colors.text }]}>
+                    {t("tabs.events.rsvpHeading")}
+                  </Text>
+                  <Text testID="event-rsvp-count" style={[styles.dockRsvpCount, { color: colors.mutedForeground }]}>
+                    {event.rsvpCount} · {t("tabs.events.going")}
+                  </Text>
+                </View>
+                <View style={styles.dockRsvpRow}>
+                  {([
+                    ["going", t("tabs.events.going")],
+                    ["maybe", t("tabs.events.interested")],
+                    ["not_going", t("tabs.events.notGoing")],
+                  ] as const).map(([status, label]) => {
+                    const selected = event.myRsvp === status;
+                    return (
+                      <Pressable
+                        key={status}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${event.title}, ${label}`}
+                        testID={`button-direct-rsvp-${status}`}
+                        accessibilityState={{ selected, busy: rsvpPending, disabled: rsvpPending }}
+                        disabled={rsvpPending}
+                        onPress={() => void saveRsvp(status)}
+                        style={[
+                          styles.dockRsvpButton,
+                          {
+                            backgroundColor: selected ? (colors.brandPanel ?? colors.primary) : colors.card,
+                            borderColor: selected ? (colors.brandPanel ?? colors.primary) : colors.border,
+                            opacity: rsvpPending ? 0.65 : 1,
+                          },
+                        ]}
+                      >
+                        {rsvpPending && selected ? (
+                          <ActivityIndicator size="small" color={colors.brandPanelText ?? colors.primaryForeground} />
+                        ) : (
+                          <Text
+                            allowFontScaling
+                            style={[
+                              styles.dockRsvpButtonText,
+                              { color: selected ? (colors.brandPanelText ?? colors.primaryForeground) : colors.primary },
+                            ]}
+                          >
+                            {label}
+                          </Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <>
+                <Text accessibilityRole="header" style={[styles.dockStatus, { color: colors.text }]}>
+                  {t("tabs.events.joinRequests")}
+                </Text>
+                {event.myJoinRequestStatus === "pending" ? (
+                  <Text style={[styles.hangoutActionHint, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.joinRequestPending")}
+                  </Text>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={event.myJoinRequestStatus === "pending"
+                    ? t("tabs.events.cancelJoinRequest")
+                    : event.myJoinRequestStatus === "declined"
+                      ? t("tabs.events.requestAgain")
+                      : t("tabs.events.requestToJoin")}
+                  accessibilityState={{ busy: joinRequestPending, disabled: joinRequestPending }}
+                  testID="button-request-to-join"
+                  disabled={joinRequestPending}
+                  onPress={() => void updateJoinRequest()}
+                  style={[styles.hangoutActionButton, { backgroundColor: colors.brandPanel ?? colors.primary, opacity: joinRequestPending ? 0.65 : 1 }]}
+                >
+                  {joinRequestPending ? (
+                    <ActivityIndicator size="small" color={colors.brandPanelText ?? colors.primaryForeground} />
+                  ) : (
+                    <Feather name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"} size={16} color={colors.brandPanelText ?? colors.primaryForeground} />
+                  )}
+                  <Text allowFontScaling style={[styles.attendanceButtonText, styles.dockActionText, { color: colors.brandPanelText ?? colors.primaryForeground }]}>
+                    {event.myJoinRequestStatus === "pending"
+                      ? t("tabs.events.cancelJoinRequest")
+                      : event.myJoinRequestStatus === "declined"
+                        ? t("tabs.events.requestAgain")
+                        : t("tabs.events.requestToJoin")}
+                  </Text>
+                </Pressable>
+              </>
+            )}
           </View>
         ) : null}
         </>
@@ -1685,19 +1730,21 @@ const styles = StyleSheet.create({
   headerButton: { width: 38, height: 38, justifyContent: "center", alignItems: "center" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
   headerActionsMenu: { borderRadius: 19 },
-  headerTitle: { fontSize: 18, fontWeight: "700" },
+  headerTitle: { flex: 1, minWidth: 0, fontSize: 18, fontWeight: "700", textAlign: "center" },
   state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   stateText: { fontSize: 15, fontWeight: "600" },
   retryButton: { minHeight: 40, borderRadius: 20, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
   retryButtonText: { fontSize: 13, fontWeight: "700" },
+  detailScroll: { flex: 1 },
   content: { paddingBottom: 24 },
   cover: { width: "100%", height: 238 },
   coverPlaceholder: { width: "100%", height: 238, alignItems: "center", justifyContent: "center" },
   standardHero: { position: "relative", width: "100%", height: 238 },
   standardPhotoRow: { width: "100%", height: 238, gap: 0, padding: 0 },
-  detailHeroCaption: { position: "absolute", zIndex: 3, left: 20, right: 20, bottom: 17, gap: 5, paddingTop: 28 },
-  detailHeroEyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.4, textTransform: "uppercase", textShadowColor: "rgba(18,37,27,.75)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-  detailHeroTitle: { fontFamily: "PlayfairDisplay_400Regular", fontSize: 31, lineHeight: 34, letterSpacing: -0.5, textShadowColor: "rgba(18,37,27,.8)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 7 },
+  detailHeroGradient: { position: "absolute", left: 0, right: 0, bottom: 0, height: 158, zIndex: 1 },
+  detailHeroCaption: { position: "absolute", zIndex: 3, left: 12, right: 12, bottom: 12, gap: 5, paddingHorizontal: 14, paddingVertical: 12, borderTopLeftRadius: 19, borderBottomRightRadius: 17 },
+  detailHeroEyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.4, textTransform: "uppercase" },
+  detailHeroTitle: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 31, fontWeight: "500", letterSpacing: -0.5 },
   hangoutHero: { marginHorizontal: 0, marginTop: 0, borderWidth: 0, borderRadius: 0, overflow: "hidden" },
   hangoutHeroMedia: { position: "relative", width: "100%", height: 238 },
   hangoutPhotoRow: { width: "100%", height: 238, gap: 0, padding: 0 },
@@ -1719,27 +1766,26 @@ const styles = StyleSheet.create({
   planHeroFallback: { ...StyleSheet.absoluteFillObject },
   planGallery: { width: "100%", height: 238, gap: 0, padding: 0 },
   planGalleryImage: { width: "100%", height: 238, borderRadius: 0 },
-  body: { paddingHorizontal: 18, paddingTop: 18 },
+  body: { paddingHorizontal: 20, paddingTop: 15 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
   badge: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99 },
   privateBadge: { fontSize: 11, fontWeight: "600" },
-  title: { fontFamily: "serif", fontSize: 32, lineHeight: 38, fontWeight: "400", letterSpacing: -0.6, marginBottom: 17 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 9 },
-  meta: { fontSize: 14, lineHeight: 20, flex: 1 },
-  eventSchedule: { flexDirection: "row", alignItems: "center", gap: 13, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
-  scheduleDateTile: { width: 52, minHeight: 61, flexShrink: 0, borderTopLeftRadius: 15, borderBottomRightRadius: 13, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
-  scheduleMonth: { fontSize: 8, fontWeight: "700", letterSpacing: 0.8 },
-  scheduleDay: { fontFamily: "serif", fontSize: 24, lineHeight: 27 },
-  scheduleWeekday: { fontSize: 7, fontWeight: "700", letterSpacing: 0.7 },
-  scheduleCopy: { flex: 1, minWidth: 0, gap: 5 },
-  scheduleDateText: { fontSize: 13, lineHeight: 18, fontWeight: "600" },
-  scheduleTimeText: { fontSize: 12, lineHeight: 17 },
+  title: { fontFamily: "PlayfairDisplay_500Medium", fontSize: 31, fontWeight: "500", letterSpacing: -0.6, marginBottom: 14 },
+  detailMetaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12, marginBottom: 15 },
+  detailMetaCell: { flexGrow: 1, flexBasis: 0, minWidth: 135, borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 10, gap: 5 },
+  detailLocationCell: { justifyContent: "space-between" },
+  detailMetaLabel: { fontSize: 8, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase" },
+  detailMetaValue: { minWidth: 0, flexShrink: 1, fontSize: 11, fontWeight: "700" },
+  scheduleDateText: { fontSize: 12, fontWeight: "600" },
+  scheduleTimeText: { fontSize: 11 },
+  directionsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 3 },
+  directionsText: { flexShrink: 1, minWidth: 0, fontSize: 9, fontWeight: "700" },
   recurrenceCard: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, marginTop: 4, marginBottom: 10 },
   recurrenceCopy: { flex: 1, gap: 2 },
   recurrenceCadence: { fontSize: 13, fontWeight: "700" },
-  recurrenceDate: { fontSize: 12, lineHeight: 18 },
+  recurrenceDate: { fontSize: 12 },
   locationRow: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 9, marginTop: 8 },
-  locationText: { flex: 1, fontSize: 14, fontWeight: "600" },
+  locationText: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: "600" },
   creator: { fontSize: 13, marginTop: 14 },
   creatorCard: { marginTop: 14, gap: 8 },
   creatorProfileLink: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -1763,7 +1809,7 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   hostRatingSubmitText: { fontSize: 12, fontWeight: "700" },
-  description: { fontSize: 15, lineHeight: 23, marginTop: 18 },
+  description: { fontSize: 13, marginTop: 15 },
   contactHeading: { fontSize: 16, fontWeight: "700", marginBottom: 2 },
   ownerManageAction: {
     minHeight: 58,
@@ -1783,32 +1829,42 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ownerManageText: { flex: 1, fontSize: 14, fontWeight: "700" },
-  attendanceCard: { borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 22, padding: 16, gap: 14, marginTop: 20 },
+  attendanceCard: { borderWidth: 1, borderRadius: 17, padding: 16, gap: 14, marginTop: 20 },
   attendanceHeading: { flexDirection: "row", alignItems: "center", gap: 11 },
   attendanceIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   attendanceCopy: { flex: 1, gap: 3 },
   attendanceTitle: { fontSize: 15, fontWeight: "700" },
   attendanceHint: { fontSize: 12, lineHeight: 17 },
   attendanceActions: { gap: 8 },
-  attendanceButton: { minHeight: 48, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14 },
-  attendanceButtonScan: { borderTopLeftRadius: 24, borderBottomRightRadius: 18 },
+  attendanceButton: { minHeight: 48, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14 },
+  attendanceButtonScan: { borderRadius: 24 },
   attendanceButtonSecondary: { borderWidth: 1, backgroundColor: "transparent" },
   attendanceButtonText: { fontSize: 13, fontWeight: "700" },
   rsvpSection: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 22, paddingTop: 16 },
   rsvpHeading: { fontSize: 17, fontWeight: "700", marginBottom: 10 },
   rsvpCount: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
+  ownerPlanRsvpCount: { fontSize: 13, fontWeight: "600", marginTop: 12 },
   rsvpRow: { flexDirection: "row", gap: 8 },
   rsvpButton: { flex: 1, minHeight: 46, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 999 },
   rsvpButtonText: { fontSize: 12, fontWeight: "700" },
   hangoutActionDock: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, paddingHorizontal: 18, gap: 7 },
-  hangoutActionButton: { minHeight: 50, borderTopLeftRadius: 25, borderBottomRightRadius: 19, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 16 },
-  hangoutActionHint: { fontSize: 11, lineHeight: 16, textAlign: "center" },
+  hangoutActionButton: { minHeight: 48, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 16 },
+  dockActionText: { flexShrink: 1, textAlign: "center" },
+  dockSecondaryAction: { minHeight: 32, borderWidth: 0, borderRadius: 0, paddingHorizontal: 6 },
+  dockStatus: { fontSize: 11, fontWeight: "600", textAlign: "center" },
+  dockRsvpHeader: { gap: 2, alignItems: "center", justifyContent: "center" },
+  dockRsvpHeading: { fontSize: 12, fontWeight: "700" },
+  dockRsvpCount: { fontSize: 11, fontWeight: "600" },
+  dockRsvpRow: { flexDirection: "row", gap: 7 },
+  dockRsvpButton: { flex: 1, minWidth: 0, minHeight: 46, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, borderRadius: 22, borderWidth: 1 },
+   dockRsvpButtonText: { flexShrink: 1, minWidth: 0, fontSize: 12, fontWeight: "700", textAlign: "center" },
+  hangoutActionHint: { fontSize: 11, textAlign: "center" },
   ownerActions: { marginTop: 18 },
-  shareButton: { minHeight: 48, borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
+  shareButton: { minHeight: 48, borderWidth: 1, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
   shareText: { fontSize: 14, fontWeight: "700" },
   reportButton: { minHeight: 36, flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 7, marginBottom: 10 },
   reportText: { fontSize: 13, fontWeight: "600" },
-  deleteButton: { minHeight: 48, borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  deleteButton: { minHeight: 48, borderWidth: 1, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   deleteText: { fontSize: 14, fontWeight: "700" },
   confirmCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 18, padding: 16, gap: 8 },
   confirmTitle: { fontSize: 15, fontWeight: "700" },

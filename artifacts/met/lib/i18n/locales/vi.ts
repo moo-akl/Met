@@ -101,7 +101,7 @@ export const vi: LocaleTree = {
     make: "Tạo kế hoạch",
     openChatTitleA11y: "Mở trò chuyện nhóm {{title}}",
   },
-  dateTime: { time: "Giờ" },
+  dateTime: { time: "Giờ", when: "Khi nào", where: "Ở đâu" },
   eventFollowThrough: {
     calendar: "Thêm vào lịch",
     calendarAdding: "Đang thêm vào lịch…",
@@ -175,6 +175,7 @@ export const vi: LocaleTree = {
       planLocationSearchHint: "Tìm và chọn địa điểm cho kế hoạch gặp mặt.",
       planPlaceSelectionRequired: "Chọn một địa điểm trong kết quả để thêm ghim bản đồ.",
       requestToJoin: "Xin tham gia",
+      openToRequests: "Đang nhận yêu cầu",
       joinRequestPending: "Yêu cầu của bạn đang chờ chủ trì phản hồi.",
       cancelJoinRequest: "Hủy yêu cầu",
       requestAgain: "Gửi yêu cầu lại",

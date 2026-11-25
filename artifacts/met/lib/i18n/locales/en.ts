@@ -106,6 +106,8 @@ export const en = {
   },
   dateTime: {
     time: "Time",
+    when: "When",
+    where: "Where",
   },
   eventFollowThrough: {
     calendar: "Add to calendar",
@@ -180,6 +182,7 @@ export const en = {
       planLocationSearchHint: "Search and select a place for your hangout.",
       planPlaceSelectionRequired: "Choose a search result so this hangout has a map pin.",
       requestToJoin: "Request to join",
+      openToRequests: "Open to requests",
       joinRequestPending: "Your request is waiting for the host.",
       cancelJoinRequest: "Cancel request",
       requestAgain: "Request again",

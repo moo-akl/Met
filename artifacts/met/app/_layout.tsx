@@ -9,7 +9,16 @@ import {
   Caveat_500Medium,
   Caveat_600SemiBold,
 } from "@expo-google-fonts/caveat";
-import { PlayfairDisplay_400Regular } from "@expo-google-fonts/playfair-display";
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
+} from "@expo-google-fonts/dm-sans";
+import {
+  PlayfairDisplay_400Regular,
+  PlayfairDisplay_500Medium,
+} from "@expo-google-fonts/playfair-display";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
@@ -666,6 +675,11 @@ export default function RootLayout() {
     Caveat_500Medium,
     Caveat_600SemiBold,
     PlayfairDisplay_400Regular,
+    PlayfairDisplay_500Medium,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
   });
   const [fontLoadTimedOut, setFontLoadTimedOut] = useState(false);
   const pathnameRef = useRef(pathname);

@@ -576,7 +576,8 @@ describe("Hangouts discovery", () => {
     const standardBannerHeight = StyleSheet.flatten(
       root.root.findByProps({ testID: "nearby-hangout-banner-45" }).props.style,
     ).minHeight;
-    expect(featuredBannerHeight).toBeGreaterThan(standardBannerHeight);
+    expect(featuredBannerHeight).toBe(128);
+    expect(standardBannerHeight).toBe(128);
     expect(root.root.findAllByType(Image).some((node) =>
       node.props.source?.uri === "https://example.com/featured-hangout.jpg",
     )).toBe(true);
@@ -777,21 +778,17 @@ describe("Hangouts discovery", () => {
       (node) => node.props.children === "Sam",
     );
     expect(planHost?.props.numberOfLines).toBeUndefined();
-    const featuredDateStyle = StyleSheet.flatten(
-      root.root.findByProps({ testID: "plan-featured-date-83" }).props.style,
+    const firstDateStyle = StyleSheet.flatten(
+      root.root.findByProps({ testID: "plan-date-badge-83" }).props.style,
     );
-    const standardDateStyle = StyleSheet.flatten(
+    const secondDateStyle = StyleSheet.flatten(
       root.root.findByProps({ testID: "plan-date-badge-84" }).props.style,
     );
-    const dateColumnStyle = StyleSheet.flatten(
-      root.root.findByProps({ testID: "plan-date-column-84" }).props.style,
-    );
-    expect(featuredDateStyle.minHeight).toBe(55);
-    expect(featuredDateStyle.height).toBeUndefined();
-    expect(standardDateStyle.minHeight).toBe(53);
-    expect(standardDateStyle.height).toBeUndefined();
-    expect(dateColumnStyle.minWidth).toBe(54);
-    expect(dateColumnStyle.width).toBeUndefined();
+    expect(firstDateStyle.minHeight).toBe(55);
+    expect(firstDateStyle.height).toBeUndefined();
+    expect(secondDateStyle.minHeight).toBe(55);
+    expect(secondDateStyle.height).toBeUndefined();
+    expect(root.root.findAllByProps({ testID: "plan-featured-date-83" })).toHaveLength(0);
     expect(root.root.findAllByProps({ testID: "plan-row-82" })).toHaveLength(0);
     act(() => root.unmount());
   });
