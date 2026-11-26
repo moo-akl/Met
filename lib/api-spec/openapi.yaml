@@ -3540,6 +3540,33 @@ paths:
         "401":
           description: Authentication required
 
+  /app-feedback:
+    post:
+      operationId: submitAppFeedback
+      tags: [support]
+      summary: Submit in-app feedback or a safety concern
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppFeedbackInput"
+      responses:
+        "201":
+          description: Feedback recorded for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppFeedbackResponse"
+        "400":
+          description: Invalid feedback
+        "401":
+          description: Authentication required
+        "429":
+          description: Feedback submission rate limit reached
+
   /community-event-reports:
     post:
       operationId: reportCommunityEvent
@@ -8093,6 +8120,22 @@ components:
         eventId: { type: integer, minimum: 1 }
         reason: { type: string, enum: [inappropriate, harassment, spam, offensive_image, other] }
     CommunityEventReportResponse:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+    AppFeedbackInput:
+      type: object
+      required: [category, message]
+      properties:
+        category:
+          type: string
+          enum: [general, safety, child_safety]
+        message:
+          type: string
+          minLength: 10
+          maxLength: 4000
+    AppFeedbackResponse:
       type: object
       required: [id]
       properties:

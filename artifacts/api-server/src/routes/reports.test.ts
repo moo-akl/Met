@@ -22,6 +22,9 @@ const dbMocks = vi.hoisted(() => {
 });
 
 const recalcMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const firestoreMocks = vi.hoisted(() => ({
+  add: vi.fn(),
+}));
 
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
@@ -37,7 +40,7 @@ vi.mock("../lib/reviewRecalc", () => ({
 vi.mock("../lib/firebaseAdmin", () => ({
   adminDb: vi.fn(() => ({
     collection: vi.fn(() => ({
-      add: vi.fn().mockResolvedValue({ id: "firestore-doc-id" }),
+      add: firestoreMocks.add,
     })),
   })),
   adminAuth: vi.fn(),
@@ -79,6 +82,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  firestoreMocks.add.mockResolvedValue({ id: "firestore-doc-id" });
 
   dbMocks.chain.select.mockReturnThis();
   dbMocks.chain.from.mockReturnThis();
@@ -162,5 +166,44 @@ describe("POST /api/reports — ghost-rating cleanup", () => {
       .send({ encounterId: "enc-789", reason: "not-a-real-reason" });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/app-feedback", () => {
+  it("stores feedback in the monitored reports collection", async () => {
+    const res = await request(app)
+      .post("/api/app-feedback")
+      .set("Authorization", "Bearer test-token-alice")
+      .send({
+        category: "child_safety",
+        message: "I need to report a child safety concern.",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("id", "firestore-doc-id");
+    expect(firestoreMocks.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "in_app_feedback",
+        reporterUid: "alice",
+        category: "child_safety",
+        message: "I need to report a child safety concern.",
+        status: "open",
+      }),
+    );
+  });
+
+  it("rejects invalid categories and messages that are too short", async () => {
+    const invalidCategory = await request(app)
+      .post("/api/app-feedback")
+      .set("Authorization", "Bearer test-token-alice")
+      .send({ category: "other", message: "This message is long enough." });
+    const shortMessage = await request(app)
+      .post("/api/app-feedback")
+      .set("Authorization", "Bearer test-token-alice")
+      .send({ category: "general", message: "short" });
+
+    expect(invalidCategory.status).toBe(400);
+    expect(shortMessage.status).toBe(400);
+    expect(firestoreMocks.add).not.toHaveBeenCalled();
   });
 });

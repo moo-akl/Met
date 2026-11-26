@@ -1095,6 +1095,19 @@ export const vi: LocaleTree = {
     aboutTagline: "Hãy nhớ về con người, không phải số người theo dõi.",
     aboutPrivacy: "Chính sách quyền riêng tư",
     aboutTerms: "Điều khoản dịch vụ",
+    aboutFeedback: "Gửi phản hồi",
+    feedbackIntro: "Gửi phản hồi hoặc mối lo ngại về an toàn trực tiếp đến đội ngũ Met.",
+    feedbackGeneral: "Phản hồi chung",
+    feedbackSafety: "Mối lo ngại về an toàn",
+    feedbackChildSafety: "An toàn trẻ em / CSAM",
+    feedbackPlaceholder: "Mô tả sự việc (10–4.000 ký tự).",
+    feedbackChildWarning:
+      "Không đính kèm hoặc chuyển tiếp hình ảnh hay video tình dục của trẻ vị thành niên. Thay vào đó, hãy mô tả nơi bạn thấy nội dung.",
+    feedbackTooShort: "Vui lòng nhập ít nhất 10 ký tự.",
+    feedbackSentTitle: "Đã gửi phản hồi",
+    feedbackSentBody: "Đội ngũ Met đã nhận được tin nhắn của bạn.",
+    feedbackErrorTitle: "Không thể gửi phản hồi",
+    feedbackErrorBody: "Hãy kiểm tra kết nối và thử lại. Tin nhắn vẫn còn ở đây.",
     privacyBody:
       "Met chỉ thu thập thông tin cần thiết để vận hành ứng dụng — thông tin hồ sơ, dữ liệu khoảng cách gặp gỡ và thông tin xác thực. Vị trí của bạn được sử dụng cục bộ trên thiết bị để phát hiện gần kề và không bao giờ được lưu trữ trên máy chủ của chúng tôi. Dữ liệu gặp gỡ được lưu trữ an toàn và chỉ hiển thị cho bạn và những người bạn kết nối qua lại. Chúng tôi không bán dữ liệu của bạn cho bên thứ ba. Bạn có thể xóa tài khoản và tất cả dữ liệu liên quan bất kỳ lúc nào từ màn hình Cài đặt. Liên hệ metapp.contact@gmail.com nếu có thắc mắc.",
     termsBody:

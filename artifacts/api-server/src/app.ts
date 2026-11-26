@@ -56,7 +56,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.use("/api", router);
 
-// Public legal pages — `/support` and `/privacy` — required by the
+// Public legal pages — `/support`, `/privacy`, and `/child-safety` — required by the
 // App Store and Play Store. These are mounted at the root (not under
 // `/api`) so they show up at clean URLs like https://met.app/support.
 app.use(legalRouter);

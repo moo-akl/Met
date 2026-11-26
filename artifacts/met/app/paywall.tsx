@@ -29,7 +29,7 @@ import {
 const PRIVACY_URL =
   "https://met-app.org/privacy";
 const TERMS_URL =
-  "https://doc-hosting.flycricket.io/met-terms-conditions/de6cbb09-1b5f-4203-aba7-c70fe3fa4932/terms";
+  "https://met-app.org/terms";
 
 type PaidTier = "plus" | "pro";
 type Billing = "monthly" | "yearly";

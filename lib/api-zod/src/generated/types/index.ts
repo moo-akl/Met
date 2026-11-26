@@ -7,6 +7,9 @@
  */
 
 export * from './acceptConnectionInviteResult';
+export * from './accountDeletionRequest';
+export * from './accountDeletionStatus';
+export * from './accountDeletionStatusStatus';
 export * from './adminManagedAnnouncementInput';
 export * from './adminManagedAnnouncementUpdate';
 export * from './adminManagedImageConfirmInput';
@@ -32,6 +35,9 @@ export * from './announcement';
 export * from './announcementQuestionAnswer';
 export * from './announcementQuestionWithAnswers';
 export * from './announcementType';
+export * from './appFeedbackInput';
+export * from './appFeedbackInputCategory';
+export * from './appFeedbackResponse';
 export * from './approvedTouristAttractionImportResult';
 export * from './approvedTouristAttractionImportResultAction';
 export * from './approvedTouristAttractionsImportResponse';

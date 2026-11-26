@@ -1089,6 +1089,19 @@ export const es: LocaleTree = {
     aboutTagline: "Recuerda a la persona, no el número de seguidores.",
     aboutPrivacy: "Política de privacidad",
     aboutTerms: "Términos del servicio",
+    aboutFeedback: "Enviar comentarios",
+    feedbackIntro: "Envía comentarios o una preocupación de seguridad directamente al equipo de Met.",
+    feedbackGeneral: "Comentarios generales",
+    feedbackSafety: "Preocupación de seguridad",
+    feedbackChildSafety: "Seguridad infantil / CSAM",
+    feedbackPlaceholder: "Describe lo ocurrido (10–4.000 caracteres).",
+    feedbackChildWarning:
+      "No adjuntes ni reenvíes imágenes o vídeos sexuales de menores. Describe dónde viste el contenido.",
+    feedbackTooShort: "Escribe al menos 10 caracteres.",
+    feedbackSentTitle: "Comentarios enviados",
+    feedbackSentBody: "El equipo de Met recibió tu mensaje.",
+    feedbackErrorTitle: "No se pudieron enviar los comentarios",
+    feedbackErrorBody: "Comprueba tu conexión e inténtalo de nuevo. Tu mensaje sigue aquí.",
     privacyBody:
       "Met recopila solo la información necesaria para el funcionamiento de la app: detalles de tu perfil, datos de proximidad de encuentros y credenciales de autenticación. Tu ubicación se usa localmente en tu dispositivo para la detección de proximidad y nunca se almacena en nuestros servidores. Los datos de encuentros se almacenan de forma segura y solo son visibles para ti y las personas con las que te conectas mutuamente. No vendemos tus datos a terceros. Puedes eliminar tu cuenta y todos los datos asociados en cualquier momento desde la pantalla de Ajustes. Para consultas, contáctanos en metapp.contact@gmail.com.",
     termsBody:

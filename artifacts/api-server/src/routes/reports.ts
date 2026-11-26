@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createHash } from "crypto";
 import { and, eq, count, or, sql } from "drizzle-orm";
 import { requireUid } from "../middlewares/requireUid";
+import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { adminDb } from "../lib/firebaseAdmin";
 import {
   communityEventRsvpsTable,
@@ -16,6 +17,55 @@ import {
 import { recalcUserRating } from "../lib/reviewRecalc";
 
 const router: IRouter = Router();
+const appFeedbackLimit = createUserRateLimiter({
+  name: "app-feedback",
+  max: 5,
+  windowMs: 15 * 60_000,
+});
+
+const AppFeedbackBody = z.object({
+  category: z.enum(["general", "safety", "child_safety"]),
+  message: z.string().trim().min(10).max(4000),
+}).strict();
+
+router.post(
+  "/app-feedback",
+  requireUid,
+  appFeedbackLimit,
+  async (req, res): Promise<void> => {
+    let body: z.infer<typeof AppFeedbackBody>;
+    try {
+      body = AppFeedbackBody.parse(req.body);
+    } catch (err) {
+      res.status(400).json({ message: (err as Error).message });
+      return;
+    }
+
+    try {
+      // Keep feedback in the same team-monitored Firestore collection as
+      // safety reports, while clearly separating it by kind and category.
+      const docRef = await adminDb()
+        .collection("reports")
+        .add({
+          kind: "in_app_feedback",
+          reporterUid: req.uid!,
+          category: body.category,
+          message: body.message,
+          createdAt: new Date().toISOString(),
+          status: "open",
+        });
+
+      req.log?.info?.(
+        { id: docRef.id, reporterUid: req.uid, category: body.category },
+        "in-app feedback recorded",
+      );
+      res.status(201).json({ id: docRef.id });
+    } catch (err) {
+      req.log?.error?.({ err }, "failed to record in-app feedback");
+      res.status(500).json({ message: "Failed to submit feedback" });
+    }
+  },
+);
 
 // Why server-side: App Store Review Guideline 1.2 requires the
 // developer to "act on objectionable content reports within 24 hours".

@@ -322,6 +322,61 @@ export const UpsertMyProfileResponse = zod.object({
 
 
 /**
+ * @summary Start the account recovery window before permanent deletion
+ */
+export const RequestMyAccountDeletionBody = zod.object({
+  "deleteVenueProfile": zod.boolean().optional().describe('Whether to remove the venue-owner profile at the end of the recovery window.')
+})
+
+export const requestMyAccountDeletionResponseRecoveryWindowDaysMin = 0;
+
+
+
+export const RequestMyAccountDeletionResponse = zod.object({
+  "accountId": zod.string(),
+  "status": zod.enum(['active', 'pending_deletion', 'purging', 'purge_failed', 'purged']),
+  "deletionRequestedAt": zod.coerce.date().nullable(),
+  "purgeAfter": zod.coerce.date().nullable(),
+  "firestoreSyncPending": zod.boolean(),
+  "recoveryWindowDays": zod.number().int().min(requestMyAccountDeletionResponseRecoveryWindowDaysMin)
+})
+
+
+/**
+ * @summary Get account deletion and recovery status
+ */
+export const getMyAccountStatusResponseRecoveryWindowDaysMin = 0;
+
+
+
+export const GetMyAccountStatusResponse = zod.object({
+  "accountId": zod.string(),
+  "status": zod.enum(['active', 'pending_deletion', 'purging', 'purge_failed', 'purged']),
+  "deletionRequestedAt": zod.coerce.date().nullable(),
+  "purgeAfter": zod.coerce.date().nullable(),
+  "firestoreSyncPending": zod.boolean(),
+  "recoveryWindowDays": zod.number().int().min(getMyAccountStatusResponseRecoveryWindowDaysMin)
+})
+
+
+/**
+ * @summary Restore an account within its recovery window
+ */
+export const recoverMyAccountResponseRecoveryWindowDaysMin = 0;
+
+
+
+export const RecoverMyAccountResponse = zod.object({
+  "accountId": zod.string(),
+  "status": zod.enum(['active', 'pending_deletion', 'purging', 'purge_failed', 'purged']),
+  "deletionRequestedAt": zod.coerce.date().nullable(),
+  "purgeAfter": zod.coerce.date().nullable(),
+  "firestoreSyncPending": zod.boolean(),
+  "recoveryWindowDays": zod.number().int().min(recoverMyAccountResponseRecoveryWindowDaysMin)
+})
+
+
+/**
  * @summary Update notification opt-out preferences
  */
 export const SyncMyNotificationPreferencesBody = zod.object({
@@ -5245,6 +5300,24 @@ export const DeleteLocalEventReminderParams = zod.object({
 
 export const DeleteLocalEventReminderResponse = zod.object({
   "deleted": zod.boolean()
+})
+
+
+/**
+ * @summary Submit in-app feedback or a safety concern
+ */
+export const submitAppFeedbackBodyMessageMin = 10;
+export const submitAppFeedbackBodyMessageMax = 4000;
+
+
+
+export const SubmitAppFeedbackBody = zod.object({
+  "category": zod.enum(['general', 'safety', 'child_safety']),
+  "message": zod.string().min(submitAppFeedbackBodyMessageMin).max(submitAppFeedbackBodyMessageMax)
+})
+
+export const SubmitAppFeedbackResponse = zod.object({
+  "id": zod.string()
 })
 
 

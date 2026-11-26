@@ -3270,6 +3270,28 @@ export interface CommunityEventReportResponse {
   id: string;
 }
 
+export type AppFeedbackInputCategory = typeof AppFeedbackInputCategory[keyof typeof AppFeedbackInputCategory];
+
+
+export const AppFeedbackInputCategory = {
+  general: 'general',
+  safety: 'safety',
+  child_safety: 'child_safety',
+} as const;
+
+export interface AppFeedbackInput {
+  category: AppFeedbackInputCategory;
+  /**
+     * @minLength 10
+     * @maxLength 4000
+     */
+  message: string;
+}
+
+export interface AppFeedbackResponse {
+  id: string;
+}
+
 export interface EventInviteResolveInput {
   /**
      * @minLength 32
@@ -4279,6 +4301,34 @@ export interface VenueApplicationReviewDetail {
 
 export interface VenueApplicationStatusMutationResponse {
   application: VenueApplication;
+}
+
+export interface AccountDeletionRequest {
+  /** Whether to remove the venue-owner profile at the end of the recovery window. */
+  deleteVenueProfile?: boolean;
+}
+
+export type AccountDeletionStatusStatus = typeof AccountDeletionStatusStatus[keyof typeof AccountDeletionStatusStatus];
+
+
+export const AccountDeletionStatusStatus = {
+  active: 'active',
+  pending_deletion: 'pending_deletion',
+  purging: 'purging',
+  purge_failed: 'purge_failed',
+  purged: 'purged',
+} as const;
+
+export interface AccountDeletionStatus {
+  accountId: string;
+  status: AccountDeletionStatusStatus;
+  /** @nullable */
+  deletionRequestedAt: string | null;
+  /** @nullable */
+  purgeAfter: string | null;
+  firestoreSyncPending: boolean;
+  /** @minimum 0 */
+  recoveryWindowDays: number;
 }
 
 export type ProfileSocials = {[key: string]: string};

@@ -1096,6 +1096,19 @@ export const nl: LocaleTree = {
     aboutTagline: "Onthoud de mens, niet het aantal volgers.",
     aboutPrivacy: "Privacybeleid",
     aboutTerms: "Servicevoorwaarden",
+    aboutFeedback: "Feedback sturen",
+    feedbackIntro: "Stuur feedback of een veiligheidsmelding rechtstreeks naar het Met-team.",
+    feedbackGeneral: "Algemene feedback",
+    feedbackSafety: "Veiligheidsmelding",
+    feedbackChildSafety: "Kinderveiligheid / CSAM",
+    feedbackPlaceholder: "Beschrijf wat er is gebeurd (10–4.000 tekens).",
+    feedbackChildWarning:
+      "Voeg geen seksuele afbeeldingen of video's van minderjarigen toe en stuur deze niet door. Beschrijf waar je de inhoud hebt gezien.",
+    feedbackTooShort: "Voer minimaal 10 tekens in.",
+    feedbackSentTitle: "Feedback verzonden",
+    feedbackSentBody: "Het Met-team heeft je bericht ontvangen.",
+    feedbackErrorTitle: "Feedback verzenden mislukt",
+    feedbackErrorBody: "Controleer je verbinding en probeer het opnieuw. Je bericht staat hier nog.",
     privacyBody:
       "Met verzamelt alleen de informatie die nodig is om de app te laten werken — je profielgegevens, nabijheidsdata van ontmoetingen en authenticatiegegevens. Je locatie wordt lokaal op je apparaat gebruikt voor nabijheidsdetectie en wordt nooit opgeslagen op onze servers. Ontmoetingsdata wordt veilig opgeslagen en is alleen zichtbaar voor jou en de mensen met wie je wederzijds verbinding maakt. We verkopen je gegevens niet aan derden. Je kunt je account en alle bijbehorende gegevens op elk moment verwijderen via het scherm Instellingen. Voor vragen kun je contact opnemen via metapp.contact@gmail.com.",
     termsBody:

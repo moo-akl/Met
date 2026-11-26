@@ -13,18 +13,21 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { Avatar } from "@/components/Avatar";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { SheetHandle } from "@/components/SheetHandle";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/lib/api/client";
+import { submitAppFeedback } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
@@ -58,8 +61,11 @@ type SheetView =
   | "notifications"
   | "about"
   | "language"
+  | "feedback"
   | "privacy"
   | "terms";
+
+type AppFeedbackCategory = "general" | "safety" | "child_safety";
 
 // External "About Met" links. Leave empty to hide the row entirely so we
 // don't ship a broken link. Fill RATE_URL_* in once you have the real
@@ -116,7 +122,10 @@ Web-Based Deletion: In compliance with Google Play requirements, if you have del
 6. Security
 Your data is encrypted in transit (SSL/TLS) and at rest using Google's enterprise-grade security infrastructure. We implement strict access controls to ensure your location data remains private.
 
-7. Contact Us
+7. Feedback and Safety Reports
+If you send feedback or a safety report from the app, we collect its category and message together with your account identifier so our team can review it and respond. Do not submit or forward sexual images or videos of minors.
+
+8. Contact Us
 For questions regarding this policy or your data, contact us at: metapp.contact@gmail.com`;
 
 const TERMS_AND_CONDITIONS = `Terms & Conditions for Met
@@ -153,6 +162,8 @@ Impersonating others or creating "bot" accounts.
 
 Scraping data or reverse-engineering the App's radar technology.
 
+Child sexual abuse and exploitation (CSAE), including grooming, sexual extortion, trafficking, solicitation, or creating, requesting, possessing, or sharing child sexual abuse material (CSAM), are strictly prohibited.
+
 Real-World Safety: You are solely responsible for your interactions with other users. Met facilitates digital discovery but does not vet the physical safety of every user. Always meet in public, well-lit places.
 
 6. Objectionable Content & Reporting
@@ -162,7 +173,7 @@ UGC: You own the content you post, but you grant Met a license to display it.
 
 Reporting: Users can report any profile for inappropriate behavior.
 
-24-Hour Action: We commit to reviewing and taking action on reported content within 24 hours. We reserve the right to terminate accounts immediately for safety violations.
+Child safety reports can be sent in-app from Settings → About Met → Send feedback. Do not attach or forward sexual images or videos of minors. Met reviews and takes action on reports within 24 hours, and may remove content or suspend accounts for safety violations.
 
 7. Limitation of Liability
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, MET SHALL NOT BE LIABLE FOR ANY DAMAGES RESULTING FROM:
@@ -334,6 +345,10 @@ export function SettingsSheet({ visible, onClose }: Props) {
   };
 
   const [view, setView] = useState<SheetView>("menu");
+  const [feedbackCategory, setFeedbackCategory] =
+    useState<AppFeedbackCategory>("general");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [sendingFeedback, setSendingFeedback] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // null = not yet asked, true = keep venue profile, false = delete venue profile too
   const [keepVenueProfile, setKeepVenueProfile] = useState<boolean | null>(null);
@@ -424,6 +439,38 @@ export function SettingsSheet({ visible, onClose }: Props) {
     router.push("/venue-owner/dashboard");
   };
 
+  const sendFeedback = async () => {
+    const message = feedbackMessage.trim();
+    if (sendingFeedback) return;
+    if (message.length < 10) {
+      Alert.alert(t("settings.feedbackErrorTitle"), t("settings.feedbackTooShort"));
+      return;
+    }
+    if (message.length > 4000 || !authedUid) {
+      Alert.alert(t("settings.feedbackErrorTitle"), t("settings.feedbackErrorBody"));
+      return;
+    }
+
+    setSendingFeedback(true);
+    try {
+      await submitAppFeedback({ category: feedbackCategory, message });
+      setFeedbackMessage("");
+      setFeedbackCategory("general");
+      Alert.alert(
+        t("settings.feedbackSentTitle"),
+        t("settings.feedbackSentBody"),
+      );
+    } catch (err) {
+      console.warn("[feedback] submission failed", err);
+      Alert.alert(
+        t("settings.feedbackErrorTitle"),
+        t("settings.feedbackErrorBody"),
+      );
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
+
   const headerTitle = (() => {
     switch (view) {
       case "menu":
@@ -436,6 +483,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
         return t("settings.aboutTitle");
       case "language":
         return t("language.title");
+      case "feedback":
+        return t("settings.aboutFeedback");
       case "privacy":
         return t("settings.aboutPrivacy");
       case "terms":
@@ -905,6 +954,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <NavRow
                 icon="info"
+                testID="settings-about-met"
                 label={t("settings.aboutMet")}
                 sub={t("settings.aboutVersion", { version: appVersion })}
                 onPress={() => setView("about")}
@@ -1507,6 +1557,13 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 onPress={() => setView("terms")}
                 colors={colors}
               />
+              <AboutLink
+                testID="settings-send-feedback"
+                icon="message-square"
+                label={t("settings.aboutFeedback")}
+                onPress={() => setView("feedback")}
+                colors={colors}
+              />
               <View
                 style={[
                   styles.contactCard,
@@ -1541,6 +1598,123 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 />
               ) : null}
             </ScrollView>
+          ) : view === "feedback" ? (
+            <KeyboardAwareScrollViewCompat
+              style={{ maxHeight: 500 }}
+              contentContainerStyle={styles.feedbackForm}
+              bottomOffset={72}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.feedbackIntro, { color: colors.mutedForeground }]}>
+                {t("settings.feedbackIntro")}
+              </Text>
+              <View style={styles.feedbackCategories}>
+                {([
+                  ["general", t("settings.feedbackGeneral")],
+                  ["safety", t("settings.feedbackSafety")],
+                  ["child_safety", t("settings.feedbackChildSafety")],
+                ] as const).map(([category, label]) => {
+                  const selected = feedbackCategory === category;
+                  return (
+                    <Pressable
+                      key={category}
+                      testID={`feedback-category-${category}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => setFeedbackCategory(category)}
+                      style={({ pressed }) => [
+                        styles.feedbackCategory,
+                        {
+                          backgroundColor: selected ? colors.primarySoft : colors.muted,
+                          borderColor: selected ? colors.primary : colors.border,
+                          opacity: pressed ? 0.78 : 1,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.feedbackRadio,
+                          {
+                            borderColor: selected ? colors.primary : colors.mutedForeground,
+                            backgroundColor: selected ? colors.primary : "transparent",
+                          },
+                        ]}
+                      >
+                        {selected ? (
+                          <Feather name="check" size={12} color={colors.primaryForeground} />
+                        ) : null}
+                      </View>
+                      <Text style={[styles.feedbackCategoryText, { color: colors.foreground }]}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {feedbackCategory === "child_safety" ? (
+                <View
+                  testID="feedback-child-safety-warning"
+                  style={[
+                    styles.feedbackWarning,
+                    { backgroundColor: colors.primarySoft, borderColor: colors.border },
+                  ]}
+                >
+                  <Feather name="shield" size={16} color={colors.primary} />
+                  <Text style={[styles.feedbackWarningText, { color: colors.foreground }]}>
+                    {t("settings.feedbackChildWarning")}
+                  </Text>
+                </View>
+              ) : null}
+              <TextInput
+                testID="feedback-message"
+                accessibilityLabel={t("settings.aboutFeedback")}
+                value={feedbackMessage}
+                onChangeText={setFeedbackMessage}
+                placeholder={t("settings.feedbackPlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                maxLength={4000}
+                multiline
+                textAlignVertical="top"
+                style={[
+                  styles.feedbackInput,
+                  {
+                    color: colors.foreground,
+                    backgroundColor: colors.input,
+                    borderColor: colors.border,
+                  },
+                ]}
+              />
+              <Text
+                style={[styles.feedbackCount, { color: colors.mutedForeground }]}
+                accessibilityRole="text"
+              >
+                {feedbackMessage.trim().length}/4000
+              </Text>
+              <Pressable
+                testID="feedback-submit"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: sendingFeedback, busy: sendingFeedback }}
+                disabled={sendingFeedback}
+                onPress={() => void sendFeedback()}
+                style={({ pressed }) => [
+                  styles.feedbackSubmit,
+                  {
+                    backgroundColor: colors.primary,
+                    opacity: pressed || sendingFeedback ? 0.75 : 1,
+                  },
+                ]}
+              >
+                <Feather
+                  name={sendingFeedback ? "loader" : "send"}
+                  size={16}
+                  color={colors.primaryForeground}
+                />
+                <Text style={[styles.feedbackSubmitText, { color: colors.primaryForeground }]}>
+                  {sendingFeedback ? t("common.sending") : t("common.send")}
+                </Text>
+              </Pressable>
+            </KeyboardAwareScrollViewCompat>
           ) : view === "privacy" ? (
             <ScrollView
               style={{ maxHeight: 420 }}
@@ -1790,15 +1964,18 @@ function AboutLink({
   icon,
   label,
   onPress,
+  testID,
   colors,
 }: {
   icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
   onPress: () => void;
+  testID?: string;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
@@ -2057,6 +2234,84 @@ const styles = StyleSheet.create({
   contactEmail: {
     fontFamily: "Inter_400Regular",
     fontSize: 13,
+  },
+  feedbackForm: {
+    paddingHorizontal: 2,
+    paddingBottom: 18,
+    gap: 12,
+  },
+  feedbackIntro: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  feedbackCategories: {
+    gap: 8,
+  },
+  feedbackCategory: {
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  feedbackRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  feedbackCategoryText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    flex: 1,
+  },
+  feedbackWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  feedbackWarningText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    lineHeight: 18,
+    flex: 1,
+  },
+  feedbackInput: {
+    minHeight: 128,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  feedbackCount: {
+    alignSelf: "flex-end",
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    marginTop: -7,
+  },
+  feedbackSubmit: {
+    minHeight: 48,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  feedbackSubmitText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
   },
 
   // ── Venue registration CTA card (highlighted) ─────────────────────────────

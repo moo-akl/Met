@@ -1140,6 +1140,19 @@ export const en = {
     aboutTagline: "Remember the human, not the follower count.",
     aboutPrivacy: "Privacy policy",
     aboutTerms: "Terms of service",
+    aboutFeedback: "Send feedback",
+    feedbackIntro: "Share feedback or a safety concern directly with the Met team.",
+    feedbackGeneral: "General feedback",
+    feedbackSafety: "Safety concern",
+    feedbackChildSafety: "Child safety / CSAM",
+    feedbackPlaceholder: "Describe what happened (10–4,000 characters).",
+    feedbackChildWarning:
+      "Do not attach or forward sexual images or videos of minors. Describe where you saw the content instead.",
+    feedbackTooShort: "Please enter at least 10 characters.",
+    feedbackSentTitle: "Feedback sent",
+    feedbackSentBody: "The Met team received your message.",
+    feedbackErrorTitle: "Couldn't send feedback",
+    feedbackErrorBody: "Check your connection and try again. Your message is still here.",
     privacyBody:
       "Met collects only the information needed to run the app — your profile details, encounter proximity data, and authentication credentials. Your location is used locally on your device for proximity detection and is never stored on our servers. Encounter data is stored securely and only visible to you and the people you mutually connect with. We do not sell your data to third parties. You can delete your account and all associated data at any time from the Settings screen. For questions, contact us at metapp.contact@gmail.com.",
     termsBody:

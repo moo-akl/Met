@@ -1056,6 +1056,19 @@ export const zh: LocaleTree = {
     aboutTagline: "记住这个人,而不是粉丝数。",
     aboutPrivacy: "隐私政策",
     aboutTerms: "服务条款",
+    aboutFeedback: "发送反馈",
+    feedbackIntro: "直接向 Met 团队发送反馈或安全问题。",
+    feedbackGeneral: "一般反馈",
+    feedbackSafety: "安全问题",
+    feedbackChildSafety: "儿童安全 / 儿童性虐待材料",
+    feedbackPlaceholder: "请描述情况（10–4,000 个字符）。",
+    feedbackChildWarning:
+      "请勿附上或转发涉及未成年人的性图片或视频。请改为描述你在哪里看到相关内容。",
+    feedbackTooShort: "请输入至少 10 个字符。",
+    feedbackSentTitle: "反馈已发送",
+    feedbackSentBody: "Met 团队已收到你的消息。",
+    feedbackErrorTitle: "无法发送反馈",
+    feedbackErrorBody: "请检查网络连接后重试。你的消息仍保留在此处。",
     privacyBody:
       "Met 仅收集运行应用所需的信息——您的个人资料详情、相遇邻近数据和身份验证凭据。您的位置仅在您的设备本地用于邻近检测，从不存储在我们的服务器上。相遇数据安全存储，仅对您和您相互连接的人可见。我们不会将您的数据出售给第三方。您可以随时通过设置页面删除您的账户及所有相关数据。如有疑问请联系 metapp.contact@gmail.com。",
     termsBody:

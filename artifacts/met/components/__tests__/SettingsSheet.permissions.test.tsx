@@ -16,6 +16,7 @@ import {
   act,
   fireEvent,
   cleanup,
+  waitFor,
 } from "@testing-library/react-native";
 
 // ── Hoisted mock variables ────────────────────────────────────────────────────
@@ -32,6 +33,8 @@ var mockSubscription: {
 };
 // eslint-disable-next-line no-var
 var mockLang = "en";
+// eslint-disable-next-line no-var
+var mockSubmitAppFeedback = jest.fn();
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -189,6 +192,21 @@ jest.mock("@/lib/api/client", () => ({
     syncNotificationPrefs: jest.fn().mockResolvedValue(undefined),
   },
 }));
+
+jest.mock("@workspace/api-client-react", () => ({
+  submitAppFeedback: (...args: unknown[]) => mockSubmitAppFeedback(...args),
+}));
+
+jest.mock("@/components/KeyboardAwareScrollViewCompat", () => {
+  const { ScrollView } = require("react-native");
+  return {
+    KeyboardAwareScrollViewCompat: ({
+      children,
+    }: {
+      children: React.ReactNode;
+    }) => <ScrollView>{children}</ScrollView>,
+  };
+});
 
 jest.mock("@/components/ActionSheet", () => {
   const { View } = require("react-native");
@@ -377,6 +395,35 @@ describe("SettingsSheet — event history NavRow", () => {
 
     expect(mockRouterPush).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).toHaveBeenCalledWith("/past-meetings");
+  });
+});
+
+describe("SettingsSheet — in-app feedback", () => {
+  it("submits child-safety feedback without opening an external route", async () => {
+    mockSubmitAppFeedback.mockResolvedValue({ id: "feedback-1" });
+    await renderSheet();
+
+    await fireEvent.press(screen.getByTestId("settings-about-met"));
+    await waitFor(() => expect(screen.getByText("settings.aboutTitle")).toBeTruthy());
+    await fireEvent.press(screen.getByTestId("settings-send-feedback"));
+    await fireEvent.press(screen.getByTestId("feedback-category-child_safety"));
+    await waitFor(() => {
+      expect(screen.getByTestId("feedback-child-safety-warning")).toBeTruthy();
+    });
+
+    await fireEvent.changeText(
+      screen.getByTestId("feedback-message"),
+      "A profile appears to be sharing prohibited material.",
+    );
+    await fireEvent.press(screen.getByTestId("feedback-submit"));
+
+    await waitFor(() => {
+      expect(mockSubmitAppFeedback).toHaveBeenCalledWith({
+        category: "child_safety",
+        message: "A profile appears to be sharing prohibited material.",
+      });
+    });
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 });
 

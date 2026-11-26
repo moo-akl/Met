@@ -235,6 +235,37 @@ describe("venue event detail links", () => {
   });
 });
 
+describe("public child safety standards", () => {
+  it("serves accessible standards that name Met and prohibit CSAE", async () => {
+    const res = await request(app).get("/child-safety");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.text).toContain("Met: Plans, Hangouts & Events");
+    expect(res.text).toContain("zero tolerance for child sexual abuse and exploitation (CSAE)");
+    expect(res.text).toContain("sexual extortion");
+    expect(res.text).toContain("CSAM");
+    expect(res.text).toContain("Settings → About Met → Send feedback");
+    expect(res.text).toContain("metapp.contact@gmail.com");
+    expect(res.text).toContain('href="/child-safety"');
+  });
+});
+
+describe("public Met terms", () => {
+  it("serves the general terms alongside the other met-app.org policies", async () => {
+    const res = await request(app).get("/terms");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.text).toContain("Terms &amp; Conditions for Met");
+    expect(res.text).toContain("Child sexual abuse and exploitation (CSAE)");
+    expect(res.text).toContain("Met reviews and takes action on reports within 24 hours");
+    expect(res.text).toContain("metapp.contact@gmail.com");
+    expect(res.text).toContain('href="/privacy"');
+    expect(res.text).toContain('href="/child-safety"');
+  });
+});
+
 describe("event invitation link associations", () => {
   it("serves the Android app association for Met", async () => {
     const res = await request(app).get("/.well-known/assetlinks.json");

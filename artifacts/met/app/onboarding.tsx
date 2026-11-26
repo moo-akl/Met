@@ -154,7 +154,7 @@ const VERIFY_POLL_MS = 5 * 1000;
 // Public legal documents — required to be visible at sign-up time per
 // App Store Guideline 1.2 (User Generated Content) and Play Store policy.
 const TERMS_URL =
-  "https://doc-hosting.flycricket.io/met-terms-conditions/de6cbb09-1b5f-4203-aba7-c70fe3fa4932/terms";
+  "https://met-app.org/terms";
 const PRIVACY_URL =
   "https://met-app.org/privacy";
 

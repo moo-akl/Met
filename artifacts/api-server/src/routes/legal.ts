@@ -56,7 +56,8 @@ function sanitizeUrl(url: string): string {
 const SUPPORT_EMAIL = "metapp.contact@gmail.com";
 const COMPANY_NAME = "Met";
 const APP_NAME = "Met: We Crossed Paths";
-const LAST_UPDATED = "November 22, 2026";
+const PLAY_LISTING_NAME = "Met: Plans, Hangouts & Events";
+const LAST_UPDATED = "November 26, 2026";
 
 const baseStyles = `
   :root {
@@ -129,12 +130,16 @@ const baseStyles = `
   }
 `;
 
-const layout = (title: string, body: string): string => `<!doctype html>
+const layout = (
+  title: string,
+  body: string,
+  pageAppName = APP_NAME,
+): string => `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${title} — ${APP_NAME}</title>
+    <title>${title} — ${pageAppName}</title>
     <meta name="robots" content="index,follow" />
     <style>${baseStyles}</style>
   </head>
@@ -152,6 +157,10 @@ const layout = (title: string, body: string): string => `<!doctype html>
       <a href="/support">Support</a>
       &nbsp;·&nbsp;
       <a href="/privacy">Privacy</a>
+      &nbsp;·&nbsp;
+      <a href="/terms">Terms</a>
+      &nbsp;·&nbsp;
+      <a href="/child-safety">Child safety</a>
     </footer>
   </body>
 </html>`;
@@ -182,9 +191,94 @@ const supportHtml = layout(
   <p>You're invisible until you choose to be seen. To change your visibility, open Settings → Discovery. To block someone, tap the three-dot menu on any encounter or connection and choose Block.</p>
 
   <h2>Reporting a problem</h2>
-  <p>If you've encountered a profile that violates our terms (impersonation, harassment, inappropriate content), tap Report on that profile or email us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> with the details. We review every report within 24 hours.</p>
+  <p>Send feedback or a safety concern from Met by opening Settings → About Met → Send feedback. You can also report a profile or email us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. We review reports within 24 hours.</p>
+  <p>Read our <a href="/child-safety">Child Safety Standards</a> for our rules against child sexual abuse and exploitation and how to report concerns.</p>
 
   <p class="muted" style="margin-top:32px">${APP_NAME} · Last updated ${LAST_UPDATED}</p>
+  `,
+);
+
+const childSafetyHtml = layout(
+  "Child Safety Standards",
+  `
+  <h1>Child Safety Standards</h1>
+  <p class="muted">${PLAY_LISTING_NAME} · Last updated ${LAST_UPDATED}</p>
+
+  <p><strong>Met has zero tolerance for child sexual abuse and exploitation (CSAE).</strong> These standards apply to every person using Met, all profiles, messages, events, and other content shared through the app.</p>
+
+  <h2>Prohibited conduct and content</h2>
+  <p>Met prohibits CSAE, including grooming a child for sexual purposes, sexual extortion, trafficking or solicitation of a child, sexualizing or exploiting a minor, and creating, requesting, possessing, or sharing child sexual abuse material (CSAM). Attempts to contact or move a minor into sexual activity are prohibited.</p>
+  <p>Met is intended for adults aged 18 and older. An age restriction does not make CSAE or CSAM acceptable on the service.</p>
+
+  <h2>How to report a concern</h2>
+  <p>In the app, open Settings → About Met → Send feedback and choose “Child safety / CSAM.” Include the profile or content location and a description that helps us find it. Do not upload, forward, or copy sexual images or videos of minors. You may also contact us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>
+  <p>If a child appears to be in immediate danger, contact local emergency services or law enforcement.</p>
+
+  <h2>How Met responds</h2>
+  <p>We review safety reports and take appropriate action. When we become aware of CSAE or CSAM, we will restrict access to the content, remove it from Met, and take action on accounts involved. We cooperate with competent authorities and meet reporting or preservation obligations where required by applicable law.</p>
+  <p>For child-safety questions, contact <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. Met’s designated child-safety point of contact is provided to Google Play through Play Console.</p>
+
+  <p class="muted" style="margin-top:32px">${PLAY_LISTING_NAME} · Last updated ${LAST_UPDATED}</p>
+  `,
+  PLAY_LISTING_NAME,
+);
+
+const termsHtml = layout(
+  "Terms & Conditions for Met",
+  `
+  <h1>Terms &amp; Conditions for Met</h1>
+  <p class="muted">Last updated April 27, 2026</p>
+
+  <h2>1. Introduction &amp; Acceptance</h2>
+  <p>By downloading or using the Met mobile application (“the App”), you agree to be bound by these Terms &amp; Conditions. If you do not agree, do not use the App. These terms constitute a legally binding agreement between you and MetApp Founders.</p>
+
+  <h2>2. Eligibility</h2>
+  <p><strong>Age:</strong> You must be at least 18 years old to use Met. By using the App, you represent and warrant that you meet this age requirement.</p>
+  <p><strong>Verification:</strong> You agree to provide accurate information and may be required to complete AI-powered face verification to maintain account standing.</p>
+
+  <h2>3. Description of Service: The “Social Radar”</h2>
+  <p>Met is a social discovery platform that uses Background Location and Bluetooth Low Energy (BLE) to detect when users “cross paths” in the real world.</p>
+  <p><strong>Encounters:</strong> An “Encounter” is recorded when two users are within a specific proximity.</p>
+  <p><strong>Visibility:</strong> You can toggle your visibility at any time. When “Ghost Mode” is active, your location will not be broadcast to others.</p>
+
+  <h2>4. Location &amp; Background Data Usage</h2>
+  <p>To provide the core “Social Radar” value, Met requires Always-On Location Access.</p>
+  <p><strong>Purpose:</strong> We collect your location data even when the app is closed or not in use to facilitate proximity alerts and record encounters.</p>
+  <p><strong>Privacy:</strong> We do not share your live, exact GPS coordinates with other users. We only notify users that an “Encounter” has occurred within a general proximity.</p>
+
+  <h2>5. User Conduct &amp; Safety</h2>
+  <p>You agree not to use Met for:</p>
+  <ul>
+    <li>Stalking, harassing, or intimidating any individual.</li>
+    <li>Impersonating others or creating bot accounts.</li>
+    <li>Scraping data or reverse-engineering the App’s radar technology.</li>
+    <li>Child sexual abuse and exploitation (CSAE), including grooming, sexual extortion, trafficking, solicitation, or creating, requesting, possessing, or sharing child sexual abuse material (CSAM).</li>
+  </ul>
+  <p><strong>Real-world safety:</strong> You are solely responsible for your interactions with other users. Met facilitates digital discovery but does not vet the physical safety of every user. Always meet in public, well-lit places.</p>
+
+  <h2>6. Objectionable Content &amp; Reporting</h2>
+  <p>Met has a zero-tolerance policy for objectionable content or abusive users.</p>
+  <p><strong>User content:</strong> You own the content you post, but you grant Met a license to display it.</p>
+  <p><strong>Reporting:</strong> Users can report profiles for inappropriate behavior. Child-safety reports can be sent in-app from Settings → About Met → Send feedback. Do not attach or forward sexual images or videos of minors. Met reviews and takes action on reports within 24 hours, and may remove content or suspend accounts for safety violations.</p>
+
+  <h2>7. Limitation of Liability</h2>
+  <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, MET SHALL NOT BE LIABLE FOR ANY DAMAGES RESULTING FROM:</p>
+  <ul>
+    <li>Physical or emotional harm arising from real-world meetings between users.</li>
+    <li>Unauthorized access to your location data resulting from device theft.</li>
+    <li>Any technical failure of the “Social Radar” to accurately detect proximity.</li>
+  </ul>
+
+  <h2>8. Account Termination</h2>
+  <p>We reserve the right to suspend or delete your account at our sole discretion, without notice, if we believe you have violated these Terms or pose a safety risk to the community.</p>
+
+  <h2>9. Changes to Terms</h2>
+  <p>We may update these terms in 2026 to reflect new technology or regulations. Continued use of the App after changes constitutes acceptance of the new terms.</p>
+
+  <h2>10. Contact Us</h2>
+  <p>For support or to report a violation, contact <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>
+
+  <p class="muted" style="margin-top:32px">${APP_NAME} · Last updated April 27, 2026</p>
   `,
 );
 
@@ -207,6 +301,7 @@ const privacyHtml = layout(
     <li><strong>Encounter data</strong>: anonymous records of when and (approximately) where you crossed paths with other ${COMPANY_NAME} users. These are visible only to you and the other party (after mutual reveal).</li>
     <li><strong>Subscription data</strong>: if you subscribe to Met Plus or Met Pro, our payment partner (RevenueCat) records your subscription status and a device identifier so we can keep your subscription in sync across your devices.</li>
     <li><strong>Diagnostic data</strong>: basic crash and error reports so we can fix problems. These do not contain personal content.</li>
+    <li><strong>Feedback and safety reports</strong>: the category and message you submit in the app, plus your account identifier, so we can review concerns, protect users, and respond. Do not submit or forward sexual images or videos of minors.</li>
   </ul>
 
   <h2>3. Nearby visibility</h2>
@@ -796,12 +891,28 @@ router.get("/support", (_req: Request, res: Response) => {
     .send(supportHtml);
 });
 
+router.get("/child-safety", (_req: Request, res: Response) => {
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "public, max-age=300")
+    .send(childSafetyHtml);
+});
+
 router.get("/privacy", (_req: Request, res: Response) => {
   res
     .status(200)
     .type("html")
     .set("Cache-Control", "public, max-age=300")
     .send(privacyHtml);
+});
+
+router.get("/terms", (_req: Request, res: Response) => {
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "public, max-age=300")
+    .send(termsHtml);
 });
 
 router.get("/venue-manager-terms", (_req: Request, res: Response) => {
